@@ -140,57 +140,68 @@ def upgrade() -> None:
 
     # --- Data Migration: Device -> Credential ---
     if "credential" in existing_tables and "device" in existing_tables:
-        device_cols = [c['name'] for c in inspector.get_columns('device')]
+        # Check target columns in credential table
+        cred_cols = [c['name'] for c in inspector.get_columns('credential')]
         
-        # Only migrate if device has the legacy 'password' column
-        if "password" in device_cols:
-            credential_cols = [c['name'] for c in inspector.get_columns('credential')]
-            
-            # Determine target password column name
-            target_pwd_col = "encrypted_password" if "encrypted_password" in credential_cols else "password"
-            target_enable_pwd_col = "encrypted_enable_password" if "encrypted_enable_password" in credential_cols else "enable_password"
-            
-            rows = conn.execute(
-                text(
-                    "SELECT id, name, username, password, enable_password, ssh_key_path "
-                    "FROM device WHERE credential_id IS NULL AND (username IS NOT NULL OR password IS NOT NULL OR ssh_key_path IS NOT NULL)"
+        # Determine column names for password/enable_password
+        pwd_col = "encrypted_password" if "encrypted_password" in cred_cols else "password"
+        enable_pwd_col = "encrypted_enable_password" if "encrypted_enable_password" in cred_cols else "enable_password"
+        has_ssh_key = "ssh_key_path" in cred_cols
+
+        rows = conn.execute(
+            text(
+                "SELECT id, name, username, password, enable_password, ssh_key_path "
+                "FROM device WHERE credential_id IS NULL AND (username IS NOT NULL OR password IS NOT NULL OR ssh_key_path IS NOT NULL)"
+            )
+        ).fetchall()
+        
+        if rows:
+            try:
+                from app.services.crypto import encrypt_secret
+            except ImportError:
+                # Fallback or dummy if not available
+                encrypt_secret = lambda x: x
+                
+            for device_id, device_name, username, password, enable_password, ssh_key_path in rows:
+                cred_name = (device_name or f"device-{device_id}") + " 凭据"
+                enc_password = encrypt_secret(password) if password else None
+                enc_enable = encrypt_secret(enable_password) if enable_password else None
+                created_at = datetime.utcnow().isoformat()
+                
+                # Dynamic insert construction
+                cols = ["name", "username", "created_at"]
+                vals = {
+                    "name": cred_name,
+                    "username": username or "",
+                    "created_at": created_at
+                }
+                
+                if pwd_col in cred_cols:
+                    cols.append(pwd_col)
+                    vals[pwd_col] = enc_password
+                
+                if enable_pwd_col in cred_cols:
+                    cols.append(enable_pwd_col)
+                    vals[enable_pwd_col] = enc_enable
+                    
+                if has_ssh_key:
+                    cols.append("ssh_key_path")
+                    vals["ssh_key_path"] = ssh_key_path
+                
+                col_str = ", ".join(cols)
+                val_str = ", ".join([f":{c}" for c in cols])
+                
+                result = conn.execute(
+                    text(
+                        f"INSERT INTO credential ({col_str}) VALUES ({val_str})"
+                    ),
+                    vals,
                 )
-            ).fetchall()
-            
-            if rows:
-                try:
-                    from app.services.crypto import encrypt_secret
-                except ImportError:
-                    encrypt_secret = lambda x: x
-                    
-                for device_id, device_name, username, password, enable_password, ssh_key_path in rows:
-                    cred_name = (device_name or f"device-{device_id}") + " 凭据"
-                    enc_password = encrypt_secret(password) if password else None
-                    enc_enable = encrypt_secret(enable_password) if enable_password else None
-                    created_at = datetime.utcnow().isoformat()
-                    
-                    # Construct INSERT statement dynamically based on available columns
-                    insert_sql = (
-                        f"INSERT INTO credential (name, username, {target_pwd_col}, {target_enable_pwd_col}, ssh_key_path, created_at) "
-                        f"VALUES (:name, :username, :password, :enable_password, :ssh_key_path, :created_at)"
-                    )
-                    
-                    result = conn.execute(
-                        text(insert_sql),
-                        {
-                            "name": cred_name,
-                            "username": username or "",
-                            "password": enc_password,
-                            "enable_password": enc_enable,
-                            "ssh_key_path": ssh_key_path,
-                            "created_at": created_at,
-                        },
-                    )
-                    credential_id = result.lastrowid
-                    conn.execute(
-                        text("UPDATE device SET credential_id = :cid WHERE id = :did"),
-                        {"cid": credential_id, "did": device_id},
-                    )
+                credential_id = result.lastrowid
+                conn.execute(
+                    text("UPDATE device SET credential_id = :cid WHERE id = :did"),
+                    {"cid": credential_id, "did": device_id},
+                )
 
 
 def downgrade() -> None:

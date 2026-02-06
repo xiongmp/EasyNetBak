@@ -106,6 +106,11 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     failed_records = []
     changed_records = []
     
+    # 获取配置
+    alert_on_fail = crud.get_setting(session, key="alert_on_fail") == "1"
+    alert_on_change = crud.get_setting(session, key="alert_on_config_change") == "1"
+    always_send = crud.get_setting(session, key="always_send_summary") == "1"
+
     for record in records:
         device = crud.get_device(session, record.device_id)
         if not device:
@@ -114,22 +119,28 @@ def check_and_alert_batch(session: Session, run_id: UUID):
         if not record.success:
             failed_records.append((device, record))
         else:
-            # 检查配置变更
-            alert_on_change = crud.get_setting(session, key="alert_on_config_change") == "1"
-            if alert_on_change:
-                # 获取上一个成功的备份记录
-                prev_backups = crud.list_device_backups(session, device.id, limit=2)
-                prev_success = None
-                for b in prev_backups:
-                    if b.id != record.id and b.success:
-                        prev_success = b
-                        break
-                if prev_success and prev_success.config_text and record.config_text != prev_success.config_text:
-                    changed_records.append((device, record))
+            # 始终检查配置变更，以便汇总报告展示（如果需要）
+            # 获取上一个成功的备份记录
+            prev_backups = crud.list_device_backups(session, device.id, limit=2)
+            prev_success = None
+            for b in prev_backups:
+                if b.id != record.id and b.success:
+                    prev_success = b
+                    break
+            if prev_success and prev_success.config_text and record.config_text != prev_success.config_text:
+                changed_records.append((device, record))
 
-    # 如果没有任何需要告警的内容，且未开启“始终发送汇总报告”，则退出
-    always_send = crud.get_setting(session, key="always_send_summary") == "1"
-    if not failed_records and not changed_records and not always_send:
+    # 决定是否发送邮件
+    # 1. 如果开启了“始终发送汇总报告”，则发送
+    # 2. 如果未开启汇总，但开启了“失败告警”且有失败，则发送
+    # 3. 如果未开启汇总，但开启了“变更提醒”且有变更，则发送
+    should_send = always_send
+    if not should_send and alert_on_fail and failed_records:
+        should_send = True
+    if not should_send and alert_on_change and changed_records:
+        should_send = True
+
+    if not should_send:
         return
 
     # 构建汇总邮件内容
