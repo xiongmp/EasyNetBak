@@ -780,15 +780,9 @@
          });
       }
 
-      els.viewBtn.addEventListener("click", () => {
-        if (selectedBackups.length !== 1) return;
-        window.open(`/backups/${selectedBackups[0]}`, "_blank");
-      });
+      // Removed duplicate viewBtn listener that caused 404 new tab
 
-      els.downloadBtn.addEventListener("click", () => {
-        if (selectedBackups.length !== 1) return;
-        window.location.href = `/api/backups/${selectedBackups[0]}/download`;
-      });
+      // Removed duplicate downloadBtn listener that pointed to incorrect API route
 
       if (els.backupNowBtn) {
         els.backupNowBtn.addEventListener("click", (ev) => {
