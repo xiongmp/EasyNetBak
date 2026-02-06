@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
+{% set page_title = "设备详情" %}
+{% set page_subtitle = "查看备份历史并手动触发备份" %}
+
+{% block content %}
+  <div class="card border shadow-sm mb-3">
+    <div class="card-body p-3">
+      <!-- 头部信息 -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center">
+          <div class="bg-primary bg-opacity-10 px-2 py-1 rounded-2 me-3">
+            <i class="bi bi-hdd-network-fill text-primary fs-5"></i>
+          </div>
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <h5 class="mb-0 fw-bold text-body">{{ device.name }}</h5>
+            <div class="text-secondary small d-flex flex-wrap gap-3">
+              <span><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
+              <span><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
+              {% if device.group_id and groups.get(device.group_id) %}
+                <span><i class="bi bi-grid me-1"></i>{{ groups.get(device.group_id).name }}</span>
+              {% endif %}
+              {% if device.credential_id and credentials.get(device.credential_id) %}
+                <span><i class="bi bi-shield-lock me-1"></i>{{ credentials.get(device.credential_id).name }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary px-3" href="/devices">
+          <i class="bi bi-arrow-left me-1"></i>返回列表
+        </a>
+      </div>
+
+      <hr class="text-black-50 opacity-10 mb-3" />
+
+      {% if is_operator %}
+        <!-- 设备配置表单 -->
+        <form method="post" action="/devices/{{ device.id }}/update">
+          <div class="row g-3">
+            <!-- 第一行：连接信息 -->
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-tag me-1"></i>设备名称</label>
+              <input name="name" class="form-control form-control-sm" value="{{ device.name }}" required />
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-globe me-1"></i>IP / Host</label>
+              <input name="host" class="form-control form-control-sm" value="{{ device.host }}" required />
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-diagram-2 me-1"></i>登录方式</label>
+              <select name="login_method" class="form-select form-select-sm" id="device-update-login-method" required>
+                <option value="ssh" {% if (device.login_method or 'ssh') == 'ssh' %}selected{% endif %}>SSH</option>
+                <option value="telnet" {% if device.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
+              </select>
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-door-open me-1"></i>端口</label>
+              <input name="port" type="number" class="form-control form-control-sm" value="{{ device.port }}" id="device-update-port" />
+            </div>
+
+            <!-- 第二行：分类与备份设置 -->
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-cpu me-1"></i>设备类型</label>
+              <select name="platform" class="form-select form-select-sm" id="device-update-platform" required>
+                {% for p in ssh_platforms %}
+                  <option value="{{ p.id }}" data-kind="ssh" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+                {% endfor %}
+                {% for p in telnet_platforms %}
+                  <option value="{{ p.id }}" data-kind="telnet" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-grid me-1"></i>设备分组</label>
+              <select name="group_id" class="form-select form-select-sm">
+                <option value="0">未分组</option>
+                {% for gid, g in groups.items() %}
+                  <option value="{{ gid }}" {% if device.group_id == gid %}selected{% endif %}>{{ g.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-shield-lock me-1"></i>登录凭据</label>
+              <select name="credential_id" class="form-select form-select-sm" required>
+                {% for cid, c in credentials.items() %}
+                  <option value="{{ cid }}" {% if device.credential_id == cid %}selected{% endif %}>{{ c.name }} · {{ c.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-file-earmark-code me-1"></i>默认备份模板</label>
+              <select name="default_template_id" class="form-select form-select-sm">
+                <option value="0" {% if not device.default_template_id %}selected{% endif %}>使用设备类型默认命令</option>
+                {% for t in templates %}
+                  <option value="{{ t.id }}" {% if device.default_template_id == t.id %}selected{% endif %}>{{ t.name }} · {{ t.platform }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- 提交按钮 -->
+            <div class="col-12 mt-3">
+              <button class="btn btn-primary btn-sm px-4 shadow-sm" type="submit">
+                <i class="bi bi-check-lg me-1"></i>保存修改
+              </button>
+            </div>
+          </div>
+        </form>
+      {% else %}
+        <div class="alert alert-secondary mb-0 border-0 shadow-sm">
+          <i class="bi bi-lock-fill me-2"></i>只读账号不可修改设备信息
+        </div>
+      {% endif %}
+
+      {% if is_operator %}
+        <hr class="text-black-50 opacity-10 my-3" />
+
+        <!-- 立即备份操作 -->
+        <div class="bg-body-tertiary p-3 rounded-3 border border-light-subtle">
+          <form method="post" action="/devices/{{ device.id }}/backup" class="row g-2 align-items-center" id="device-backup-form">
+            <div class="col-auto">
+              <span class="small fw-bold text-secondary"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>立即执行备份:</span>
+            </div>
+            <div class="col-12 col-lg-4">
+              <select name="template_id" class="form-select form-select-sm" id="device-backup-template">
+                <option value="0">使用设备默认模板</option>
+                {% for t in templates %}
+                  <option value="{{ t.id }}">{{ t.name }} · {{ t.platform }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-success btn-sm px-3" type="submit" id="device-backup-btn">
+                <i class="bi bi-play-fill me-1"></i>开始
+              </button>
+            </div>
+            <div class="col text-secondary small ms-lg-2">
+              <i class="bi bi-info-circle me-1"></i>后台执行，完成后自动刷新
+            </div>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if is_operator %}
+        <script>
+          (function () {
+            const loginSelect = document.getElementById("device-update-login-method");
+            const platformSelect = document.getElementById("device-update-platform");
+            const portInput = document.getElementById("device-update-port");
+            if (!loginSelect || !platformSelect) return;
+
+            function syncPlatformOptions(isInitial) {
+              const loginMethod = (loginSelect.value || "ssh").toLowerCase();
+              const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
+              const options = Array.from(platformSelect.options);
+              let firstVisibleValue = null;
+              options.forEach((opt) => {
+                const kind = opt.getAttribute("data-kind") || "ssh";
+                const visible = kind === wantKind;
+                opt.hidden = !visible;
+                opt.disabled = !visible;
+                if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
+              });
+              const current = platformSelect.value;
+              const currentOpt = options.find((o) => o.value === current);
+              if (!currentOpt || currentOpt.hidden || currentOpt.disabled) {
+                platformSelect.value = firstVisibleValue || "";
+              }
+
+              if (!isInitial && portInput) {
+                const v = String(portInput.value || "").trim();
+                if (!v || v === "22" || v === "23") {
+                  portInput.value = loginMethod === "telnet" ? "23" : "22";
+                }
+              }
+            }
+
+            loginSelect.addEventListener("change", () => syncPlatformOptions(false));
+            syncPlatformOptions(true);
+          })();
+        </script>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="fw-semibold mb-3">备份历史</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th style="width: 220px;">时间</th>
+              <th style="width: 110px;">状态</th>
+              <th>错误</th>
+              <th style="width: 220px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="device-backups-tbody">
+            {% for r in backups %}
+              <tr>
+                <td class="text-secondary small">{{ r.started_at|dt_local }}</td>
+                <td>
+                  {% if r.finished_at %}
+                    {% if r.success %}
+                      <div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>
+                    {% else %}
+                      <div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>失败</div>
+                    {% endif %}
+                  {% else %}
+                    <div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>
+                  {% endif %}
+                </td>
+                <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
+                <td>
+                  <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">查看</button>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ render_pagination(pagination, pagination_base, "次备份") }}
+    </div>
+  </div>
+
+  <script>
+    const IS_ADMIN = {{ "true" if is_admin else "false" }};
+    const DEVICE_ID = {{ device.id }};
+    const CURRENT_PAGE = {{ pagination.page }};
+    const PAGE_LIMIT = {{ pagination.limit }};
+    {% set running_backup = backups | selectattr('finished_at', 'none') | first %}
+    const RUNNING_BACKUP_ID = {{ running_backup.id | string | tojson if running_backup else 'null' }};
+
+    const els = {
+      form: document.getElementById("device-backup-form"),
+      btn: document.getElementById("device-backup-btn"),
+      templateSelect: document.getElementById("device-backup-template"),
+      tbody: document.getElementById("device-backups-tbody"),
+    };
+
+    let polling = { timer: null, targetBackupId: null, tries: 0 };
+
+    if (els.tbody) {
+      els.tbody.addEventListener("click", (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest(".device-backup-view") : null;
+        if (!btn) return;
+        const bid = btn.getAttribute("data-backup-id");
+        if (!bid) return;
+        if (window.NB && typeof window.NB.openBackupView === "function") {
+          window.NB.openBackupView(bid);
+        }
+      });
+    }
+
+    function setDisabled(el, disabled) {
+      if (!el) return;
+      el.disabled = !!disabled;
+      if (disabled) {
+        el.classList.add("disabled");
+      } else {
+        el.classList.remove("disabled");
+      }
+    }
+
+    function escapeText(text) {
+      const span = document.createElement("span");
+      span.textContent = text == null ? "" : String(text);
+      return span.innerHTML;
+    }
+
+    function stopPolling() {
+      if (polling.timer) {
+        clearInterval(polling.timer);
+      }
+      polling = { timer: null, targetBackupId: null, tries: 0 };
+    }
+
+    function renderBackupsTable(backups) {
+      const items = backups || [];
+      if (!els.tbody) return;
+      if (!items.length) {
+        els.tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td></tr>';
+        return;
+      }
+      const rows = items.map((b, idx) => {
+        const status = !b.finished_at
+          ? '<div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>'
+          : b.success
+            ? '<div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>'
+            : '<div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>失败</div>';
+        const err = b.error_message ? escapeText(b.error_message) : "";
+        return `
+          <tr>
+            <td class="text-secondary small">${escapeText(b.started_at || "")}</td>
+            <td>${status}</td>
+            <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}">${err}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">查看</button>
+            </td>
+          </tr>
+        `;
+      });
+      els.tbody.innerHTML = rows.join("");
+    }
+
+    async function refreshBackups() {
+      const resp = await fetch(`/api/devices/${DEVICE_ID}/backups?page=${CURRENT_PAGE}&limit=${PAGE_LIMIT}`);
+      if (!resp.ok) return null;
+      return resp.json();
+    }
+
+    function startPolling(targetBackupId) {
+      stopPolling();
+      polling.targetBackupId = targetBackupId;
+      polling.tries = 0;
+      polling.timer = setInterval(async () => {
+        polling.tries += 1;
+        const data = await refreshBackups();
+        if (!data) return;
+        const backups = data.backups || [];
+        renderBackupsTable(backups);
+
+        const target = backups.find((b) => b.id === targetBackupId);
+        const done = target && !!target.finished_at;
+        if (done || polling.tries >= 120) {
+          stopPolling();
+          setDisabled(els.btn, false);
+        }
+      }, 1500);
+    }
+
+    (async () => {
+      if (RUNNING_BACKUP_ID) {
+        startPolling(RUNNING_BACKUP_ID);
+      }
+    })();
+
+    if (IS_ADMIN && els.form) {
+      els.form.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        (async () => {
+          setDisabled(els.btn, true);
+          stopPolling();
+          const fd = new FormData();
+          fd.set("template_id", els.templateSelect ? String(els.templateSelect.value || "0") : "0");
+          const resp = await fetch(`/api/devices/${DEVICE_ID}/backup`, { method: "POST", body: fd });
+          if (!resp.ok) {
+            setDisabled(els.btn, false);
+            window.NB.showToast("备份任务提交失败", "error");
+            return;
+          }
+          const data = await resp.json();
+          window.location.href = `/devices/${DEVICE_ID}`;
+        })();
+      });
+    }
+  </script>
+{% endblock %}

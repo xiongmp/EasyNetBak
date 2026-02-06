@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container-fluid px-0">
+  <form method="post" action="/diff-rules" id="diff-rules-form">
+    {% if is_operator %}
+    <div class="d-flex flex-wrap gap-3 align-items-center justify-content-end mb-4">
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-link text-secondary btn-sm text-decoration-none" id="btn-reset-default">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>重置为默认
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm px-3" id="btn-add-rule" style="border-radius: 10px;">
+          <i class="bi bi-plus-lg me-1"></i>新增规则
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm px-4" style="border-radius: 10px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+          <i class="bi bi-check2-all me-1"></i>保存更改
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+    <input type="hidden" name="rules_json" id="rules_json" />
+    <div id="rules-container"></div>
+
+    <!-- 使用说明 -->
+    <div class="mt-4 p-3 rounded-3 bg-light border">
+      <div class="d-flex gap-3 align-items-start">
+        <div class="flex-shrink-0 text-primary mt-1">
+          <i class="bi bi-info-circle-fill fs-4"></i>
+        </div>
+        <div class="small flex-grow-1">
+          <h6 class="fw-bold text-dark mb-2">为什么要配置忽略规则？</h6>
+          <div class="text-secondary mb-3">
+            网络设备配置中常包含动态变化的内容（如 <code>ntp clock-period</code>、<code>uptime</code> 等）。即使配置本身没变，这些行的变化也会导致备份被视为有变更。通过添加忽略规则，您可以排除这些噪音，只关注真正的配置更改。
+          </div>
+          
+          <hr class="border-secondary opacity-25 my-3">
+
+          <h6 class="fw-bold text-dark mb-2">规则配置说明：</h6>
+          <ul class="mb-0 ps-3 text-secondary">
+            <li class="mb-1"><strong>匹配逻辑：</strong> 规则按顺序匹配，满足任一规则的行将被忽略。</li>
+            <li class="mb-1"><strong>全局：</strong> 应用于所有设备。</li>
+            <li class="mb-1"><strong>厂商/平台：</strong> 仅应用于特定厂商的设备。</li>
+            <li><strong>设备组：</strong> 仅应用于特定分组内的设备。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  const RULES = {{ rules | tojson }};
+  const DEFAULT_RULES = {{ default_rules | tojson }};
+  const PLATFORMS = {{ platforms | tojson }};
+  const GROUPS = {{ groups | tojson }};
+
+  const rulesContainer = document.getElementById("rules-container");
+  const formEl = document.getElementById("diff-rules-form");
+  const rulesInput = document.getElementById("rules_json");
+  const addBtn = document.getElementById("btn-add-rule");
+  const resetBtn = document.getElementById("btn-reset-default");
+
+  const HINTS = [
+    "^ntp clock-period.*",
+    "^Last configuration change.*",
+    "^NVRAM config last updated.*",
+    "! Last configuration change.*",
+    "^Time source is NTP.*"
+  ];
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+  }
+
+  function buildPlatformOptions() {
+    return (PLATFORMS || [])
+      .map((p) => `<option value="${escapeHtml(p.id || "")}">${escapeHtml(p.label || p.id || "")}</option>`)
+      .join("");
+  }
+
+  function buildGroupOptions() {
+    return (GROUPS || [])
+      .map((g) => `<option value="${escapeHtml(g.id || "")}">${escapeHtml(g.name || "")}</option>`)
+      .join("");
+  }
+
+  function getSelectedValues(selectEl) {
+    return Array.from(selectEl.options)
+      .filter((opt) => opt.selected)
+      .map((opt) => opt.value);
+  }
+
+  function setSelectedValues(selectEl, values) {
+    const valueSet = new Set((values || []).map((v) => String(v)));
+    Array.from(selectEl.options).forEach((opt) => {
+      opt.selected = valueSet.has(String(opt.value));
+    });
+  }
+
+  function updateRuleUI(row) {
+    const scope = row.querySelector(".rule-scope").value;
+    const platformArea = row.querySelector(".area-platform");
+    const groupArea = row.querySelector(".area-group");
+    
+    if (scope === "global") {
+      platformArea.classList.add("d-none");
+      groupArea.classList.add("d-none");
+    } else if (scope === "platform") {
+      platformArea.classList.remove("d-none");
+      groupArea.classList.add("d-none");
+    } else if (scope === "group") {
+      groupArea.classList.remove("d-none");
+      platformArea.classList.add("d-none");
+    }
+  }
+
+  function createRuleRow(rule) {
+    const row = document.createElement("div");
+    row.className = "rule-card rule-row";
+    row.innerHTML = `
+      <button type="button" class="btn-remove-rule" title="移除此规则">
+        <i class="bi bi-trash-fill"></i>
+      </button>
+      
+      <!-- Left Sidebar: Scope & Targets -->
+      <div class="rule-sidebar">
+        <div>
+          <div class="section-label"><i class="bi bi-shield-check"></i> 适用范围</div>
+          <select class="form-select form-select-sm rule-scope" style="border-radius: 8px;">
+            <option value="global">全局生效</option>
+            <option value="platform">指定厂商</option>
+            <option value="group">指定设备组</option>
+          </select>
+        </div>
+        
+        <div class="area-platform d-none">
+          <div class="section-label"><i class="bi bi-hdd-network"></i> 选择厂商</div>
+          <select class="form-select form-select-sm rule-targets rule-targets-platform rule-target-select" multiple size="5">
+            ${buildPlatformOptions()}
+          </select>
+          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + 点击多选</div>
+        </div>
+        
+        <div class="area-group d-none">
+          <div class="section-label"><i class="bi bi-tags"></i> 选择设备组</div>
+          <select class="form-select form-select-sm rule-targets rule-targets-group rule-target-select" multiple size="5">
+            ${buildGroupOptions()}
+          </select>
+          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + 点击多选</div>
+        </div>
+      </div>
+      
+      <!-- Right Main: Patterns -->
+      <div class="rule-main">
+        <div class="section-label"><i class="bi bi-code-slash"></i> 忽略正则表达式</div>
+        <div class="rule-patterns-wrapper">
+          <textarea class="form-control rule-patterns" placeholder="输入正则，例如: ^Last configuration change.*"></textarea>
+        </div>
+        
+        <div>
+          <div class="section-label opacity-60" style="font-size: 0.6rem; margin-bottom: 8px;">快速推荐:</div>
+          <div class="hint-container">
+            ${HINTS.map(h => `<span class="hint-chip"><i class="bi bi-plus me-1"></i>${escapeHtml(h)}</span>`).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const scopeSelect = row.querySelector(".rule-scope");
+    const platformSelect = row.querySelector(".rule-targets-platform");
+    const groupSelect = row.querySelector(".rule-targets-group");
+    const patternsInput = row.querySelector(".rule-patterns");
+
+    scopeSelect.value = (rule && rule.scope) || "global";
+    if (rule && Array.isArray(rule.targets)) {
+      setSelectedValues(platformSelect, rule.targets);
+      setSelectedValues(groupSelect, rule.targets);
+    }
+    if (rule && Array.isArray(rule.patterns)) {
+      patternsInput.value = rule.patterns.join("\n");
+    }
+
+    // Hint clicks
+    row.querySelectorAll(".hint-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const val = chip.textContent.trim();
+        const current = patternsInput.value.trim();
+        const lines = current ? current.split("\n") : [];
+        if (!lines.includes(val)) {
+          lines.push(val);
+          patternsInput.value = lines.join("\n");
+          // Visual feedback
+          patternsInput.focus();
+        }
+      });
+    });
+
+    updateRuleUI(row);
+    scopeSelect.addEventListener("change", () => updateRuleUI(row));
+    
+    row.querySelector(".btn-remove-rule").addEventListener("click", () => {
+      if (window.NB && typeof window.NB.confirmDelete === "function") {
+        window.NB.confirmDelete("确定要永久移除这条忽略规则吗？", () => {
+          row.style.opacity = "0";
+          row.style.transform = "scale(0.95) translateX(30px)";
+          setTimeout(() => {
+            row.remove();
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast("规则已成功移除", "info");
+            }
+            if (!rulesContainer.querySelector(".rule-row")) {
+              loadRules([]);
+            }
+          }, 300);
+        });
+      } else if (confirm("确定要删除这条规则吗？")) {
+        row.remove();
+      }
+    });
+    
+    return row;
+  }
+
+  function loadRules(list) {
+    rulesContainer.innerHTML = "";
+    if (!list || list.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state mb-4";
+      empty.innerHTML = `
+        <div class="mb-4 text-primary opacity-20"><i class="bi bi-regex" style="font-size: 5rem;"></i></div>
+        <h5 class="fw-bold">暂无自定义忽略规则</h5>
+        <p class="text-secondary mb-4 small">通过添加规则，您可以让 Diff 对比更加聚焦于核心配置变更</p>
+        <button type="button" class="btn btn-primary px-4" style="border-radius: 10px;" onclick="document.getElementById('btn-add-rule').click()">
+          <i class="bi bi-plus-lg me-1"></i>配置第一条规则
+        </button>
+      `;
+      rulesContainer.appendChild(empty);
+      return;
+    }
+    
+    list.forEach((rule) => {
+      rulesContainer.appendChild(createRuleRow(rule));
+    });
+  }
+
+  function collectRules() {
+    const rows = Array.from(rulesContainer.querySelectorAll(".rule-row"));
+    const out = [];
+    rows.forEach((row) => {
+      const scope = row.querySelector(".rule-scope").value;
+      const patternsRaw = row.querySelector(".rule-patterns").value || "";
+      const patterns = patternsRaw
+        .split("\n")
+        .map((v) => v.trim())
+        .filter((v) => v);
+      
+      if (!patterns.length) return;
+      
+      let targets = [];
+      if (scope === "platform") {
+        targets = getSelectedValues(row.querySelector(".rule-targets-platform"));
+      } else if (scope === "group") {
+        targets = getSelectedValues(row.querySelector(".rule-targets-group"));
+      }
+      out.push({ scope, targets, patterns });
+    });
+    return out;
+  }
+
+  addBtn.addEventListener("click", () => {
+    const empty = rulesContainer.querySelector(".empty-state");
+    if (empty) empty.remove();
+    
+    const newRow = createRuleRow({ scope: "global", targets: [], patterns: [] });
+    newRow.classList.add("new-row");
+    rulesContainer.appendChild(newRow);
+    newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  resetBtn.addEventListener("click", () => {
+    if (window.NB && typeof window.NB.confirmDelete === "function") {
+      window.NB.confirmDelete("确定要重置所有规则吗？当前所有未保存的配置都将丢失。", () => {
+        loadRules(DEFAULT_RULES);
+        if (window.NB && typeof window.NB.showToast === "function") {
+          window.NB.showToast("已恢复至系统默认规则", "info");
+        }
+      });
+    } else if (confirm("确定要恢复默认规则吗？")) {
+      loadRules(DEFAULT_RULES);
+    }
+  });
+
+  formEl.addEventListener("submit", (e) => {
+    const rules = collectRules();
+    rulesInput.value = JSON.stringify(rules);
+  });
+
+  loadRules(RULES);
+</script>
+{% endblock %}

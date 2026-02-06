@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-networkbackup}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-networkbackup}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-networkbackup}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENABLE_SCHEDULER=true
+      - APP_NAME=${APP_NAME:-Network Backup}
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - TIMEZONE_OFFSET=${TIMEZONE_OFFSET:-+08:00}
+    env_file:
+      - .env.prod
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: always
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - APP_NAME=${APP_NAME:-Network Backup}
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
+      - TIMEZONE_OFFSET=${TIMEZONE_OFFSET:-+08:00}
+    env_file:
+      - .env.prod
+    volumes:
+      - app_data:/app/data
+      # Mount your SSH keys directory if needed
+      # - ./keys:/app/keys
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_data:

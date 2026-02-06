@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% set page_title = "定时任务统计" %}
+{% set page_subtitle = schedule.name if schedule else "" %}
+{% set html_class = "page-schedule-stats-html" %}
+
+{% block content %}
+  <div class="stats-layout">
+    <!-- 顶部综合信息栏 -->
+    <div class="top-section">
+      <div class="action-group">
+        <a class="btn btn-outline-secondary btn-sm border-0" href="/schedules" title="返回列表">
+          <i class="bi bi-arrow-left fs-5"></i>
+        </a>
+        {% if is_admin and schedule %}
+          <button class="btn btn-primary btn-sm px-3 js-schedule-run" type="button" data-schedule-id="{{ schedule.id }}">
+            <i class="bi bi-play-fill me-1"></i>手动执行
+          </button>
+        {% endif %}
+      </div>
+
+      {% if schedule %}
+        <div class="info-item info-item-min-w-140">
+          <div class="info-label">任务名称</div>
+          <div class="info-value text-truncate" title="{{ schedule.name }}">{{ schedule.name }}</div>
+        </div>
+        
+        <div class="v-divider"></div>
+        
+        <div class="info-item">
+          <div class="info-label">状态 & 平台</div>
+          <div class="d-flex gap-2">
+            {% if schedule.enabled %}
+              <div class="status-pill status-online">
+                <span class="status-dot"></span>
+                <span>已启用</span>
+              </div>
+            {% else %}
+              <div class="status-pill status-offline">
+                <span class="status-dot"></span>
+                <span>已禁用</span>
+              </div>
+            {% endif %}
+            <div class="backup-status backup-status-info">
+              <i class="bi bi-cpu"></i>{{ schedule.platform or "通用" }}
+            </div>
+          </div>
+        </div>
+
+        <div class="v-divider"></div>
+
+        <div class="info-item">
+          <div class="info-label">执行周期 (Cron)</div>
+          <div class="d-flex align-items-center gap-2">
+            <code class="bg-light text-dark px-2 py-0 rounded border text-xs">{{ schedule.crontab }}</code>
+            <span id="cron-meaning" class="text-xs text-primary fw-medium" data-cron="{{ schedule.crontab }}"></span>
+          </div>
+        </div>
+
+        <div class="v-divider"></div>
+
+        <div class="info-item info-item-max-w-400 flex-grow-1">
+          <div class="info-label">目标范围</div>
+          {% set title_parts = [] %}
+          {% if not schedule.targets or schedule.targets == 'all' %}
+            {% set resolved_title = '所有设备' %}
+            {% set _ = title_parts.append('所有设备') %}
+          {% else %}
+            {% for token in schedule.targets.split() %}
+              {% if token.startswith('device:') %}
+                {% set did = token[7:]|int %}
+                {% set _ = title_parts.append(device_map.get(did, token)) %}
+              {% elif token.startswith('group:') %}
+                {% set gid = token[6:]|int %}
+                {% set _ = title_parts.append('分组:' ~ group_map.get(gid, token)) %}
+              {% elif token.startswith('platform:') %}
+                {% set _ = title_parts.append('平台:' ~ token[9:]) %}
+              {% elif token.isdigit() %}
+                {% set did = token|int %}
+                {% set _ = title_parts.append(device_map.get(did, token)) %}
+              {% else %}
+                {% set _ = title_parts.append(token) %}
+              {% endif %}
+            {% endfor %}
+            {% set resolved_title = title_parts|join(', ') %}
+          {% endif %}
+          <div class="info-value text-truncate cursor-pointer" 
+               title="点击查看完整列表"
+               data-bs-toggle="modal" 
+               data-bs-target="#targetDevicesModal">
+            <i class="bi bi-info-circle me-1 text-primary"></i>{{ resolved_title }}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- 目标设备详情 Modal (保持不变) -->
+    <div class="modal fade" id="targetDevicesModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg modal-content-rounded-16">
+          <div class="modal-header bg-light py-3">
+            <h6 class="modal-title fw-bold">目标范围详情</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="d-flex flex-wrap gap-2">
+              {% for part in title_parts %}
+                <div class="backup-status backup-status-primary">
+                  {{ part }}
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-main">
+      <!-- 左侧：统计面板 -->
+      <div class="pane-left">
+        <!-- 成功率趋势 -->
+        <div class="card card-stat card-stat-trend">
+          <div class="card-header">
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>成功率趋势</h6>
+            {% if trend %}
+              {% set last = trend|last %}
+              <div class="text-primary fw-bold">{{ (last.rate * 100)|round(0) }}% <span class="text-secondary text-xs fw-normal ms-1">最新</span></div>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <div class="chart-wrapper">
+              <svg id="trend-svg" viewBox="0 0 600 160" width="100%" height="100%" preserveAspectRatio="none" class="trend-svg"></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top 失败设备 -->
+        <div class="card card-stat card-stat-failed">
+          <div class="card-header">
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-exclamation-circle me-2 text-danger"></i>Top 失败设备</h6>
+            <div class="backup-status backup-status-failed backup-status-xs">异常关注</div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-scroll">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th class="text-secondary">设备名称 / IP</th>
+                    <th class="text-secondary text-end">失败次数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for d in top_failed %}
+                    <tr>
+                      <td>
+                        <div class="fw-bold text-dark text-xs">{{ d.name }}</div>
+                        <div class="text-secondary text-xs">{{ d.host }}</div>
+                      </td>
+                      <td class="text-end">
+                        <div class="backup-status backup-status-failed backup-status-xs-pill">{{ d.fail_count }}</div>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr>
+                      <td colspan="2" class="text-center text-secondary py-4 text-xs">
+                        <i class="bi bi-check-circle text-success me-2"></i>运行良好，暂无失败设备
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分组汇总 -->
+        <div class="card card-stat card-stat-summary">
+          <div class="card-header">
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-layers me-2 text-secondary"></i>分组数据汇总</h6>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-scroll">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th class="text-secondary">分组</th>
+                    <th class="text-secondary text-center">成功率</th>
+                    <th class="text-secondary text-end">总设备</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for g in group_summary %}
+                    {% set rate = g.rate or 0 %}
+                    <tr>
+                      <td class="fw-bold text-xs">{{ g.group }}</td>
+                      <td>
+                        <div class="d-flex align-items-center gap-2">
+                          <div class="progress flex-grow-1 progress-sm-custom">
+                            <div class="progress-bar bg-success progress-bar-rounded" style="width: {{ (rate * 100)|round(0) }}%;"></div>
+                          </div>
+                          <span class="text-xs fw-bold {% if rate >= 0.9 %}text-success{% elif rate >= 0.7 %}text-warning{% else %}text-danger{% endif %}">
+                            {{ (rate * 100)|round(0) }}%
+                          </span>
+                        </div>
+                      </td>
+                      <td class="text-end">
+                        <span class="text-xs fw-medium text-secondary">{{ g.total or 0 }}</span>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr>
+                      <td colspan="3" class="text-center text-secondary py-4 text-xs">暂无分组汇总数据</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：运行历史记录 -->
+      <div class="pane-right">
+        <div class="card card-stat h-100">
+          <div class="card-header">
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-clock-history me-2 text-primary"></i>历史运行记录</h6>
+            <div class="d-flex gap-2">
+               <span class="badge bg-light text-secondary border fw-normal text-xs">最近 30 条</span>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-scroll">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th class="text-secondary">执行时间</th>
+                    <th class="text-secondary">触发方式</th>
+                    <th class="text-secondary">耗时</th>
+                    <th class="text-secondary text-center">结果 (成功/失败/总计)</th>
+                    <th class="text-secondary">当前状态</th>
+                    <th class="text-secondary">错误摘要</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in runs %}
+                    <tr>
+                      <td class="text-xs">
+                        <div class="fw-bold text-dark">{{ r.started_at|dt_local }}</div>
+                        {% if r.finished_at %}
+                          <div class="text-secondary opacity-75 mt-1">完成: {{ r.finished_at|dt_local }}</div>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="backup-status backup-status-light">{{ r.trigger }}</div>
+                      </td>
+                      <td>
+                        <span class="text-xs text-secondary">
+                          {% if r.finished_at and r.started_at %}
+                            {% set seconds = (r.finished_at - r.started_at).total_seconds() | int %}
+                            <i class="bi bi-stopwatch me-1"></i>
+                            {% if seconds < 60 %}
+                              {{ seconds }}s
+                            {% else %}
+                              {{ (seconds // 60) }}m {{ (seconds % 60) }}s
+                            {% endif %}
+                          {% elif not r.finished_at %}
+                            <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>
+                          {% else %}
+                            —
+                          {% endif %}
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded bg-light border border-light-subtle">
+                          <span class="text-success fw-bold text-xs">{% if r.finished_at %}{{ r.success_count }}{% else %}—{% endif %}</span>
+                          <span class="text-secondary mx-1">/</span>
+                          <span class="text-danger fw-bold text-xs">{% if r.finished_at %}{{ r.fail_count }}{% else %}—{% endif %}</span>
+                          <span class="text-secondary mx-1">/</span>
+                          <span class="text-dark fw-bold text-xs">{{ r.total_devices }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {% if not r.finished_at %}
+                          <div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>正在处理</div>
+                        {% elif r.fail_count > 0 %}
+                          <div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>部分失败</div>
+                        {% else %}
+                          <div class="backup-status backup-status-success"><i class="bi bi-check-all"></i>全部成功</div>
+                        {% endif %}
+                      </td>
+                      <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}">
+                        {{ r.error_message or "" }}
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr>
+                      <td colspan="6" class="text-center text-secondary py-5">
+                        <div class="my-3">
+                          <i class="bi bi-inbox fs-1 opacity-25"></i>
+                          <p class="mt-2 text-xs">暂无运行记录</p>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  {% if is_admin and schedule %}
+    <script>
+      (function () {
+        const btn = document.querySelector(".js-schedule-run");
+        if (!btn) return;
+        async function runSchedule(scheduleId) {
+          btn.disabled = true;
+          const old = btn.innerHTML;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
+          try {
+            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
+            if (!resp.ok) throw new Error("run failed");
+            const data = await resp.json();
+            const records = (data && data.records) || [];
+            if (records.length && window.NB && typeof window.NB.trackBackups === "function") {
+              window.NB.trackBackups(records);
+              window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+            } else if (records.length === 0) {
+              window.NB.showToast("没有找到需要备份的设备", "warning");
+            }
+          } catch (e) {
+            console.error(e);
+            window.NB.showToast("手动执行失败: " + e.message, "error");
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = old;
+          }
+        }
+        btn.addEventListener("click", () => {
+          const sid = btn.getAttribute("data-schedule-id");
+          runSchedule(sid);
+        });
+      })();
+    </script>
+  {% endif %}
+
+  <script>
+    (function () {
+      const TREND = {{ trend | tojson }};
+      const svg = document.getElementById("trend-svg");
+      if (!svg) return;
+
+      function el(name, attrs) {
+        const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+        Object.keys(attrs || {}).forEach((k) => n.setAttribute(k, String(attrs[k])));
+        return n;
+      }
+
+      const w = 600;
+      const h = 160; 
+      const padX = 20;
+      const padY = 20;
+      svg.innerHTML = "";
+
+      const defs = el("defs");
+      const gradient = el("linearGradient", { id: "line-gradient", x1: "0%", y1: "0%", x2: "0%", y2: "100%" });
+      gradient.appendChild(el("stop", { offset: "0%", "stop-color": "#0d6efd", "stop-opacity": "0.2" }));
+      gradient.appendChild(el("stop", { offset: "100%", "stop-color": "#0d6efd", "stop-opacity": "0" }));
+      defs.appendChild(gradient);
+      svg.appendChild(defs);
+
+      const grid = el("g", { stroke: "var(--card-border)", "stroke-width": "1" });
+      [0, 0.5, 1].forEach((t) => {
+        const y = padY + (1 - t) * (h - padY * 2);
+        grid.appendChild(el("line", { x1: padX, y1: y, x2: w - padX, y2: y }));
+        const label = el("text", { x: 0, y: y + 4, fill: "var(--text-color)", opacity: "0.6", "font-size": "10" });
+        label.textContent = Math.round(t * 100) + "%";
+        svg.appendChild(label);
+      });
+      svg.appendChild(grid);
+
+      if (!TREND || !TREND.length) {
+        const text = el("text", { x: w / 2, y: h / 2, "text-anchor": "middle", fill: "#94a3b8", "font-size": 12 });
+        text.textContent = "暂无趋势数据";
+        svg.appendChild(text);
+        return;
+      }
+
+      const points = TREND.map((p, i) => {
+        const x = TREND.length === 1 ? w / 2 : padX + (i * (w - padX * 2)) / (TREND.length - 1);
+        const rate = Math.max(0, Math.min(1, Number(p.rate || 0)));
+        const y = padY + (1 - rate) * (h - padY * 2);
+        return { x, y };
+      });
+
+      if (points.length > 1) {
+        let areaD = `M ${points[0].x} ${h - padY}`;
+        points.forEach(p => { areaD += ` L ${p.x} ${p.y}`; });
+        areaD += ` L ${points[points.length - 1].x} ${h - padY} Z`;
+        svg.appendChild(el("path", { d: areaD, fill: "url(#line-gradient)" }));
+      }
+
+      let lineD = `M ${points[0].x} ${points[0].y}`;
+      if (points.length > 1) {
+        for (let i = 0; i < points.length - 1; i++) {
+          const p0 = points[i];
+          const p1 = points[i + 1];
+          const cpX = (p0.x + p1.x) / 2;
+          lineD += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
+        }
+      }
+      svg.appendChild(el("path", { d: lineD, fill: "none", stroke: "#0d6efd", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+
+      points.forEach((p, i) => {
+        const g = el("g", { class: "chart-point" });
+        const circle = el("circle", { cx: p.x, cy: p.y, r: 3, fill: "var(--card-bg)", stroke: "#0d6efd", "stroke-width": 2 });
+        g.appendChild(circle);
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        const item = TREND[i] || {};
+        title.textContent = `${item.started_at || ""}\n成功率: ${Math.round(Number(item.rate || 0) * 100)}%\n成功: ${item.success || 0} / 失败: ${item.fail || 0} / 总数: ${item.total || 0}`;
+        g.appendChild(title);
+        svg.appendChild(g);
+      });
+    })();
+  </script>
+  {% block scripts %}
+    <script src="https://cdn.jsdelivr.net/npm/cronstrue@2.50.0/dist/cronstrue-i18n.min.js"></script>
+    <script>
+      (function() {
+        const cronEl = document.getElementById("cron-meaning");
+        if (cronEl) {
+          const cron = cronEl.getAttribute("data-cron");
+          if (cron) {
+            try {
+            let meaning = cronstrue.toString(cron, { 
+              locale: "zh_CN",
+              use24HourTimeFormat: true
+            });
+            // 优化中文表达：如果是每天执行的任务（分 时 * * *），将“在”替换为“每天”
+            const parts = cron.trim().split(/\s+/);
+            if (parts.length >= 5 && parts.slice(2, 5).every(p => p === '*')) {
+              meaning = meaning.replace(/^在\s?/, '每天 ');
+            }
+            cronEl.textContent = meaning;
+          } catch (e) {
+              cronEl.textContent = "无效的 Cron 表达式";
+              cronEl.classList.replace("text-primary", "text-danger");
+            }
+          }
+        }
+      })();
+    </script>
+  {% endblock %}
+{% endblock %}

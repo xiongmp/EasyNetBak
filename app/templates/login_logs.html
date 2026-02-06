@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
+{% set page_title = "登录日志" %}
+{% set page_subtitle = "记录系统内所有用户的登录活动" %}
+
+{% block content %}
+<div class="card border">
+    <div class="card-body p-3">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+            <form method="get" action="/login-logs" class="d-flex flex-wrap gap-2 align-items-center">
+                <div style="width: 250px;">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
+                        <input name="q" class="form-control border-start-0 ps-0" placeholder="搜索用户名或IP地址" value="{{ q }}" />
+                    </div>
+                </div>
+                <div style="width: 180px;">
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">状态: 全部</option>
+                        <option value="success" {% if status == 'success' %}selected{% endif %}>登录成功</option>
+                        <option value="fail" {% if status == 'fail' %}selected{% endif %}>登录失败</option>
+                        <option value="logout" {% if status == 'logout' %}selected{% endif %}>登出</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm btn-outline-primary px-3" type="submit">筛选</button>
+                <a href="/login-logs" class="btn btn-sm btn-outline-secondary">重置</a>
+            </form>
+
+            <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-secondary" href="/login-logs/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+                    <i class="bi bi-download me-1"></i>导出 CSV
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                <thead class="bg-body-tertiary">
+                    <tr>
+                        <th style="width: 60px;">序号</th>
+                        <th style="width: 170px;">时间</th>
+                        <th style="width: 150px;">用户名</th>
+                        <th style="width: 100px;">状态</th>
+                        <th style="width: 150px;">IP地址</th>
+                        <th>浏览器/客户端</th>
+                        <th>失败原因</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="text-secondary small">{{ (pagination.page - 1) * pagination.limit + loop.index }}</td>
+                        <td class="text-secondary">{{ log.created_at | dt_local }}</td>
+                        <td>
+                            <span class="fw-medium">{{ log.username }}</span>
+                        </td>
+                        <td>
+                            {% if log.status == 'success' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">登录成功</span>
+                            {% elif log.status == 'fail' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">登录失败</span>
+                            {% elif log.status == 'logout' %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">登出</span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ log.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="text-secondary small">{{ log.ip_address or "-" }}</span>
+                        </td>
+                        <td>
+                            <span class="text-secondary small text-truncate d-inline-block" style="max-width: 300px;" title="{{ log.user_agent or '' }}">{{ log.user_agent or "-" }}</span>
+                        </td>
+                        <td>
+                            {% if log.fail_reason %}
+                                <span class="text-danger small">{{ log.fail_reason }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-secondary">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            未找到符合条件的登录日志
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {{ render_pagination(pagination, pagination_base, "条登录记录") }}
+    </div>
+</div>
+{% endblock %}

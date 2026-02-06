@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set blank_layout = true %}
+
+{% block content %}
+<div class="login-page">
+  <div class="login-container">
+    <div class="login-brand">
+      <i class="bi bi-shield-check"></i>
+      <h1>网络设备备份系统</h1>
+      <p>请输入您的账号和密码以访问系统</p>
+    </div>
+
+    <div class="login-card">
+      {% if err %}
+        <div class="alert alert-danger py-2 small border-0 mb-4">
+          <i class="bi bi-exclamation-circle me-2"></i>{{ err }}
+        </div>
+      {% endif %}
+
+      <form method="post" action="/login" class="row g-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="next" value="{{ next }}" />
+        <div class="col-12">
+          <label class="form-label">用户名</label>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent border-end-0">
+              <i class="bi bi-person"></i>
+            </span>
+            <input name="username" class="form-control border-start-0 ps-0" autocomplete="username" placeholder="请输入用户名" required />
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">登录密码</label>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent border-end-0">
+              <i class="bi bi-lock"></i>
+            </span>
+            <input name="password" type="password" class="form-control border-start-0 ps-0" autocomplete="current-password" placeholder="请输入密码" required />
+          </div>
+        </div>
+        <div class="col-12 d-grid mt-4">
+          <button class="btn btn-primary btn-login" type="submit">
+            立即登录
+          </button>
+        </div>
+      </form>
+    </div>
+    
+    <div class="text-center mt-5">
+      <p class="text-secondary small">© 2026 网络设备备份系统</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

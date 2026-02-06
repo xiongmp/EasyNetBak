@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% set page_title = "通知设置" %}
+{% set page_subtitle = "邮件告警与通知规则" %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    {% if is_admin %}
+      <form method="post" action="/notifications">
+        <!-- SMTP 服务器设置 -->
+        <div class="card border shadow-sm mb-4">
+          <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
+            <h6 class="card-title fw-bold text-primary mb-0">
+              <i class="bi bi-envelope-at me-2"></i>SMTP 服务器配置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-bold text-secondary mb-1">SMTP 服务器</label>
+                <input name="smtp_host" class="form-control" value="{{ smtp_host }}" placeholder="例如: smtp.qq.com" />
+                <div class="form-text small">SMTP 邮件服务器地址（如 smtp.office365.com）</div>
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-secondary mb-1">端口</label>
+                <input name="smtp_port" class="form-control" value="{{ smtp_port }}" placeholder="465" />
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-secondary mb-1">发件人地址</label>
+                <input name="smtp_from" class="form-control" value="{{ smtp_from }}" placeholder="backup@example.com" />
+              </div>
+              
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-bold text-secondary mb-1">SMTP 账号</label>
+                <input name="smtp_user" class="form-control" value="{{ smtp_user }}" placeholder="通常为邮箱地址" />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-bold text-secondary mb-1">SMTP 密码</label>
+                <div class="input-group">
+                  <input name="smtp_pass" id="smtp_pass" type="password" class="form-control" value="{{ smtp_pass }}" placeholder="未设置" />
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 'smtp_pass')">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label small fw-bold text-secondary mb-1">默认收件人</label>
+                <textarea name="smtp_to" class="form-control" rows="2" placeholder="admin@example.com, tech@example.com">{{ smtp_to }}</textarea>
+                <div class="form-text small">多个地址请使用英文逗号 (,) 分隔</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 告警规则设置 -->
+        <div class="card border shadow-sm mb-4">
+          <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
+            <h6 class="card-title fw-bold text-primary mb-0">
+              <i class="bi bi-bell me-2"></i>告警与通知规则
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="list-group list-group-flush border rounded-3">
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+                <div class="me-3">
+                  <span class="fw-bold d-block small">备份失败告警</span>
+                  <span class="text-secondary" style="font-size: 0.75rem;">当任何备份任务失败时，立即向默认收件人发送邮件通知</span>
+                </div>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="alert_on_fail" id="alert_on_fail" {% if alert_on_fail == '1' %}checked{% endif %}>
+                </div>
+              </div>
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+                <div class="me-3">
+                  <span class="fw-bold d-block small">定期报告汇总</span>
+                  <span class="text-secondary" style="font-size: 0.75rem;">无论备份成功或失败，任务结束后始终发送完整的任务执行报告</span>
+                </div>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="always_send_summary" id="always_send_summary" {% if always_send_summary == '1' %}checked{% endif %}>
+                </div>
+              </div>
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+                <div class="me-3">
+                  <span class="fw-bold d-block small">配置变更提醒</span>
+                  <span class="text-secondary" style="font-size: 0.75rem;">当检测到设备配置发生变更时，发送包含变更差异对比的提醒邮件</span>
+                </div>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="alert_on_config_change" id="alert_on_config_change" {% if alert_on_config_change == '1' %}checked{% endif %}>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-3 mb-5">
+          <button class="btn btn-primary px-5 py-2 shadow-sm fw-bold" type="submit">
+            <i class="bi bi-check2-circle me-2"></i>保存设置
+          </button>
+          <button class="btn btn-outline-secondary px-4 py-2" type="button" id="btn-test-email">
+            <i class="bi bi-send me-2"></i>发送测试邮件
+          </button>
+        </div>
+      </form>
+
+      <script>
+        function togglePassword(btn, id) {
+          const input = document.getElementById(id);
+          const icon = btn.querySelector('i');
+          if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+          } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+          }
+        }
+
+        document.getElementById('btn-test-email').addEventListener('click', async function() {
+          const btn = this;
+          const form = btn.closest('form');
+          const formData = new FormData(form);
+          
+          const originalText = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送中...';
+          
+          try {
+            const response = await fetch('/notifications/test', {
+              method: 'POST',
+              body: formData
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+              window.NB.showToast(result.message, 'success');
+            } else {
+              window.NB.showToast('发送失败: ' + result.message, 'error');
+            }
+          } catch (error) {
+            window.NB.showToast('请求出错: ' + error.message, 'error');
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          }
+        });
+      </script>
+    {% else %}
+      <!-- 只读视图 -->
+      <div class="card border shadow-sm mb-4">
+        <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
+          <h6 class="card-title fw-bold text-dark mb-0">
+            <i class="bi bi-envelope-at me-2"></i>通知设置 (SMTP)
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-4">
+            <div class="col-md-6">
+              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">SMTP 服务器</div>
+              <div class="text-dark">{{ smtp_host or '未配置' }} <span class="text-secondary small ms-1">:{{ smtp_port }}</span></div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">发件人地址</div>
+              <div class="text-dark">{{ smtp_from or '未配置' }}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">SMTP 账号</div>
+              <div class="text-dark">{{ smtp_user or '未配置' }}</div>
+            </div>
+            <div class="col-12">
+              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">默认收件人</div>
+              <div class="text-dark">{{ smtp_to or '未配置' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border shadow-sm mb-4">
+        <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
+          <h6 class="card-title fw-bold text-dark mb-0">
+            <i class="bi bi-bell me-2"></i>告警规则状态
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="list-group list-group-flush border rounded-3">
+            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+              <div class="me-3">
+                <span class="fw-bold d-block small">备份失败告警</span>
+                <span class="text-secondary" style="font-size: 0.75rem;">备份任务失败时发送邮件</span>
+              </div>
+              <span class="badge {% if alert_on_fail == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
+                {% if alert_on_fail == '1' %}已启用{% else %}已禁用{% endif %}
+              </span>
+            </div>
+            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+              <div class="me-3">
+                <span class="fw-bold d-block small">定期报告汇总</span>
+                <span class="text-secondary" style="font-size: 0.75rem;">始终发送备份结果摘要</span>
+              </div>
+              <span class="badge {% if always_send_summary == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
+                {% if always_send_summary == '1' %}已启用{% else %}已禁用{% endif %}
+              </span>
+            </div>
+            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
+              <div class="me-3">
+                <span class="fw-bold d-block small">配置变更提醒</span>
+                <span class="text-secondary" style="font-size: 0.75rem;">检测到配置差异时发送提醒</span>
+              </div>
+              <span class="badge {% if alert_on_config_change == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
+                {% if alert_on_config_change == '1' %}已启用{% else %}已禁用{% endif %}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-warning border-0 bg-warning bg-opacity-10 small text-warning-emphasis">
+        <i class="bi bi-info-circle me-2"></i>只读账号不可修改通知设置，请联系管理员进行变更。
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 bg-light-subtle shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h6 class="fw-bold text-body mb-3"><i class="bi bi-lightbulb me-2 text-warning"></i>配置说明</h6>
+        <div class="vstack gap-3 small">
+          <div class="d-flex gap-3">
+            <div class="flex-shrink-0"><i class="bi bi-1-circle text-primary"></i></div>
+            <div>
+              <strong>发件人设置</strong><br>
+              请确保发件人地址与 SMTP 账号具有相同的域名或权限，否则可能被服务器拒绝。
+            </div>
+          </div>
+          <div class="d-flex gap-3">
+            <div class="flex-shrink-0"><i class="bi bi-2-circle text-primary"></i></div>
+            <div>
+              <strong>授权码与密码</strong><br>
+              对于 QQ、163 等公共邮箱，通常需要使用 <strong>授权码</strong> 而非邮箱登录密码。
+            </div>
+          </div>
+          <div class="d-flex gap-3">
+            <div class="flex-shrink-0"><i class="bi bi-3-circle text-primary"></i></div>
+            <div>
+              <strong>多收件人</strong><br>
+              多个收件人请用英文逗号分隔，建议先发送测试邮件验证配置。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card border-0 bg-primary bg-opacity-10 shadow-sm">
+      <div class="card-body p-4 text-primary-emphasis small">
+        <h6 class="fw-bold mb-2">安全提示</h6>
+        <p class="mb-0">建议启用 SSL/TLS 加密（通常为端口 465 或 587）。本系统不会明文传输您的邮件密码。</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

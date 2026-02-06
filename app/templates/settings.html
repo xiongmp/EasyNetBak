@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% set page_title = "系统设置" %}
+{% set page_subtitle = "配置系统运行参数与外部存储" %}
+
+{% block content %}
+  <div class="card border shadow-sm">
+    <div class="card-body p-4">
+      {% if is_admin %}
+        <form method="post" action="/settings">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          
+          <!-- 导航标签页 -->
+          <ul class="nav nav-tabs mb-4" id="settingsTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">
+                <i class="bi bi-sliders me-1"></i>通用设置
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="storage-tab" data-bs-toggle="tab" data-bs-target="#storage" type="button" role="tab" aria-controls="storage" aria-selected="false">
+                <i class="bi bi-cloud me-1"></i>存储设置 (S3)
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="settingsTabContent">
+            
+            <!-- 标签页：通用设置 -->
+            <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+              <div class="row g-4">
+                <div class="col-12 col-md-8 col-lg-6">
+                  <h6 class="fw-bold text-secondary mb-3">基本运行参数</h6>
+                  
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary fw-bold mb-1">时区配置 (UTC Offset)</label>
+                    <input name="timezone_offset" class="form-control" value="{{ timezone_offset }}" placeholder="+08:00" />
+                    <div class="form-text x-small text-muted">示例：+08:00 (北京时间)、-05:00 (纽约时间)</div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary fw-bold mb-1">最大并发线程数</label>
+                    <input name="max_concurrent_tasks" type="number" class="form-control" value="{{ max_concurrent_tasks }}" min="1" max="100" />
+                    <div class="form-text x-small text-muted">控制同时进行备份的设备数量，建议值：10-50</div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary fw-bold mb-1">备份保留天数</label>
+                    <input name="backup_retention_days" type="number" class="form-control" value="{{ backup_retention_days }}" min="1" />
+                    <div class="form-text x-small text-muted">
+                      超过此天数的备份将被自动清理，默认 90。
+                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>保存设置时将立即执行一次清理策略</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 标签页：存储设置 (S3) -->
+            <div class="tab-pane fade" id="storage" role="tabpanel" aria-labelledby="storage-tab">
+              <div class="row g-4">
+                <div class="col-12">
+                  <div class="form-check form-switch form-switch-lg mb-3">
+                    <input class="form-check-input" type="checkbox" name="s3_enabled" id="s3_enabled" {% if s3_enabled == '1' %}checked{% endif %}>
+                    <label class="form-check-label fw-bold text-body ms-2" for="s3_enabled">启用 S3 外部存储备份</label>
+                  </div>
+                  <div class="form-text x-small text-muted mt-n2 mb-4 ms-1">
+                    <i class="bi bi-info-circle me-1"></i>启用后，系统会在本地备份完成后自动上传副本到指定的 S3 兼容存储桶
+                  </div>
+                </div>
+
+                <div class="col-12 col-lg-10">
+                  <div class="card bg-body-tertiary border-0 s3-config-area" id="s3-config-card">
+                    <div class="card-body">
+                      <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">S3 Endpoint</label>
+                          <input name="s3_endpoint" id="s3_endpoint" class="form-control form-control-sm" value="{{ s3_endpoint }}" placeholder="https://s3.amazonaws.com" />
+                          <div class="form-text x-small text-muted">AWS S3 可留空；MinIO/阿里云/腾讯云等需填写完整 URL</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">Region</label>
+                          <input name="s3_region" id="s3_region" class="form-control form-control-sm" value="{{ s3_region }}" placeholder="us-east-1" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">Access Key</label>
+                          <div class="input-group input-group-sm">
+                            <input name="s3_access_key" id="s3_access_key" type="password" class="form-control" value="{{ s3_access_key }}" placeholder="未设置" />
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 's3_access_key')">
+                              <i class="bi bi-eye"></i>
+                            </button>
+                          </div>
+                          <div class="form-text x-small text-muted">对应 腾讯云SecretId / 阿里云AccessKey ID</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">Secret Key</label>
+                          <div class="input-group input-group-sm">
+                            <input name="s3_secret_key" id="s3_secret_key" type="password" class="form-control" value="{{ s3_secret_key }}" placeholder="未设置" />
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 's3_secret_key')">
+                              <i class="bi bi-eye"></i>
+                            </button>
+                          </div>
+                          <div class="form-text x-small text-muted">对应 腾讯云SecretKey / 阿里云AccessKey Secret</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">Bucket Name</label>
+                          <input name="s3_bucket" id="s3_bucket" class="form-control form-control-sm" value="{{ s3_bucket }}" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <label class="form-label small text-secondary mb-1">保存路径前缀 (Prefix)</label>
+                          <input name="s3_prefix" id="s3_prefix" class="form-control form-control-sm" value="{{ s3_prefix }}" placeholder="backups" />
+                          <div class="form-text x-small text-muted">上传路径: [Prefix]/YYYY-MM-DD/文件名，默认为backups</div>
+                        </div>
+                        
+                        <!-- 测试按钮放置在 S3 配置区域内 -->
+                        <div class="col-12 mt-3">
+                          <button class="btn btn-sm btn-outline-secondary" type="button" id="btn-test-s3">
+                            <i class="bi bi-plug me-1"></i>测试 S3 连接性
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 全局保存按钮 -->
+          <div class="mt-4 pt-3 border-top">
+            <button class="btn btn-primary px-4" type="submit">
+              <i class="bi bi-save me-2"></i>保存系统设置
+            </button>
+          </div>
+
+        </form>
+
+        <script>
+          function togglePassword(btn, id) {
+            const input = document.getElementById(id);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+              input.type = 'text';
+              icon.classList.remove('bi-eye');
+              icon.classList.add('bi-eye-slash');
+            } else {
+              input.type = 'password';
+              icon.classList.remove('bi-eye-slash');
+              icon.classList.add('bi-eye');
+            }
+          }
+
+          // 保持原有 JS 逻辑，仅增加一些 UI 交互优化
+          const s3EnabledSwitch = document.getElementById('s3_enabled');
+          const s3ConfigCard = document.getElementById('s3-config-card');
+
+          function updateS3UI() {
+            if (s3EnabledSwitch.checked) {
+              s3ConfigCard.classList.remove('s3-inactive-mode');
+            } else {
+              s3ConfigCard.classList.add('s3-inactive-mode');
+            }
+          }
+
+          s3EnabledSwitch.addEventListener('change', updateS3UI);
+          updateS3UI(); // 初始化状态
+
+          document.getElementById('btn-test-s3').addEventListener('click', async function() {
+            const btn = this;
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+
+            const formData = new FormData();
+            formData.append('s3_endpoint', document.getElementById('s3_endpoint').value);
+            formData.append('s3_region', document.getElementById('s3_region').value);
+            formData.append('s3_access_key', document.getElementById('s3_access_key').value);
+            formData.append('s3_secret_key', document.getElementById('s3_secret_key').value);
+            formData.append('s3_bucket', document.getElementById('s3_bucket').value);
+            formData.append('s3_prefix', document.getElementById('s3_prefix').value);
+
+            try {
+              const resp = await fetch('/settings/test-s3', {
+                method: 'POST',
+                body: formData
+              });
+              const result = await resp.json();
+              
+              if (result.status === 'success' || result.success) {
+                 window.NB.showToast('✅ ' + (result.message || 'S3 连接成功'), 'success');
+              } else {
+                 window.NB.showToast('❌ ' + (result.message || 'S3 连接失败'), 'error');
+              }
+            } catch (e) {
+              window.NB.showToast('❌ 请求出错: ' + e, 'error');
+            } finally {
+              btn.disabled = false;
+              btn.innerHTML = originalHTML;
+            }
+          });
+          
+          // 如果 S3 未启用，可以在 UI 上视觉弱化 S3 配置区域（可选优化，暂时不做复杂逻辑）
+        </script>
+
+      {% else %}
+        <!-- 只读视图 -->
+        <ul class="nav nav-tabs mb-4">
+          <li class="nav-item"><a class="nav-link active">系统参数概览</a></li>
+        </ul>
+
+        <div class="row g-4">
+          <div class="col-12 col-md-6">
+            <div class="card h-100 bg-body-tertiary border-0">
+              <div class="card-body">
+                <h6 class="fw-bold text-secondary mb-3">通用设置</h6>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">当前时区</div>
+                  <div class="fw-bold">{{ timezone_offset }}</div>
+                </div>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">最大并发</div>
+                  <div class="fw-bold">{{ max_concurrent_tasks }}</div>
+                </div>
+                <div>
+                  <div class="small text-secondary mb-1">保留天数</div>
+                  <div class="fw-bold">{{ backup_retention_days }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-12 col-md-6">
+              <div class="card h-100 bg-body-tertiary border-0">
+                <div class="card-body">
+                <h6 class="fw-bold text-secondary mb-3">S3 存储</h6>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">状态</div>
+                  {% if s3_enabled == '1' %}
+                    <div class="status-pill status-online">
+                      <span class="status-dot"></span>
+                      <span>已启用</span>
+                    </div>
+                  {% else %}
+                    <div class="status-pill status-offline">
+                      <span class="status-dot"></span>
+                      <span>已禁用</span>
+                    </div>
+                  {% endif %}
+                </div>
+                {% if s3_enabled == '1' %}
+                  <div class="mb-2">
+                    <div class="small text-secondary">Endpoint: <span class="text-body fw-bold">{{ s3_endpoint or 'AWS Standard' }}</span></div>
+                  </div>
+                  <div class="mb-2">
+                    <div class="small text-secondary">Bucket: <span class="text-body fw-bold">{{ s3_bucket or '-' }}</span></div>
+                  </div>
+                  <div class="mb-0">
+                    <div class="small text-secondary">Region: <span class="text-body fw-bold">{{ s3_region or '-' }}</span></div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+            <div class="alert alert-info border-0 d-flex align-items-center">
+              <i class="bi bi-shield-lock me-2"></i>
+              <span>当前为只读权限，无法修改系统设置。</span>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

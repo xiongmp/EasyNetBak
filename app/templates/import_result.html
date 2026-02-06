@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% set page_title = "导入结果" %}
+{% set page_subtitle = "CSV 导入执行报告" %}
+
+{% block content %}
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="fw-semibold">导入完成</div>
+          <div class="text-secondary small mt-1">
+            模式：{{ mode }} · 匹配：{{ match_by }} · 创建 {{ created }} · 更新 {{ updated }} · 跳过 {{ skipped }}
+          </div>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="/devices">返回设备管理</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="fw-semibold mb-3">明细</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th style="width: 80px;">行</th>
+              <th style="width: 120px;">动作</th>
+              <th style="width: 240px;">名称</th>
+              <th style="width: 220px;">Host</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in report %}
+              <tr>
+                <td class="text-secondary small">{{ r.row }}</td>
+                <td>
+                  {% if r.action == "create" %}
+                    <div class="backup-status backup-status-success" style="font-size: 10px; padding: 1px 6px;">create</div>
+                  {% elif r.action == "update" %}
+                    <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px; padding: 1px 6px;">update</div>
+                  {% else %}
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px; padding: 1px 6px;">skip</div>
+                  {% endif %}
+                </td>
+                <td>{{ r.name }}</td>
+                <td class="text-secondary small">{{ r.host }}</td>
+                <td class="text-secondary small">{{ r.message }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center text-secondary py-4">无明细</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

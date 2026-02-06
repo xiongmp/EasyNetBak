@@ -1,0 +1,1031 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
+{% set page_title = "设备列表" %}
+{% set page_subtitle = "维护设备资产与登录信息，用于定时/手动备份" %}
+
+{% block content %}
+  <div class="card border">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <form method="get" action="/devices" class="d-flex flex-wrap gap-2 align-items-center">
+          <div style="width: 280px;">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
+              <input name="q" class="form-control border-start-0 ps-0" placeholder="搜索设备" value="{{ filters.q }}" />
+            </div>
+          </div>
+          <div style="width: 140px;">
+            <select name="login_method" class="form-select form-select-sm" id="device-filter-login-method">
+              <option value="">登录方式: 全部</option>
+              <option value="ssh" {% if filters.login_method == 'ssh' %}selected{% endif %}>SSH</option>
+              <option value="telnet" {% if filters.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
+            </select>
+          </div>
+          <div style="width: 160px;">
+            <select name="platform" class="form-select form-select-sm" id="device-filter-platform">
+              <option value="">平台类型: 全部</option>
+              {% for p in ssh_platforms %}
+                <option value="{{ p.id }}" data-kind="ssh" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+              {% endfor %}
+              {% for p in telnet_platforms %}
+                <option value="{{ p.id }}" data-kind="telnet" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="width: 160px;">
+            <select name="group_id" class="form-select form-select-sm">
+              <option value="0">所属分组: 全部</option>
+              {% for g in groups %}
+                <option value="{{ g.id }}" {% if filters.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="width: 140px;">
+            <select name="status" class="form-select form-select-sm">
+              <option value="">连通状态: 全部</option>
+              <option value="online" {% if filters.status == 'online' %}selected{% endif %}>在线 (可达)</option>
+              <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>离线 (不可达)</option>
+            </select>
+          </div>
+          <button class="btn btn-sm btn-outline-primary px-3" type="submit">筛选</button>
+        </form>
+
+        <script>
+          (function () {
+            const loginSelect = document.getElementById("device-filter-login-method");
+            const platformSelect = document.getElementById("device-filter-platform");
+            if (!loginSelect || !platformSelect) return;
+
+            function syncPlatformOptions() {
+              const loginMethod = (loginSelect.value || "").toLowerCase();
+              const options = Array.from(platformSelect.options);
+              let firstVisibleValue = "";
+
+              options.forEach((opt, idx) => {
+                if (idx === 0) return;
+                const kind = opt.getAttribute("data-kind") || "ssh";
+                const visible = !loginMethod || kind === loginMethod;
+                opt.hidden = !visible;
+                opt.disabled = !visible;
+                if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
+              });
+
+              const current = platformSelect.value;
+              if (!current) return;
+              const currentOpt = options.find((o) => o.value === current);
+              if (currentOpt && (currentOpt.hidden || currentOpt.disabled)) {
+                platformSelect.value = "";
+              }
+            }
+
+            loginSelect.addEventListener("change", syncPlatformOptions);
+            syncPlatformOptions();
+          })();
+        </script>
+
+        <div class="d-flex gap-2">
+            {% if is_operator %}
+              <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
+                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
+                  <i class="bi bi-lightning-charge me-1"></i>连通性检测
+                </button>
+              </span>
+            {% endif %}
+            <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+              <i class="bi bi-download me-1"></i>导出 CSV
+            </a>
+            {% if is_operator %}
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-upload me-1"></i>导入 CSV
+              </button>
+              <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#deviceCreateModal">
+                <i class="bi bi-plus-lg me-1"></i>新增设备
+              </button>
+            {% endif %}
+        </div>
+      </div>
+
+      {% if is_operator %}
+        <div class="card bg-body-tertiary mb-3 border" id="bulk-actions-panel" style="display: none;">
+          <div class="card-body p-2">
+            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+              <div class="d-flex align-items-center px-2">
+                 <span class="small fw-semibold text-primary">已选 <span id="bulk-selected-count">0</span> 台设备</span>
+              </div>
+
+              <div class="d-flex flex-wrap gap-2 align-items-center flex-grow-1 justify-content-end">
+                 <form method="post" action="/devices/bulk_backup" class="d-flex gap-2 align-items-center" id="bulk-backup-form">
+                    <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
+
+                    <button class="btn btn-sm btn-primary text-nowrap" type="submit" id="bulk-backup-btn" disabled>
+                      <i class="bi bi-play-fill"></i> 批量备份
+                    </button>
+                 </form>
+
+                 {% if is_operator %}
+                 <div class="vr mx-1 d-none d-md-block"></div>
+
+                 <form method="post" action="/devices/bulk_update_group" class="d-flex gap-2 align-items-center" id="bulk-group-form">
+                    <input type="hidden" name="device_ids" id="bulk-device-ids-2" value="" />
+                    <select name="group_id" class="form-select form-select-sm" style="width: 160px;">
+                      <option value="0">未分组</option>
+                      {% for g in groups %}
+                        <option value="{{ g.id }}">{{ g.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary text-nowrap" type="submit" id="bulk-group-btn" disabled>
+                       移动
+                    </button>
+                 </form>
+
+                 <div class="vr mx-1 d-none d-md-block"></div>
+
+                 <form method="post" action="/devices/bulk_delete" id="bulk-delete-form">
+                    <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
+                    <button class="btn btn-sm btn-outline-danger text-nowrap" type="submit" id="bulk-delete-btn" disabled>
+                      批量删除
+                    </button>
+                 </form>
+                 {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if is_operator %}
+        <!-- 连通性检测结果弹窗 -->
+        <div class="modal fade" id="reachabilityModal" tabindex="-1" aria-labelledby="reachabilityModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header bg-body-tertiary">
+                <div class="d-flex align-items-center gap-3 w-100">
+                   <h5 class="modal-title" id="reachabilityModalLabel">
+                     <i class="bi bi-activity me-1 text-primary"></i>连通性检测报告
+                   </h5>
+                   <div class="vr"></div>
+                   <div class="d-flex align-items-center gap-2 small flex-grow-1" id="bulk-reachability-summary">
+                      <span class="text-secondary">准备就绪</span>
+                   </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              
+              <!-- 筛选栏 (Fixed) -->
+              <div class="bg-body-tertiary px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                 <div class="small text-secondary">
+                   <i class="bi bi-info-circle me-1"></i>检测可能需要数秒至数分钟，请耐心等待
+                 </div>
+                 <div class="d-flex gap-2">
+                     <button type="button" class="btn btn-primary btn-sm" id="start-reach-test-btn">
+                        <i class="bi bi-play-circle me-1"></i>立即检测
+                     </button>
+                     <div class="btn-group btn-group-sm" role="group" id="reach-filter-group">
+                         <button type="button" class="btn btn-outline-secondary active" data-filter="all">全部</button>
+                         <button type="button" class="btn btn-outline-success" data-filter="success">可达</button>
+                         <button type="button" class="btn btn-outline-danger" data-filter="failed">不可达</button>
+                     </div>
+                 </div>
+              </div>
+              
+              <div class="modal-body p-0">
+                 <!-- 进度条区域 -->
+                 <div id="reach-progress-container" class="px-3 py-3 border-bottom bg-body-tertiary" style="display: none;">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span id="reach-progress-text" class="text-primary fw-medium">正在初始化任务...</span>
+                        <span id="reach-progress-percent" class="fw-bold">0%</span>
+                    </div>
+                    <div class="progress" role="progressbar" aria-label="Detection Progress" style="height: 8px;">
+                        <div id="reach-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                    </div>
+                 </div>
+
+                 <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                      <thead class="bg-body-tertiary sticky-top" style="top: 0; z-index: 10;">
+                        <tr>
+                          <th style="width: 60px;" class="ps-3 text-start">ID</th>
+                          <th style="width: 20%;" class="text-start">设备名称</th>
+                          <th style="width: 20%;" class="text-start">管理地址</th>
+                          <th style="width: 80px;" class="text-start">协议</th>
+                          <th style="width: 100px;" class="text-start">状态</th>
+                          <th style="width: 180px;" class="text-start text-nowrap">最后检测时间</th>
+                          <th style="width: 90px;" class="text-start text-nowrap">耗时</th>
+                          <th class="text-start">错误信息</th>
+                        </tr>
+                      </thead>
+                      <tbody id="bulk-reachability-tbody"></tbody>
+                    </table>
+                 </div>
+              </div>
+              <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="bg-body-tertiary">
+            <tr>
+              {% if is_operator %}
+                <th style="width: 44px;">
+                  <input class="form-check-input" type="checkbox" id="select-all" />
+                </th>
+              {% endif %}
+              <th style="width: 60px;">ID</th>
+              <th>设备名称</th>
+              <th style="width: 200px;">管理地址 (Host)</th>
+              <th style="width: 120px;">状态</th>
+              <th style="width: 120px;">登录方式</th>
+              <th style="width: 140px;">平台类型</th>
+              <th style="width: 140px;">所属分组</th>
+              <th style="width: 200px;">登录凭据</th>
+              <th style="width: 180px;">创建时间</th>
+              <th style="width: 140px;" class="text-start">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in devices %}
+              <tr>
+                {% if is_operator %}
+                  <td class="text-start">
+                    <input class="form-check-input device-check" type="checkbox" value="{{ d.id }}" />
+                  </td>
+                {% endif %}
+                <td class="text-secondary small text-start">{{ d.id }}</td>
+                <td class="text-start"><a class="text-decoration-none fw-medium" href="/devices/{{ d.id }}">{{ d.name }}</a></td>
+                <td class="text-secondary small text-start">{{ d.host }}:{{ d.port }}</td>
+                <td id="device-status-{{ d.id }}" class="text-start">
+                  {% if d.reachability_status == True %}
+                    <div class="status-pill status-online" title="检测时间: {{ d.last_reachability_check|dt_local }}">
+                      <span class="status-dot"></span>
+                      <span>在线</span>
+                    </div>
+                  {% elif d.reachability_status == False %}
+                    <div class="status-pill status-offline" title="检测时间: {{ d.last_reachability_check|dt_local }}&#10;错误: {{ d.reachability_error }}">
+                      <span class="status-dot"></span>
+                      <span>离线</span>
+                    </div>
+                  {% else %}
+                    <div class="status-pill status-unknown">
+                      <span class="status-dot"></span>
+                      <span>未知</span>
+                    </div>
+                  {% endif %}
+                </td>
+                <td class="text-start">
+                  {% if (d.login_method or 'ssh') == 'telnet' %}
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">Telnet</div>
+                  {% else %}
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">SSH</div>
+                  {% endif %}
+                </td>
+                <td class="text-start">
+                  <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">{{ d.platform }}</div>
+                </td>
+                <td class="text-secondary small text-start">
+                  {% if d.group_id and group_map.get(d.group_id) %}
+                    <span class="text-body">{{ group_map.get(d.group_id).name }}</span>
+                  {% else %}
+                    <span class="opacity-50">-</span>
+                  {% endif %}
+                </td>
+                <td class="text-secondary small text-start">
+                  {% if d.credential_id and credential_map.get(d.credential_id) %}
+                    {{ credential_map.get(d.credential_id).name }} <span class="opacity-50">·</span> {{ credential_map.get(d.credential_id).username }}
+                  {% else %}
+                    <span class="opacity-50">-</span>
+                  {% endif %}
+                </td>
+                <td class="text-secondary small text-nowrap text-start">{{ d.created_at|dt_local }}</td>
+                <td class="text-start text-nowrap">
+                  <div class="d-flex gap-1 justify-content-start text-nowrap">
+                    <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/devices/{{ d.id }}">
+                      <i class="bi bi-search me-1"></i>详情
+                    </a>
+                    {% if is_operator %}
+                      <form method="post" action="/devices/{{ d.id }}/delete" class="d-inline m-0 text-nowrap">
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此设备吗？">
+                          <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="{{ 11 if is_operator else 10 }}" class="text-center text-secondary py-4">暂无设备记录</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {{ render_pagination(pagination, pagination_base, "台设备") }}
+    </div>
+  </div>
+
+  {% if is_operator %}
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+      const DEVICE_REACHABILITY = {
+        {% for d in devices %}
+        "{{ d.id }}": {
+          id: {{ d.id | tojson }},
+          name: {{ d.name | tojson }},
+          host: {{ d.host | tojson }},
+          login_method: {{ d.login_method | tojson }},
+          success: {% if d.reachability_status is none %}null{% else %}{{ 'true' if d.reachability_status else 'false' }}{% endif %},
+          last_checked: {{ (d.last_reachability_check | dt_local if d.last_reachability_check else '') | tojson }},
+          error_message: {{ (d.reachability_error or '') | tojson }},
+          duration_ms: {{ d.reachability_duration_ms or 'null' }}
+        },
+        {% endfor %}
+      };
+
+      const selectAll = document.getElementById('select-all');
+      const checks = Array.from(document.querySelectorAll('.device-check'));
+      const idsInput = document.getElementById('bulk-device-ids');
+      const countEl = document.getElementById('bulk-selected-count');
+      const btn = document.getElementById('bulk-backup-btn');
+
+      const idsInput2 = document.getElementById('bulk-device-ids-2');
+      const idsInput3 = document.getElementById('bulk-device-ids-3');
+      const bulkGroupBtn = document.getElementById('bulk-group-btn');
+      const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+      const bulkDeleteForm = document.getElementById('bulk-delete-form');
+      const bulkBackupForm = document.getElementById('bulk-backup-form');
+      const bulkActionsPanel = document.getElementById('bulk-actions-panel');
+      const reachBtn = document.getElementById('bulk-reachability-btn');
+      const reachPanel = document.getElementById('reachabilityModal');
+      const reachSummary = document.getElementById('bulk-reachability-summary');
+      const reachTbody = document.getElementById('bulk-reachability-tbody');
+      const reachFilterGroup = document.getElementById('reach-filter-group');
+      const filterQ = document.querySelector('input[name="q"]');
+      const filterLogin = document.getElementById('device-filter-login-method');
+      const filterPlatform = document.getElementById('device-filter-platform');
+      const filterGroup = document.querySelector('select[name="group_id"]');
+      const filterStatus = document.querySelector('select[name="status"]');
+      
+      const reachProgressContainer = document.getElementById('reach-progress-container');
+      const reachProgressBar = document.getElementById('reach-progress-bar');
+      const reachProgressText = document.getElementById('reach-progress-text');
+      const reachProgressPercent = document.getElementById('reach-progress-percent');
+
+      let reachBtnText = reachBtn ? reachBtn.innerHTML : "";
+      
+      // Tooltip for reachability button
+      const reachWrapper = document.getElementById('reach-btn-wrapper');
+      let reachTooltip = null;
+      if (reachWrapper) {
+          reachTooltip = new bootstrap.Tooltip(reachWrapper);
+      }
+      
+      let lastReachItems = [];
+      let currentReachFilter = 'all';
+      let reachModalInstance = null;
+      
+      // Initialize modal with current DB state when opened
+      if (reachBtn) {
+          reachBtn.addEventListener('click', () => {
+              if (reachPanel) {
+                  // Show Modal
+                  if (!reachModalInstance) {
+                      reachModalInstance = new bootstrap.Modal(reachPanel);
+                  }
+                  reachModalInstance.show();
+                  
+                  const selectedIds = checks.filter(c => c.checked).map(c => c.value);
+                  let targetItems = [];
+                  
+                  if (selectedIds.length > 0) {
+                      // Show selected
+                      targetItems = selectedIds.map(id => DEVICE_REACHABILITY[id]).filter(x => x);
+                  } else {
+                      // Show all on current page if nothing selected
+                      targetItems = Object.values(DEVICE_REACHABILITY);
+                  }
+                  
+                  lastReachItems = targetItems;
+                  renderReachabilityTable();
+                  
+                  const total = lastReachItems.length;
+                  const checkedItems = lastReachItems.filter(i => i.success !== null);
+                  const ok = checkedItems.filter(i => i.success === true).length;
+                  const bad = checkedItems.filter(i => i.success === false).length;
+                  
+                  if (checkedItems.length > 0) {
+                      updateReachSummary({total, success: ok, failed: bad});
+                  } else {
+                      updateReachSummary(null);
+                  }
+              }
+          });
+      }
+
+      function updateBulkAll() {
+        const ids = checks.filter(c => c.checked).map(c => c.value);
+        idsInput.value = ids.join(',');
+        countEl.textContent = String(ids.length);
+        btn.disabled = ids.length === 0;
+        if (idsInput2) idsInput2.value = idsInput.value;
+        if (idsInput3) idsInput3.value = idsInput.value;
+        const has = ids.length > 0;
+        if (bulkGroupBtn) bulkGroupBtn.disabled = !has;
+        if (bulkDeleteBtn) bulkDeleteBtn.disabled = !has;
+        if (reachBtn) {
+           reachBtn.disabled = !has;
+           reachBtn.style.pointerEvents = has ? 'auto' : 'none';
+           if (reachTooltip) {
+               if (has) {
+                   reachTooltip.disable();
+               } else {
+                   reachTooltip.enable();
+               }
+           }
+        }
+        
+        if (bulkActionsPanel) {
+          bulkActionsPanel.style.display = has ? 'block' : 'none';
+        }
+
+        if (selectAll) {
+          selectAll.checked = ids.length > 0 && ids.length === checks.length;
+          selectAll.indeterminate = ids.length > 0 && ids.length < checks.length;
+        }
+      }
+
+      if (selectAll) {
+        selectAll.addEventListener('change', () => {
+          checks.forEach(c => { c.checked = selectAll.checked; });
+          updateBulkAll();
+        });
+      }
+      checks.forEach(c => c.addEventListener('change', updateBulkAll));
+      updateBulkAll();
+
+      if (bulkDeleteForm) {
+        bulkDeleteForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const cnt = Number(countEl.textContent || '0');
+          if (window.NB && typeof window.NB.confirmDelete === 'function') {
+            window.NB.confirmDelete(`确认删除选中的 ${cnt} 台设备？`, () => {
+              HTMLFormElement.prototype.submit.call(bulkDeleteForm);
+            });
+          } else if (confirm(`确认删除选中的 ${cnt} 台设备？`)) {
+            HTMLFormElement.prototype.submit.call(bulkDeleteForm);
+          }
+        });
+      }
+
+      if (bulkBackupForm) {
+        bulkBackupForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const ids = (idsInput.value || '').trim();
+          if (!ids) return;
+          (async () => {
+            btn.disabled = true;
+            const fd = new FormData(bulkBackupForm);
+            const resp = await fetch('/api/devices/bulk_backup', { method: 'POST', body: fd });
+            if (!resp.ok) {
+              window.NB.showToast('备份请求失败', 'error');
+              updateBulkAll();
+              return;
+            }
+            const data = await resp.json();
+            const records = (data && data.records) ? data.records : [];
+            if (window.NB && typeof window.NB.trackBackups === 'function' && Array.isArray(records) && records.length) {
+              window.NB.trackBackups(records);
+              window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+            } else {
+              window.NB.showToast('未找到可备份设备', 'warning');
+            }
+            updateBulkAll();
+          })();
+        });
+      }
+
+      function escapeText(text) {
+        const span = document.createElement('span');
+        span.textContent = text == null ? '' : String(text);
+        return span.innerHTML;
+      }
+
+      function renderReachBadge(item) {
+        if (item && item.success === true) {
+          return `<div class="status-pill status-online"><span class="status-dot"></span><span>可达</span></div>`;
+        }
+        if (item && item.success === null) {
+          return `<div class="status-pill status-unknown"><span class="status-dot"></span><span>未检测</span></div>`;
+        }
+        const err = (item && item.error_message) ? item.error_message : '';
+        let label = '不可达';
+        let title = '';
+        if (err.includes('连接超时')) { label = '超时'; title = '连接超时'; }
+        else if (err.includes('认证失败')) { label = '认证失败'; title = '认证失败'; }
+        else if (err.includes('连接被拒绝')) { label = '被拒绝'; title = '连接被拒绝'; }
+        else if (err.includes('特权模式失败')) { label = '特权失败'; title = 'Enable 密码错误'; }
+        else if (err.includes('读取超时')) { label = '读取超时'; title = '设备响应慢'; }
+        else if (err.includes('连接断开')) { label = '连接断开'; title = '网络不稳定或被强制关闭'; }
+        else if (err.includes('密钥错误')) { label = '密钥错误'; title = 'SSH 密钥无效'; }
+        else if (err.includes('未配置凭据')) { label = '无凭据'; title = '未配置凭据'; }
+        
+        return `<div class="status-pill status-offline" title="${title}"><span class="status-dot"></span><span>${label}</span></div>`;
+      }
+
+      function renderReachabilityTable() {
+        if (!reachTbody) return;
+        
+        let items = lastReachItems;
+        if (currentReachFilter === 'success') {
+          items = items.filter(i => i.success);
+        } else if (currentReachFilter === 'failed') {
+          items = items.filter(i => !i.success);
+        }
+
+        if (!items || !items.length) {
+           if (lastReachItems.length > 0) {
+             reachTbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">没有符合条件的记录</td></tr>';
+           } else {
+             reachTbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">暂无检测结果</td></tr>';
+           }
+           return;
+        }
+
+        reachTbody.innerHTML = items.map((item) => {
+          const host = `${escapeText(item.host || '')}`;
+          const name = escapeText(item.name || '');
+          const lm = (item.login_method || '').toLowerCase() === 'telnet' ? 'Telnet' : 'SSH';
+          const err = escapeText(item.error_message || '');
+          const duration = item.duration_ms != null ? `${item.duration_ms} ms` : '-';
+          const lastChecked = escapeText(item.last_checked || '-');
+          return `
+            <tr>
+              <td class="text-secondary small ps-3 text-start">${escapeText(item.id || '')}</td>
+              <td class="text-start">${name}</td>
+              <td class="text-secondary small text-start">${host}</td>
+              <td class="text-start">
+                <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">${lm}</div>
+              </td>
+              <td class="text-start">${renderReachBadge(item)}</td>
+              <td class="text-secondary small text-start text-nowrap">${lastChecked}</td>
+              <td class="text-secondary small text-start text-nowrap">${duration}</td>
+              <td class="text-danger small text-truncate text-start" style="max-width: 360px;" title="${err}">${err}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function updateReachSummary(summary) {
+         if (!reachSummary) return;
+         if (!summary) {
+             reachSummary.innerHTML = '<span class="text-secondary">准备就绪</span>';
+             return;
+         }
+         const total = summary.total || 0;
+         const ok = summary.success || 0;
+         const bad = summary.failed || 0;
+         
+         reachSummary.innerHTML = `
+           <div class="backup-status" style="background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color);">共 ${total}</div>
+           <div class="backup-status backup-status-success">可达 ${ok}</div>
+           <div class="backup-status backup-status-failed">不可达 ${bad}</div>
+         `;
+      }
+
+      if (reachFilterGroup) {
+        const btns = reachFilterGroup.querySelectorAll('button');
+        btns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentReachFilter = btn.getAttribute('data-filter') || 'all';
+            renderReachabilityTable();
+          });
+        });
+      }
+
+      const startReachTestBtn = document.getElementById('start-reach-test-btn');
+      
+      function updateMainTableStatus(item) {
+        const cell = document.getElementById(`device-status-${item.id}`);
+        if (!cell) return;
+        
+        let html = '';
+        if (item.success === true) {
+          html = `
+            <div class="status-pill status-online" title="检测时间: ${escapeText(item.last_checked)}">
+              <span class="status-dot"></span>
+              <span>在线</span>
+            </div>`;
+        } else if (item.success === false) {
+          html = `
+            <div class="status-pill status-offline" title="检测时间: ${escapeText(item.last_checked)}\n错误: ${escapeText(item.error_message)}">
+              <span class="status-dot"></span>
+              <span>离线</span>
+            </div>`;
+        } else {
+          html = `
+            <div class="status-pill status-unknown">
+              <span class="status-dot"></span>
+              <span>未知</span>
+            </div>`;
+        }
+        cell.innerHTML = html;
+      }
+
+      // 执行检测的逻辑提取为单独函数 (异步轮询版)
+      async function performReachabilityTest() {
+          if (!startReachTestBtn) return;
+          
+          const originalBtnText = startReachTestBtn.innerHTML;
+          startReachTestBtn.disabled = true;
+          startReachTestBtn.classList.add('disabled');
+          
+          // Show Progress UI
+          if (reachProgressContainer) reachProgressContainer.style.display = 'block';
+          if (reachProgressBar) {
+              reachProgressBar.style.width = '0%';
+              reachProgressBar.classList.add('progress-bar-animated');
+              reachProgressBar.classList.remove('bg-success');
+          }
+          if (reachProgressPercent) reachProgressPercent.textContent = '0%';
+          if (reachProgressText) reachProgressText.textContent = '准备开始...';
+
+          if (reachSummary) {
+            reachSummary.innerHTML = '<span class="text-secondary">正在启动任务...</span>';
+          }
+          
+          // Reset filter
+          if (reachFilterGroup) {
+             const allBtn = reachFilterGroup.querySelector('[data-filter="all"]');
+             if (allBtn) {
+                 allBtn.click();
+                 const btns = reachFilterGroup.querySelectorAll('button');
+                 btns.forEach(b => b.classList.remove('active'));
+                 allBtn.classList.add('active');
+                 currentReachFilter = 'all';
+             }
+          }
+          
+          // Clear table initially
+          if (reachTbody) reachTbody.innerHTML = '';
+          lastReachItems = [];
+
+          const formData = new FormData();
+          const qVal = filterQ ? filterQ.value || '' : "";
+          const lVal = filterLogin ? filterLogin.value || '' : "";
+          const pVal = filterPlatform ? filterPlatform.value || '' : "";
+          const gVal = filterGroup ? filterGroup.value || '' : "0";
+          const sVal = filterStatus ? filterStatus.value || '' : "";
+          
+          const selectedIds = checks.filter(c => c.checked).map(c => c.value);
+          if (selectedIds.length > 0) {
+             formData.append("device_ids", selectedIds.join(","));
+          } else {
+             formData.append("q", qVal);
+             formData.append("login_method", lVal);
+             formData.append("platform", pVal);
+             formData.append("group_id", gVal);
+             formData.append("status", sVal);
+          }
+
+          try {
+            // 1. Start Task
+            const resp = await fetch("/api/devices/bulk_reachability", {
+                method: "POST",
+                body: formData,
+            });
+            
+            if (!resp.ok) {
+                throw new Error("Failed to start task");
+            }
+            
+            const data = await resp.json();
+            const taskId = data.task_id;
+            
+            if (!taskId) {
+                if (reachSummary) reachSummary.innerHTML = '<span class="text-warning">未找到可检测的设备</span>';
+                if (reachProgressContainer) reachProgressContainer.style.display = 'none';
+                startReachTestBtn.disabled = false;
+                startReachTestBtn.classList.remove('disabled');
+                startReachTestBtn.innerHTML = originalBtnText;
+                return;
+            }
+
+            // 2. Poll Task Status
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusResp = await fetch(`/api/devices/reachability_tasks/${taskId}`);
+                    if (!statusResp.ok) return; 
+                    
+                    const task = await statusResp.json();
+                    
+                    // Update Progress
+                    const total = task.total || 1;
+                    const processed = task.processed || 0;
+                    const percent = Math.round((processed / total) * 100);
+                    
+                    if (reachProgressBar) reachProgressBar.style.width = `${percent}%`;
+                    if (reachProgressPercent) reachProgressPercent.textContent = `${percent}%`;
+                    if (reachProgressText) reachProgressText.textContent = `正在检测 ${processed}/${total}`;
+                    
+                    // Update Summary
+                    updateReachSummary({
+                        total: task.total,
+                        success: task.success,
+                        failed: task.failed
+                    });
+                    
+                    // Update Table & Main List
+                    lastReachItems = task.items || [];
+                    
+                    // Update Main Table Badges
+                    (task.items || []).forEach(item => {
+                         if (DEVICE_REACHABILITY[item.id]) {
+                            Object.assign(DEVICE_REACHABILITY[item.id], item);
+                        }
+                        updateMainTableStatus(item);
+                    });
+                    
+                    renderReachabilityTable(); 
+                    
+                    if (task.status === 'finished') {
+                        clearInterval(pollInterval);
+                        if (reachProgressBar) {
+                            reachProgressBar.classList.remove('progress-bar-animated');
+                            reachProgressBar.classList.add('bg-success');
+                        }
+                        if (reachProgressText) reachProgressText.textContent = '检测完成';
+                        
+                        startReachTestBtn.disabled = false;
+                        startReachTestBtn.classList.remove('disabled');
+                        startReachTestBtn.innerHTML = originalBtnText;
+                    }
+                    
+                } catch (e) {
+                    console.error("Polling error", e);
+                    clearInterval(pollInterval);
+                    startReachTestBtn.disabled = false;
+                    startReachTestBtn.classList.remove('disabled');
+                    startReachTestBtn.innerHTML = originalBtnText;
+                }
+            }, 1000); 
+
+          } catch (e) {
+            if (reachSummary) reachSummary.innerHTML = '<span class="text-danger">请求失败</span>';
+            if (reachProgressContainer) reachProgressContainer.style.display = 'none';
+            console.error(e);
+            startReachTestBtn.disabled = false;
+            startReachTestBtn.classList.remove('disabled');
+            startReachTestBtn.innerHTML = originalBtnText;
+          }
+      }
+
+      if (startReachTestBtn) {
+          startReachTestBtn.addEventListener('click', performReachabilityTest);
+      }
+
+      async function refreshDeviceStatus() {
+        const ids = Object.keys(DEVICE_REACHABILITY);
+        if (ids.length === 0) return;
+        
+        try {
+            const resp = await fetch(`/api/devices/status?ids=${ids.join(',')}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            
+            if (data.items && Array.isArray(data.items)) {
+                data.items.forEach(item => {
+                    if (DEVICE_REACHABILITY[item.id]) {
+                        // Update local cache
+                        Object.assign(DEVICE_REACHABILITY[item.id], item);
+                        // Update Main Table
+                        updateMainTableStatus(item);
+                    }
+                });
+                
+                // If modal is open, update it too
+                if (reachModalInstance && reachPanel && reachPanel.classList.contains('show')) {
+                     renderReachabilityTable();
+                }
+            }
+        } catch (e) {
+            console.error("Failed to refresh status", e);
+        }
+      }
+
+      // Auto refresh on load to catch background task updates
+      setTimeout(refreshDeviceStatus, 1000);
+      setTimeout(refreshDeviceStatus, 3000);
+      setTimeout(refreshDeviceStatus, 6000);
+
+      if (reachBtn) {
+         // Moved the click listener to earlier in the file to handle logic properly
+      }
+      });
+    </script>
+
+    <div class="modal fade" id="deviceCreateModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <form method="post" action="/devices">
+            <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
+              <h5 class="modal-title d-flex align-items-center">
+                <i class="bi bi-plus-circle-fill text-primary me-2"></i>
+                <span>新增设备</span>
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body p-4">
+              {% if credentials|length == 0 %}
+                <div class="alert alert-warning d-flex align-items-center border-0 shadow-sm mb-4">
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  <div>请先到“凭据管理”创建至少一个凭据，再新增设备。</div>
+                </div>
+              {% endif %}
+              <div class="row g-4">
+                <div class="col-12 col-lg-6">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-tag me-1"></i>设备名称
+                  </label>
+                  <input name="name" class="form-control form-control-lg fs-6" placeholder="例如：核心交换机-01" required />
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-hdd-network me-1"></i>IP / 主机名
+                  </label>
+                  <input name="host" class="form-control form-control-lg fs-6" placeholder="10.0.0.1" required />
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-diagram-2 me-1"></i>登录方式
+                  </label>
+                  <select name="login_method" class="form-select form-select-lg fs-6" id="device-create-login-method" required>
+                    <option value="ssh" selected>SSH</option>
+                    <option value="telnet">Telnet</option>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-door-open me-1"></i>端口
+                  </label>
+                  <input name="port" type="number" class="form-control form-control-lg fs-6" value="22" id="device-create-port" />
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-cpu me-1"></i>设备类型
+                  </label>
+                  <select name="platform" class="form-select form-select-lg fs-6" id="device-create-platform" required>
+                    {% for p in ssh_platforms %}
+                      <option value="{{ p.id }}" data-kind="ssh">{{ p.label }}</option>
+                    {% endfor %}
+                    {% for p in telnet_platforms %}
+                      <option value="{{ p.id }}" data-kind="telnet">{{ p.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-grid me-1"></i>设备分组
+                  </label>
+                  <select name="group_id" class="form-select form-select-lg fs-6">
+                    <option value="0">未分组</option>
+                    {% for g in groups %}
+                      <option value="{{ g.id }}">{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-shield-lock me-1"></i>登录凭据
+                  </label>
+                  <select name="credential_id" class="form-select form-select-lg fs-6" required>
+                    {% for c in credentials %}
+                      <option value="{{ c.id }}">{{ c.name }} · {{ c.username }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text x-small mt-2">
+                    <i class="bi bi-info-circle me-1"></i>如需新账号，请先到“凭据管理”创建
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-file-earmark-code me-1"></i>备份模板
+                  </label>
+                  <select name="default_template_id" class="form-select form-select-lg fs-6">
+                    <option value="0">使用设备类型默认命令</option>
+                    {% for t in templates %}
+                      <option value="{{ t.id }}">{{ t.name }} · {{ t.platform }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top-0 py-3">
+              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+              <button class="btn btn-primary px-5 shadow-sm" type="submit" {% if credentials|length == 0 %}disabled{% endif %}>
+                <i class="bi bi-check-lg me-1"></i>确认保存
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        const loginSelect = document.getElementById("device-create-login-method");
+        const platformSelect = document.getElementById("device-create-platform");
+        const portInput = document.getElementById("device-create-port");
+        if (!loginSelect || !platformSelect) return;
+
+        function syncPlatformOptions() {
+          const loginMethod = (loginSelect.value || "ssh").toLowerCase();
+          const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
+          const options = Array.from(platformSelect.options);
+          let firstVisibleValue = null;
+          options.forEach((opt) => {
+            const kind = opt.getAttribute("data-kind") || "ssh";
+            const visible = kind === wantKind;
+            opt.hidden = !visible;
+            opt.disabled = !visible;
+            if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
+          });
+          const current = platformSelect.value;
+          const currentOpt = options.find((o) => o.value === current);
+          if (!currentOpt || currentOpt.hidden || currentOpt.disabled) {
+            platformSelect.value = firstVisibleValue || "";
+          }
+
+          if (portInput) {
+            const v = String(portInput.value || "").trim();
+            if (!v || v === "22" || v === "23") {
+              portInput.value = loginMethod === "telnet" ? "23" : "22";
+            }
+          }
+        }
+
+        loginSelect.addEventListener("change", syncPlatformOptions);
+        syncPlatformOptions();
+      })();
+    </script>
+
+    <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <form method="post" action="/devices/import.csv" enctype="multipart/form-data">
+            <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
+              <h5 class="modal-title d-flex align-items-center">
+                <i class="bi bi-file-earmark-arrow-up-fill text-success me-2"></i>
+                <span>批量导入设备</span>
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+              <div class="mb-4">
+                <label class="form-label small fw-bold text-secondary">选择 CSV 文件</label>
+                <div class="input-group">
+                  <input class="form-control form-control-lg fs-6" type="file" name="file" accept=".csv" required />
+                </div>
+                <div class="form-text x-small mt-2">
+                  <i class="bi bi-info-circle me-1"></i>文件列名：name, host, port, login_method(可选), platform, group_name(可选), credential_name
+                </div>
+              </div>
+              <div class="row g-3 mb-4">
+                <div class="col-6">
+                  <label class="form-label small fw-bold text-secondary">导入模式</label>
+                  <select class="form-select" name="mode">
+                    <option value="insert">仅新增</option>
+                    <option value="upsert">新增或更新</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-bold text-secondary">匹配字段</label>
+                  <select class="form-select" name="match_by">
+                    <option value="host">Host IP</option>
+                    <option value="name">设备名称</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="download_report" value="1" id="downloadReport" checked />
+                <label class="form-check-label small fw-medium" for="downloadReport">导入完成后自动下载处理报告</label>
+              </div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top-0 py-3">
+              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+              <button type="submit" class="btn btn-success px-5 shadow-sm">
+                <i class="bi bi-cloud-upload me-1"></i>开始导入
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+

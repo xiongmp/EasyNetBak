@@ -1,0 +1,769 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm hover-lift">
+      <div class="card-body py-3 px-4 d-flex align-items-center">
+        <div class="d-flex align-items-center w-100">
+          <div class="flex-shrink-0 bg-primary bg-gradient bg-opacity-10 text-primary p-3 rounded-3">
+            <i class="bi bi-hdd-network fs-4"></i>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">设备总数</h6>
+            <h4 class="card-title mb-0 fw-bold">{{ summary.total_devices }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm hover-lift">
+      <div class="card-body py-3 px-4 d-flex align-items-center">
+        <div class="d-flex align-items-center w-100">
+          <div class="flex-shrink-0 bg-success bg-gradient bg-opacity-10 text-success p-3 rounded-3">
+            <i class="bi bi-diagram-3 fs-4"></i>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">设备分组</h6>
+            <h4 class="card-title mb-0 fw-bold">{{ summary.total_groups }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm hover-lift">
+      <div class="card-body py-3 px-4 d-flex align-items-center">
+        <div class="d-flex align-items-center w-100">
+          <div class="flex-shrink-0 bg-info bg-gradient bg-opacity-10 text-info p-3 rounded-3">
+            <i class="bi bi-cloud-arrow-up fs-4"></i>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">24h 备份任务</h6>
+            <h4 class="card-title mb-0 fw-bold">{{ summary.backup_24h_total }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 shadow-sm hover-lift">
+      <div class="card-body py-3 px-4 d-flex align-items-center">
+        <div class="d-flex align-items-center w-100">
+          <div class="flex-shrink-0 bg-warning bg-gradient bg-opacity-10 text-warning p-3 rounded-3">
+            <i class="bi bi-check2-circle fs-4"></i>
+          </div>
+          <div class="flex-grow-1 ms-3">
+            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">24h 成功率</h6>
+            <h4 class="card-title mb-0 fw-bold">{{ summary.success_rate }}%</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 px-3">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 (最近30天)</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率热力图</button>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body px-3 pb-3">
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="trend-pane" role="tabpanel" aria-labelledby="trend-tab" tabindex="0">
+            <div id="backup-trend-chart" style="min-height: 200px;">
+              <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">加载中...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="change-heatmap-pane" role="tabpanel" aria-labelledby="change-heatmap-tab" tabindex="0">
+            <div id="change-heatmap-chart" style="min-height: 200px;">
+              <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">加载中...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 px-3">
+        <h6 class="card-title mb-0 fw-bold">设备平台分布</h6>
+      </div>
+      <div class="card-body px-3 pb-3">
+        <div id="platform-pie-chart" style="min-height: 200px;">
+          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">加载中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 px-3 d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0 fw-bold">最近备份活动</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-primary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="all">全部</button>
+          <button type="button" class="btn btn-outline-secondary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="success">成功</button>
+          <button type="button" class="btn btn-outline-secondary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="failed">失败</button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive custom-scroll" style="max-height: 310px;">
+          <table class="table table-hover align-middle mb-0 table-sm" id="backup-activity-table">
+            <thead class="bg-body-tertiary sticky-top">
+              <tr>
+                <th class="ps-3 py-2">设备</th>
+                <th class="py-2">开始时间</th>
+                <th class="text-center py-2">状态</th>
+                <th class="pe-3 py-2 text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody id="backup-table-body">
+              {% if recent_backups %}
+              {% for record in recent_backups %}
+              <tr class="backup-row" data-status="{% if record.success %}success{% elif record.finished_at %}failed{% else %}running{% endif %}">
+                <td class="ps-3">
+                  <div class="d-flex align-items-center">
+                    <div class="bg-body-tertiary rounded-circle p-1 me-2">
+                      <i class="bi bi-router text-primary small"></i>
+                    </div>
+                    <div>
+                      <div class="fw-semibold small">{{ device_map[record.device_id].name }}</div>
+                      <div class="text-muted" style="font-size: 0.75rem;">{{ device_map[record.device_id].host }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="small">{{ record.started_at | dt_local }}</td>
+                <td class="text-center">
+                  {% if record.success %}
+                  <div class="backup-status backup-status-success">
+                    <i class="bi bi-check-circle"></i>成功
+                  </div>
+                  {% elif record.finished_at %}
+                  <div class="backup-status backup-status-failed">
+                    <i class="bi bi-x-circle"></i>失败
+                  </div>
+                  {% else %}
+                  <div class="backup-status backup-status-running">
+                    <i class="bi bi-arrow-repeat"></i>运行中
+                  </div>
+                  {% endif %}
+                </td>
+                <td class="pe-3 text-end">
+                    {% if record.finished_at %}
+                    <div class="btn-group btn-group-sm">
+                        <a href="#" class="btn btn-sm btn-outline-secondary border nb-backup-link p-1" data-backup-id="{{ record.id }}" title="查看详情">
+                          <i class="bi bi-file-text"></i>
+                        </a>
+                        <a href="/backups/{{ record.id }}/download" class="btn btn-sm btn-outline-secondary border p-1" title="下载">
+                          <i class="bi bi-download"></i>
+                        </a>
+                    </div>
+                    {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% else %}
+              <tr id="empty-state-row">
+                <td colspan="4" class="text-center py-5">
+                  <div class="text-muted">
+                    <i class="bi bi-inbox fs-1 mb-2 d-block"></i>
+                    <p class="mb-0">暂无备份记录</p>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent border-0 py-2 d-flex justify-content-between align-items-center">
+        <span class="text-muted small">显示最近 10 条记录</span>
+        <a href="/backups" class="btn btn-sm btn-link text-decoration-none py-0 small">
+          查看全部 <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 px-3">
+        <h6 class="card-title mb-0 fw-bold">分组备份健康度 (成功率 %)</h6>
+      </div>
+      <div class="card-body px-3 pb-3">
+        <div id="group-health-chart" style="min-height: 200px;">
+          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">加载中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ECharts -->
+<script src="/static/js/echarts.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const chartTextColor = isDark ? '#94a3b8' : '#64748b';
+    const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
+    const chartSplitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
+    const chartTooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+    const chartTooltipBorder = isDark ? '#475569' : '#e2e8f0';
+    const chartTooltipText = isDark ? '#f1f5f9' : '#334155';
+    const chartBorderColor = isDark ? '#1e293b' : '#fff';
+    const chartEmptyColor = isDark ? '#334155' : '#f1f5f9';
+    const heatmapColorList = isDark 
+        ? ['#1e293b', '#172554', '#1e40af', '#2563eb', '#3b82f6', '#60a5fa'] 
+        : ['#f1f5f9', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
+
+    // 备份趋势图
+    const trendChart = echarts.init(document.getElementById('backup-trend-chart'));
+    const trendData = {{ trend_stats | tojson }};
+    
+    trendChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { 
+                type: 'shadow',
+                shadowStyle: {
+                    color: 'rgba(59, 130, 246, 0.1)'
+                }
+            },
+            backgroundColor: chartTooltipBg,
+            borderColor: chartTooltipBorder,
+            borderWidth: 1,
+            textStyle: {
+                color: chartTooltipText
+            }
+        },
+        legend: {
+            data: ['成功', '失败'],
+            bottom: 0,
+            itemWidth: 12,
+            itemHeight: 12,
+            textStyle: { fontSize: 11, color: chartTextColor }
+        },
+        grid: {
+            left: '2%',
+            right: '3%',
+            bottom: '15%',
+            top: '5%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: trendData.dates,
+            axisLine: { lineStyle: { color: chartBorderColor } },
+            axisLabel: { color: chartTextColor, fontSize: 11 },
+            axisTick: { show: false }
+        },
+        yAxis: {
+            type: 'value',
+            splitLine: { 
+                lineStyle: { 
+                    color: chartSplitLineColor,
+                    type: 'dashed'
+                } 
+            },
+            axisLabel: { color: chartTextColor, fontSize: 11 },
+            axisLine: { show: false }
+        },
+        series: [
+            {
+                name: '成功',
+                type: 'bar',
+                stack: 'total',
+                itemStyle: { 
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: '#22c55e' },
+                        { offset: 1, color: '#16a34a' }
+                    ]),
+                    borderRadius: [4, 4, 0, 0]
+                },
+                data: trendData.success,
+                barWidth: '60%',
+                emphasis: {
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#4ade80' },
+                            { offset: 1, color: '#22c55e' }
+                        ])
+                    }
+                }
+            },
+            {
+                name: '失败',
+                type: 'bar',
+                stack: 'total',
+                itemStyle: { 
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: '#ef4444' },
+                        { offset: 1, color: '#dc2626' }
+                    ]),
+                    borderRadius: [4, 4, 0, 0]
+                },
+                data: trendData.fail,
+                barWidth: '60%',
+                emphasis: {
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#f87171' },
+                            { offset: 1, color: '#ef4444' }
+                        ])
+                    }
+                }
+            }
+        ]
+    });
+    
+    // 移除趋势图加载状态
+    document.querySelector('#backup-trend-chart .chart-loading')?.remove();
+
+    // 平台分布饼图
+    const pieChart = echarts.init(document.getElementById('platform-pie-chart'));
+    const platformData = {{ platform_stats | tojson }};
+    
+    pieChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} ({d}%)',
+            backgroundColor: chartTooltipBg,
+            borderColor: chartTooltipBorder,
+            borderWidth: 1,
+            textStyle: {
+                color: chartTooltipText
+            }
+        },
+        legend: {
+            bottom: '0',
+            left: 'center',
+            itemWidth: 12,
+            itemHeight: 12,
+            textStyle: { fontSize: 11, color: chartTextColor }
+        },
+        series: [
+            {
+                name: '平台',
+                type: 'pie',
+                radius: ['50%', '80%'],
+                center: ['50%', '45%'],
+                avoidLabelOverlap: false,
+                itemStyle: {
+                    borderRadius: 5,
+                    borderColor: chartBorderColor,
+                    borderWidth: 2
+                },
+                label: {
+                    show: false,
+                    position: 'center'
+                },
+                emphasis: {
+                    label: {
+                        show: true,
+                        fontSize: '14',
+                        fontWeight: 'bold'
+                    },
+                    scale: true,
+                    scaleSize: 10
+                },
+                labelLine: {
+                    show: false
+                },
+                data: platformData,
+                animationType: 'scale',
+                animationEasing: 'elasticOut'
+            }
+        ]
+    });
+    
+    // 移除饼图加载状态
+    document.querySelector('#platform-pie-chart .chart-loading')?.remove();
+
+    // 配置变更频率热力图
+    const heatmapChart = echarts.init(document.getElementById('change-heatmap-chart'));
+    const heatmapData = {{ change_heatmap | tojson }};
+    const heatmapValues = Array.isArray(heatmapData.data) ? heatmapData.data : [];
+    const heatmapMax = heatmapData.max || 0;
+
+    heatmapChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        tooltip: {
+            position: 'top',
+            formatter: function (params) {
+                const label = params.value && params.value.length > 1 ? params.value[0] : '';
+                const val = params.value && params.value.length > 1 ? params.value[1] : 0;
+                return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+            },
+            backgroundColor: chartTooltipBg,
+            borderColor: chartTooltipBorder,
+            borderWidth: 1,
+            padding: [8, 12],
+            textStyle: {
+                color: chartTooltipText,
+                fontSize: 12
+            },
+            extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
+        },
+        visualMap: {
+            type: 'continuous',
+            min: 0,
+            max: Math.max(5, heatmapMax), // 稍微提高默认最大值，避免颜色过于单一
+            calculable: false,
+            orient: 'horizontal',
+            left: 'center',
+            bottom: 0,
+            inRange: {
+                color: heatmapColorList
+            },
+            text: ['多', '少'], // 文本，默认为数值文本
+            textStyle: { fontSize: 11, color: chartTextColor },
+            itemWidth: 16,
+            itemHeight: 200 // 调长图例
+        },
+        calendar: {
+            top: 25,
+            left: 30,
+            right: 10,
+            cellSize: ['auto', 16],
+            range: heatmapData.range,
+            itemStyle: {
+                borderWidth: 2,
+                borderColor: chartBorderColor,
+                color: chartEmptyColor
+            },
+            splitLine: {
+                show: false
+            },
+            dayLabel: {
+                nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+                firstDay: 1, // 从周一开始
+                color: chartTextColor,
+                fontSize: 10
+            },
+            monthLabel: {
+                nameMap: 'cn',
+                color: chartTextColor,
+                fontSize: 11,
+                margin: 6
+            },
+            yearLabel: { show: false }
+        },
+        series: [
+            {
+                type: 'heatmap',
+                coordinateSystem: 'calendar',
+                data: heatmapValues,
+                itemStyle: {
+                    borderRadius: 3,
+                },
+                emphasis: {
+                    itemStyle: {
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0, 0, 0, 0.1)',
+                        borderColor: '#3b82f6',
+                        borderWidth: 1
+                    }
+                }
+            }
+        ]
+    });
+
+    document.querySelector('#change-heatmap-chart .chart-loading')?.remove();
+
+    // 分组健康度柱状图
+    const healthChart = echarts.init(document.getElementById('group-health-chart'));
+    const healthData = {{ health_stats | tojson }};
+    
+    healthChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: '{b}: {c}%',
+            backgroundColor: chartTooltipBg,
+            borderColor: chartTooltipBorder,
+            borderWidth: 1,
+            textStyle: {
+                color: chartTooltipText
+            }
+        },
+        grid: {
+            left: '1%',
+            right: '8%',
+            bottom: '0%',
+            top: '0%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'value',
+            max: 100,
+            splitLine: { 
+                lineStyle: { 
+                    color: chartSplitLineColor,
+                    type: 'dashed'
+                } 
+            },
+            axisLabel: { formatter: '{value}%', color: chartTextColor, fontSize: 11 },
+            axisLine: { show: false }
+        },
+        yAxis: {
+            type: 'category',
+            data: healthData.map(item => item.name),
+            axisLine: { lineStyle: { color: chartBorderColor } },
+            axisLabel: { color: chartTextColor, fontSize: 11 },
+            axisTick: { show: false }
+        },
+        series: [
+            {
+                name: '成功率',
+                type: 'bar',
+                data: healthData.map(item => item.value),
+                itemStyle: {
+                    color: function(params) {
+                        const val = params.value;
+                        if (val >= 90) return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                            { offset: 0, color: '#22c55e' },
+                            { offset: 1, color: '#16a34a' }
+                        ]);
+                        if (val >= 70) return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                            { offset: 0, color: '#fbbf24' },
+                            { offset: 1, color: '#f59e0b' }
+                        ]);
+                        return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                            { offset: 0, color: '#f87171' },
+                            { offset: 1, color: '#ef4444' }
+                        ]);
+                    },
+                    borderRadius: [0, 4, 4, 0]
+                },
+                label: {
+                    show: true,
+                    position: 'right',
+                    formatter: '{c}%',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: chartTitleColor
+                },
+                barMaxWidth: 20,
+                emphasis: {
+                    itemStyle: {
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                animationDelay: function (idx) {
+                    return idx * 100;
+                }
+            }
+        ]
+    });
+    
+    // 移除健康度图加载状态
+    document.querySelector('#group-health-chart .chart-loading')?.remove();
+
+    // 监听主题切换事件
+    window.addEventListener('themeChanged', function(e) {
+        const newTheme = e.detail.theme;
+        const isDark = newTheme === 'dark';
+        
+        // 重新定义颜色变量
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const titleColor = isDark ? '#e2e8f0' : '#334155';
+        const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
+        const tooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+        const tooltipBorder = isDark ? '#475569' : '#e2e8f0';
+        const tooltipText = isDark ? '#f1f5f9' : '#334155';
+        const borderColor = isDark ? '#1e293b' : '#fff';
+        const emptyColor = isDark ? '#334155' : '#f1f5f9';
+        const heatmapColors = isDark 
+            ? ['#1e293b', '#172554', '#1e40af', '#2563eb', '#3b82f6', '#60a5fa'] 
+            : ['#f1f5f9', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
+
+        // 更新趋势图
+        trendChart.setOption({
+            tooltip: {
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                textStyle: { color: tooltipText }
+            },
+            legend: { textStyle: { color: textColor } },
+            xAxis: {
+                axisLine: { lineStyle: { color: borderColor } },
+                axisLabel: { color: textColor }
+            },
+            yAxis: {
+                splitLine: { lineStyle: { color: splitLineColor } },
+                axisLabel: { color: textColor }
+            }
+        });
+
+        // 更新饼图
+        pieChart.setOption({
+            tooltip: {
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                textStyle: { color: tooltipText }
+            },
+            legend: { textStyle: { color: textColor } },
+            series: [{
+                itemStyle: { borderColor: borderColor }
+            }]
+        });
+
+        // 更新热力图
+        heatmapChart.setOption({
+            tooltip: {
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                textStyle: { color: tooltipText }
+            },
+            visualMap: {
+                inRange: { color: heatmapColors },
+                textStyle: { color: textColor }
+            },
+            calendar: {
+                itemStyle: {
+                    borderColor: borderColor,
+                    color: emptyColor
+                },
+                dayLabel: { color: textColor },
+                monthLabel: { color: textColor }
+            }
+        });
+
+        // 更新健康度图
+        healthChart.setOption({
+            tooltip: {
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                textStyle: { color: tooltipText }
+            },
+            xAxis: {
+                axisLabel: { color: textColor },
+                splitLine: { lineStyle: { color: splitLineColor } }
+            },
+            yAxis: {
+                axisLine: { lineStyle: { color: borderColor } },
+                axisLabel: { color: textColor }
+            },
+            series: [{
+                label: { color: titleColor }
+            }]
+        });
+    });
+
+    // 响应式
+    window.addEventListener('resize', function() {
+        trendChart.resize();
+        pieChart.resize();
+        heatmapChart.resize();
+        healthChart.resize();
+    });
+
+    const heatmapTab = document.getElementById('change-heatmap-tab');
+    if (heatmapTab) {
+        heatmapTab.addEventListener('shown.bs.tab', function () {
+            heatmapChart.resize();
+        });
+    }
+
+    // 备份活动表格过滤
+    const filterButtons = document.querySelectorAll('[data-filter]');
+    const backupRows = document.querySelectorAll('.backup-row');
+    const emptyStateRow = document.getElementById('empty-state-row');
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const filter = this.getAttribute('data-filter');
+            
+            // 更新按钮状态
+            filterButtons.forEach(btn => {
+                btn.classList.remove('btn-primary', 'active');
+                btn.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-primary', 'active');
+            
+            let visibleCount = 0;
+            
+            // 过滤表格行
+            backupRows.forEach(row => {
+                const status = row.getAttribute('data-status');
+                if (filter === 'all' || status === filter) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // 处理空状态显示
+            if (visibleCount === 0 && emptyStateRow) {
+                emptyStateRow.style.display = '';
+                const emptyText = emptyStateRow.querySelector('p');
+                if (filter === 'success') {
+                    emptyText.textContent = '暂无成功的备份记录';
+                } else if (filter === 'failed') {
+                    emptyText.textContent = '暂无失败的备份记录';
+                } else {
+                    emptyText.textContent = '暂无备份记录';
+                }
+            } else if (emptyStateRow) {
+                emptyStateRow.style.display = 'none';
+            }
+        });
+    });
+
+    // 备份详情查看按钮
+    const backupLinks = document.querySelectorAll('.nb-backup-link');
+    backupLinks.forEach(link => {
+        link.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            const backupId = this.getAttribute('data-backup-id');
+            if (!backupId) return;
+            if (window.NB && typeof window.NB.openBackupView === 'function') {
+                window.NB.openBackupView(backupId);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

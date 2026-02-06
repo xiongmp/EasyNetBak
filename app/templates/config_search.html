@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
+{% set page_title = "配置搜索" %}
+{% set page_subtitle = "在备份配置中搜索关键词" %}
+
+{% block content %}
+<div class="card border mb-4 shadow-sm sticky-top search-card">
+    <div class="card-body p-4">
+        <form method="get" action="/config-search" class="row g-3 align-items-end" id="search-form">
+            <div class="col-md-6">
+                <label for="q" class="form-label fw-bold small text-secondary">搜索关键词</label>
+                <div class="input-group">
+                    <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
+                    <input type="text" class="form-control border-start-0 border-end-0 ps-0" id="q" name="q" value="{{ q }}" placeholder="输入配置关键词，如 'interface', 'vlan', 'ip address'..." required>
+                    <button class="btn btn-outline-secondary border-start-0 text-secondary {% if not q %}d-none{% endif %}" type="button" id="clear-search">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="scope" class="form-label fw-bold small text-secondary">搜索范围</label>
+                <select class="form-select" id="scope" name="scope">
+                    <option value="latest" {% if scope == 'latest' %}selected{% endif %}>仅搜索最新配置</option>
+                    <option value="all" {% if scope == 'all' %}selected{% endif %}>搜索所有历史配置</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100" id="search-btn">
+                    <span class="search-btn-content">
+                        <i class="bi bi-search me-1"></i>搜索
+                    </span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if q %}
+<div class="mb-3 d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-body text-body border fw-normal py-2 px-3 shadow-sm">
+            找到 <span class="fw-bold text-primary">{{ total }}</span> 个匹配结果
+        </span>
+        {% if q %}
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal py-2 px-3">
+            关键词: <span class="fw-bold">{{ q }}</span>
+        </span>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary border px-3" id="expand-all">
+            <i class="bi bi-arrows-expand me-1"></i>全部展开
+        </button>
+        <button class="btn btn-sm btn-outline-secondary border px-3" id="collapse-all">
+            <i class="bi bi-arrows-collapse me-1"></i>全部折叠
+        </button>
+    </div>
+</div>
+
+<div class="config-search-results">
+    {% for device_id, device_records in grouped_records.items() %}
+    {% set device = device_map.get(device_id) %}
+    {% if device %}
+    <div class="config-device-group mb-4">
+        <div class="device-header d-flex justify-content-between align-items-center py-2 px-3 {% if not loop.first %}collapsed{% endif %}" role="button" data-bs-toggle="collapse" data-bs-target="#device-{{ device_id }}">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-hdd-network text-primary"></i>
+                <span class="fw-bold">{{ device.name }}</span>
+                <span class="text-secondary small">({{ device.host }})</span>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 ms-2 fw-normal">{{ device.platform }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 fw-normal">{{ device_records|length }} 个匹配</span>
+                <i class="bi bi-chevron-down text-secondary collapse-arrow"></i>
+            </div>
+        </div>
+        <div class="collapse {% if loop.first %}show{% endif %}" id="device-{{ device_id }}">
+            <div class="config-snippets-list ps-4 pt-2">
+                {% for record in device_records %}
+                <div class="snippet-item mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="text-secondary small">
+                            <i class="bi bi-clock me-1"></i>备份时间: {{ record.started_at|dt_local }}
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary view-config-btn py-0" 
+                                data-backup-id="{{ record.id }}" 
+                                data-device-name="{{ device.name }}"
+                                data-time="{{ record.started_at|dt_local }}">
+                            查看完整配置
+                        </button>
+                    </div>
+                    <div class="config-snippet-wrapper position-relative">
+                        <div class="config-snippet bg-dark text-light p-3 rounded shadow-sm small font-monospace">
+                            <pre class="mb-0"><code>{{ record.config_text }}</code></pre>
+                        </div>
+                        <button class="btn btn-sm btn-dark position-absolute top-0 end-0 m-2 copy-snippet-btn" title="复制片段">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-5 bg-body rounded border shadow-sm">
+        <i class="bi bi-search text-secondary opacity-25 display-4 d-block mb-3"></i>
+        <div class="text-secondary">未找到匹配的结果</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if pagination.total_pages > 1 %}
+{{ render_pagination(pagination, pagination_base, "个匹配结果") }}
+{% endif %}
+
+{% else %}
+<div class="text-center py-5 mt-5">
+    <div class="mb-4">
+        <div class="d-inline-flex align-items-center justify-content-center bg-body-tertiary rounded-circle search-empty-icon-wrapper">
+            <i class="bi bi-search text-secondary opacity-50 display-4"></i>
+        </div>
+    </div>
+    <h5 class="text-body fw-bold">开始配置搜索</h5>
+    <p class="text-secondary mx-auto search-empty-description">输入关键词搜索所有设备的备份配置内容。您可以搜索特定的命令、描述或任何配置片段。</p>
+    <div class="mt-4 d-flex justify-content-center gap-4">
+        <div class="text-center">
+            <div class="h4 mb-1"><i class="bi bi-lightning-charge text-warning"></i></div>
+            <div class="small text-secondary">快速检索</div>
+        </div>
+        <div class="text-center">
+            <div class="h4 mb-1"><i class="bi bi-clock-history text-info"></i></div>
+            <div class="small text-secondary">历史追踪</div>
+        </div>
+        <div class="text-center">
+            <div class="h4 mb-1"><i class="bi bi-device-ssd text-success"></i></div>
+            <div class="small text-secondary">全量覆盖</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div id="back-to-top" class="back-to-top-container d-none shadow-sm" title="返回顶部">
+    <div class="back-to-top-icon">
+        <i class="bi bi-chevron-double-up"></i>
+    </div>
+    <div class="back-to-top-label">TOP</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search form enhancements
+    const searchForm = document.getElementById('search-form');
+    const searchBtn = document.getElementById('search-btn');
+    const clearBtn = document.getElementById('clear-search');
+    const searchInput = document.getElementById('q');
+
+    if (searchForm) {
+        searchForm.addEventListener('submit', function() {
+            searchBtn.disabled = true;
+            searchBtn.querySelector('.search-btn-content').classList.add('d-none');
+            searchBtn.querySelector('.spinner-border').classList.remove('d-none');
+        });
+    }
+
+    if (clearBtn && searchInput) {
+        searchInput.addEventListener('input', function() {
+            if (this.value) {
+                clearBtn.classList.remove('d-none');
+            } else {
+                clearBtn.classList.add('d-none');
+            }
+        });
+
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            clearBtn.classList.add('d-none');
+            searchInput.focus();
+        });
+    }
+
+    // Back to top button
+    const backToTop = document.getElementById('back-to-top');
+    if (backToTop) {
+        window.addEventListener('scroll', function() {
+            if (window.pageYOffset > 300) {
+                backToTop.classList.remove('d-none');
+            } else {
+                backToTop.classList.add('d-none');
+            }
+        });
+
+        backToTop.addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
+    // Auto scroll to results if paging
+    if (window.location.search.includes('page=') || window.location.search.includes('q=')) {
+        const resultsEl = document.querySelector('.config-search-results');
+        if (resultsEl && window.location.search.includes('q=')) {
+            setTimeout(() => {
+                resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }
+
+    // Copy snippet logic
+    document.querySelectorAll('.copy-snippet-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const wrapper = this.closest('.config-snippet-wrapper');
+            const code = wrapper.querySelector('code');
+            
+            // For snippets that have been processed into lines with line numbers
+            // we want to extract only the text content, excluding line numbers
+            let textToCopy = '';
+            const lines = code.querySelectorAll('.d-flex');
+            if (lines.length > 0) {
+                textToCopy = Array.from(lines).map(line => {
+                    const contentSpan = line.querySelector('span:last-child');
+                    return contentSpan ? contentSpan.textContent : '';
+                }).join('\n');
+            } else {
+                textToCopy = code.textContent;
+            }
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const icon = this.querySelector('i');
+                icon.className = 'bi bi-check-lg text-success';
+                setTimeout(() => {
+                    icon.className = 'bi bi-clipboard';
+                }, 2000);
+            });
+        });
+    });
+
+    // Expand/Collapse all
+    document.getElementById('expand-all')?.addEventListener('click', function() {
+        document.querySelectorAll('.config-device-group .collapse').forEach(el => {
+            const bs = window.bootstrap;
+            if (bs && bs.Collapse) {
+                const col = bs.Collapse.getOrCreateInstance(el);
+                col.show();
+            }
+        });
+    });
+
+    document.getElementById('collapse-all')?.addEventListener('click', function() {
+        document.querySelectorAll('.config-device-group .collapse').forEach(el => {
+            const bs = window.bootstrap;
+            if (bs && bs.Collapse) {
+                const col = bs.Collapse.getOrCreateInstance(el);
+                col.hide();
+            }
+        });
+    });
+
+    // View config modal (reusing the one from base.html)
+    document.querySelectorAll('.view-config-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const backupId = this.getAttribute('data-backup-id');
+            const deviceName = this.getAttribute('data-device-name');
+            const timeStr = this.getAttribute('data-time');
+            
+            const modalEl = document.getElementById('backup-view-modal');
+            const modal = new bootstrap.Modal(modalEl);
+            
+            document.getElementById('backup-view-title').textContent = '配置查看 - ' + deviceName;
+            document.getElementById('backup-view-meta').textContent = '备份时间: ' + timeStr;
+            
+            const renderEl = document.getElementById('backup-view-render');
+            const loadingEl = document.getElementById('backup-view-loading');
+            const errorEl = document.getElementById('backup-view-error');
+            const downloadBtn = document.getElementById('backup-view-download');
+            const oldFullscreenBtn = document.getElementById('backup-view-fullscreen');
+            
+            // Clone the button to remove any existing event listeners from base.html
+            const fullscreenBtn = oldFullscreenBtn.cloneNode(true);
+            oldFullscreenBtn.parentNode.replaceChild(fullscreenBtn, oldFullscreenBtn);
+            
+            renderEl.innerHTML = '';
+            loadingEl.classList.remove('d-none');
+            errorEl.classList.add('d-none');
+            downloadBtn.classList.add('d-none');
+            fullscreenBtn.classList.remove('d-none');
+            
+            // Handle fullscreen button
+             fullscreenBtn.addEventListener('click', function() {
+                 const dialog = modalEl.querySelector('.modal-dialog');
+                 const isFullscreen = dialog.classList.contains('modal-fullscreen');
+                 const icon = this.querySelector('i');
+                 const pre = renderEl.querySelector('pre');
+                 
+                 if (isFullscreen) {
+                     dialog.classList.remove('modal-fullscreen');
+                     dialog.classList.add('modal-xl');
+                     icon.className = 'bi bi-arrows-fullscreen';
+                     this.setAttribute('aria-label', '全屏');
+                     if (pre) {
+                         pre.classList.remove('config-view-pre-full');
+                         pre.classList.add('config-view-pre-normal');
+                     }
+                 } else {
+                     dialog.classList.add('modal-fullscreen');
+                     dialog.classList.remove('modal-xl');
+                     icon.className = 'bi bi-fullscreen-exit';
+                     this.setAttribute('aria-label', '退出全屏');
+                     if (pre) {
+                         pre.classList.remove('config-view-pre-normal');
+                         pre.classList.add('config-view-pre-full');
+                     }
+                 }
+             });
+            
+            // Reset fullscreen state when opening
+            const dialog = modalEl.querySelector('.modal-dialog');
+            dialog.classList.remove('modal-fullscreen');
+            dialog.classList.add('modal-xl');
+            fullscreenBtn.querySelector('i').className = 'bi bi-arrows-fullscreen';
+            
+            modal.show();
+            
+            try {
+                const resp = await fetch(`/api/backups/${backupId}`);
+                if (!resp.ok) throw new Error('加载失败');
+                const data = await resp.json();
+                
+                loadingEl.classList.add('d-none');
+                
+                const configText = data.record ? data.record.config_text : null;
+                
+                if (configText) {
+                    const pre = document.createElement('pre');
+                    pre.className = 'mb-0 p-3 bg-dark text-light border-0 rounded font-monospace small config-view-pre config-view-pre-normal';
+                    
+                    // Highlight keyword if present
+                    if (q) {
+                        const regex = new RegExp('(' + q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + ')', 'gi');
+                        if (configText.length < 100000) { // Limit highlight for large configs
+                            pre.innerHTML = configText.replace(regex, '<mark class="p-0 bg-warning text-dark">$1</mark>');
+                        } else {
+                            pre.textContent = configText;
+                        }
+                    } else {
+                        pre.textContent = configText;
+                    }
+                    
+                    renderEl.appendChild(pre);
+                    
+                    downloadBtn.href = `/api/backups/${backupId}/download`;
+                    downloadBtn.classList.remove('d-none');
+                } else {
+                    errorEl.textContent = '未找到配置内容';
+                    errorEl.classList.remove('d-none');
+                }
+            } catch (err) {
+                loadingEl.classList.add('d-none');
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('d-none');
+            }
+        });
+    });
+
+    // Highlight and extract snippets
+    const q = "{{ q|e }}";
+    if (q) {
+        const regex = new RegExp('(' + q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + ')', 'gi');
+        document.querySelectorAll('.config-snippet code').forEach(code => {
+            const original = code.textContent;
+            const lines = original.split('\n');
+            const matchingIndices = [];
+            
+            lines.forEach((line, index) => {
+                if (regex.test(line)) {
+                    matchingIndices.push(index);
+                }
+            });
+
+            if (matchingIndices.length > 0) {
+                const contextLines = 2;
+                const resultGroups = [];
+                let currentGroup = [];
+                let lastIndex = -1;
+
+                matchingIndices.forEach(idx => {
+                    const start = Math.max(0, idx - contextLines);
+                    const end = Math.min(lines.length - 1, idx + contextLines);
+
+                    if (lastIndex !== -1 && start <= lastIndex + 1) {
+                        // Merge with last group
+                        for (let i = lastIndex + 1; i <= end; i++) {
+                            currentGroup.push({ln: i + 1, text: lines[i]});
+                        }
+                    } else {
+                        // New group
+                        if (currentGroup.length > 0) resultGroups.push(currentGroup);
+                        currentGroup = [];
+                        for (let i = start; i <= end; i++) {
+                            currentGroup.push({ln: i + 1, text: lines[i]});
+                        }
+                    }
+                    lastIndex = end;
+                });
+                if (currentGroup.length > 0) resultGroups.push(currentGroup);
+
+                // Build HTML
+                let html = '';
+                resultGroups.forEach((group, groupIdx) => {
+                    if (groupIdx > 0) {
+                        html += '<div class="text-secondary opacity-50 my-1">...</div>';
+                    }
+                    group.forEach(item => {
+                        const escaped = item.text.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+                        const highlighted = escaped.replace(regex, '<mark class="p-0 bg-warning text-dark">$1</mark>');
+                        html += `<div class="d-flex"><span class="text-secondary me-3 line-number">${item.ln}</span><span>${highlighted}</span></div>`;
+                    });
+                });
+                code.parentElement.classList.add('config-snippet-normal-wrap'); // Allow our custom layout
+                code.innerHTML = html;
+            }
+        });
+    }
+});
+</script>
+
+{% endblock %}

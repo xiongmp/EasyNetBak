@@ -1,0 +1,849 @@
+{% extends "base.html" %}
+{% set page_title = "备份历史" %}
+{% set page_subtitle = "按设备查看备份版本，并支持配置查看与差异对比" %}
+
+{% block content %}
+  <div class="row g-2">
+    <div class="col-12 col-xl-5">
+      <div class="card nb-backups-card">
+        <div class="card-body nb-card-body-flex p-3">
+          <div class="fw-bold text-secondary mb-2 small">设备列表</div>
+
+          <div class="d-flex gap-2 align-items-center mb-3">
+            <div class="input-group input-group-sm nb-device-search">
+              <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
+              <input class="form-control border-start-0 ps-0" id="device-search" placeholder="搜索设备名或IP..." />
+            </div>
+            <button class="btn btn-outline-primary btn-sm px-2" id="multi-device-btn" title="点击切换多设备对比模式">
+              <i class="bi bi-intersect me-1"></i>多设备对比
+            </button>
+            {% if is_operator %}
+            <button class="btn btn-primary btn-sm ms-auto px-3" id="backup-now-btn" disabled>
+              <i class="bi bi-play-fill me-1"></i>立即备份
+            </button>
+            {% endif %}
+          </div>
+
+          <div class="alert alert-warning py-1 px-2 small d-none mb-2" id="multi-mode-hint">
+             <i class="bi bi-exclamation-circle me-1"></i>请在下方列表选择两台设备进行对比
+          </div>
+
+          <div class="table-responsive nb-scroll-area">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="bg-body-tertiary">
+                <tr>
+                  <th>设备名称</th>
+                  <th style="width: 140px;">管理 IP</th>
+                  <th style="width: 100px;">平台</th>
+                  <th style="width: 70px;" class="text-start">版本</th>
+                </tr>
+              </thead>
+              <tbody id="device-tbody">
+                {% for d in device_rows %}
+                  <tr class="backup-device-row"
+                      role="button"
+                      tabindex="0"
+                      data-device-id="{{ d.id }}"
+                      data-search="{{ (d.name ~ ' ' ~ d.host ~ ' ' ~ d.platform)|lower }}">
+                    <td class="text-start">
+                      <div class="fw-medium">{{ d.name }}</div>
+                    </td>
+                    <td class="text-secondary small text-start">{{ d.host }}</td>
+                    <td class="text-start">
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2">{{ d.platform }}</span>
+                    </td>
+                    <td class="text-start">
+                      <span class="badge bg-secondary-subtle text-secondary px-2">{{ d.backup_count }}</span>
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td colspan="4" class="text-center text-secondary py-4">暂无设备数据</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <form method="post" id="backup-now-form" class="d-none">
+            <input type="hidden" name="template_id" value="0" />
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-7">
+      <div class="card nb-backups-card">
+        <div class="card-body nb-card-body-flex p-3">
+          <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="fw-bold text-secondary small">备份历史</div>
+              <div class="badge bg-info-subtle text-info border border-info-subtle fw-normal" id="selected-device-meta">未选择设备</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm px-3" id="diff-btn" disabled>
+                <i class="bi bi-file-diff me-1"></i>差异对比
+              </button>
+              <button class="btn btn-outline-secondary btn-sm px-3" id="view-btn" disabled>
+                <i class="bi bi-eye me-1"></i>查看配置
+              </button>
+              <button class="btn btn-outline-secondary btn-sm px-3" id="download-btn" disabled>
+                <i class="bi bi-download me-1"></i>下载配置
+              </button>
+            </div>
+          </div>
+
+          <div id="backup-lists-container" class="nb-card-body-flex flex-grow-1">
+            <!-- Pane 1 -->
+            <div class="backup-pane flex-grow-1 d-flex flex-column min-height-0" id="pane-1">
+              <div class="pane-header d-none" id="pane-header-1"></div>
+              <div class="table-responsive nb-scroll-area" id="backup-scroll-1">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="bg-body-tertiary">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th style="width: 180px;">备份时间</th>
+                      <th style="width: 110px;">状态</th>
+                      <th>详细信息 / 错误原因</th>
+                    </tr>
+                  </thead>
+                  <tbody id="backup-tbody-1">
+                    <tr>
+                      <td colspan="4" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pane 2 -->
+            <div class="backup-pane flex-grow-1 d-flex flex-column min-height-0 d-none mt-2" id="pane-2">
+              <div class="pane-header" id="pane-header-2"></div>
+              <div class="table-responsive nb-scroll-area" id="backup-scroll-2">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="bg-body-tertiary" id="thead-2">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th style="width: 180px;">备份时间</th>
+                      <th style="width: 110px;">状态</th>
+                      <th>详细信息 / 错误原因</th>
+                    </tr>
+                  </thead>
+                  <tbody id="backup-tbody-2"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-2 d-none" id="diff-panel">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap gap-3 align-items-center mb-3 border-bottom pb-3">
+        <div class="form-check form-check-inline mb-0 small">
+          <input class="form-check-input" type="radio" name="diff-mode" id="diff-mode-unified" value="unified" checked />
+          <label class="form-check-label" for="diff-mode-unified">并排视图</label>
+        </div>
+        <div class="form-check form-check-inline mb-0 small">
+          <input class="form-check-input" type="radio" name="diff-mode" id="diff-mode-split" value="split" />
+          <label class="form-check-label" for="diff-mode-split">分栏视图</label>
+        </div>
+        <div class="vr"></div>
+        <div class="form-check form-check-inline mb-0 small">
+          <input class="form-check-input" type="checkbox" id="diff-only-changed" checked />
+          <label class="form-check-label" for="diff-only-changed">仅显示差异</label>
+        </div>
+        <div class="form-check form-check-inline mb-0 small">
+          <input class="form-check-input" type="checkbox" id="diff-ignore-noise" />
+          <label class="form-check-label" for="diff-ignore-noise">
+            智能忽略
+            <i class="bi bi-question-circle text-secondary ms-1" style="cursor: help;" title="忽略 ntp clock-period、last configuration change 等自动变更行。这里的规则是在“Diff 忽略规则”中配置的"></i>
+          </label>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-12 col-md-6">
+          <div class="p-2 border rounded-1 bg-body-tertiary">
+            <div class="text-secondary small opacity-75">版本 A (新)</div>
+            <div class="fw-medium small" id="diff-meta-a"></div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="p-2 border rounded-1 bg-body-tertiary">
+            <div class="text-secondary small opacity-75">版本 B (旧)</div>
+            <div class="fw-medium small" id="diff-meta-b"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-secondary small d-none py-5" id="diff-loading">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>正在计算差异...
+      </div>
+      <div class="diff-render" id="diff-render"></div>
+    </div>
+  </div>
+
+  <script>
+    const IS_ADMIN = {{ "true" if is_admin else "false" }};
+    const DEVICE_ROWS = {{ device_rows | tojson }};
+
+    const els = {
+      backupNowBtn: document.getElementById("backup-now-btn"),
+      backupNowForm: document.getElementById("backup-now-form"),
+      deviceSearch: document.getElementById("device-search"),
+      deviceTbody: document.getElementById("device-tbody"),
+      selectedDeviceMeta: document.getElementById("selected-device-meta"),
+      backupTbody1: document.getElementById("backup-tbody-1"),
+      backupTbody2: document.getElementById("backup-tbody-2"),
+      backupScroll1: document.getElementById("backup-scroll-1"),
+      backupScroll2: document.getElementById("backup-scroll-2"),
+      pane1: document.getElementById("pane-1"),
+      pane2: document.getElementById("pane-2"),
+      paneHeader1: document.getElementById("pane-header-1"),
+      paneHeader2: document.getElementById("pane-header-2"),
+      thead2: document.getElementById("thead-2"),
+      diffBtn: document.getElementById("diff-btn"),
+      viewBtn: document.getElementById("view-btn"),
+      downloadBtn: document.getElementById("download-btn"),
+      multiDevBtn: document.getElementById("multi-device-btn"),
+      diffPanel: document.getElementById("diff-panel"),
+      diffMetaA: document.getElementById("diff-meta-a"),
+      diffMetaB: document.getElementById("diff-meta-b"),
+      diffLoading: document.getElementById("diff-loading"),
+      diffRender: document.getElementById("diff-render"),
+      diffModeUnified: document.getElementById("diff-mode-unified"),
+      diffModeSplit: document.getElementById("diff-mode-split"),
+      diffOnlyChanged: document.getElementById("diff-only-changed"),
+      diffIgnoreNoise: document.getElementById("diff-ignore-noise"),
+    };
+
+    let selectedDeviceIds = []; // Array of strings
+    let isMultiDeviceMode = false;
+    let selectedBackups = [];
+    let deviceBackupsMap = {}; // { deviceId: { id, name, host, platform, backups: [], pagination: {} } }
+    let polling = { timer: null, targetBackupId: null, tries: 0 };
+
+    function setDisabled(el, disabled) {
+      if (!el) return;
+      el.disabled = !!disabled;
+      if (disabled) {
+        el.classList.add("disabled");
+      } else {
+        el.classList.remove("disabled");
+      }
+    }
+
+    function escapeText(text) {
+      const span = document.createElement("span");
+      span.textContent = text == null ? "" : String(text);
+      return span.innerHTML;
+    }
+
+    function updateActionButtons() {
+      setDisabled(els.viewBtn, selectedBackups.length !== 1);
+      setDisabled(els.diffBtn, selectedBackups.length !== 2);
+      setDisabled(els.downloadBtn, selectedBackups.length !== 1);
+    }
+
+    function clearDiffPanel() {
+      els.diffRender.innerHTML = "";
+      els.diffMetaA.textContent = "";
+      els.diffMetaB.textContent = "";
+      els.diffPanel.classList.add("d-none");
+    }
+
+    function getStatusBadge(b) {
+      if (!b.finished_at) {
+        return '<div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>';
+      }
+      if (b.success) {
+        return '<div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>';
+      }
+      const err = b.error_message || "";
+      let label = "失败";
+      let title = "";
+      
+      if (err.includes("连接超时")) { label = "超时"; title = "连接超时"; }
+      else if (err.includes("认证失败")) { label = "认证失败"; title = "认证失败"; }
+      else if (err.includes("连接被拒绝")) { label = "被拒绝"; title = "连接被拒绝"; }
+      else if (err.includes("特权模式失败")) { label = "特权失败"; title = "Enable 密码错误"; }
+      else if (err.includes("读取超时")) { label = "读取超时"; title = "设备响应慢"; }
+      else if (err.includes("连接断开")) { label = "连接断开"; title = "网络不稳定或被强制关闭"; }
+      else if (err.includes("密钥错误")) { label = "密钥错误"; title = "SSH 密钥无效"; }
+      else if (err.includes("权限不足")) { label = "权限不足"; title = "命令执行权限不足"; }
+      else if (err.includes("协议/命令错误")) { label = "配置错误"; title = "平台驱动或命令不匹配"; }
+      else if (err.includes("提示符错误")) { label = "交互错误"; title = "无法识别设备提示符"; }
+      else if (err.includes("域名解析失败")) { label = "DNS 错误"; title = "无法解析主机名"; }
+      else if (err.includes("网络不可达")) { label = "路由不可达"; title = "无路由或网络中断"; }
+      else if (err.includes("算法不匹配")) { label = "算法冲突"; title = "加密算法不支持"; }
+      else if (err.includes("会话超限")) { label = "会话满"; title = "设备连接数已满"; }
+
+      return `<div class="backup-status backup-status-failed" ${title ? `title="${title}"` : ''}><i class="bi bi-x-circle"></i>${label}</div>`;
+    }
+
+    function renderBackupsTable() {
+      // Helper to attach event listeners to a specific tbody
+      const attachListeners = (tbody) => {
+        tbody.querySelectorAll(".backup-row").forEach((tr) => {
+          tr.addEventListener("click", (ev) => {
+            const cb = tr.querySelector(".backup-select");
+            if (!cb) return;
+            if (ev.target === cb) return;
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+        });
+        tbody.querySelectorAll(".backup-select").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            const tr = cb.closest(".backup-row");
+            const bid = tr ? tr.getAttribute("data-backup-id") : null;
+            if (!bid) return;
+            if (cb.checked) {
+              if (selectedBackups.includes(bid)) return;
+              if (selectedBackups.length >= 2) {
+                const removed = selectedBackups.shift();
+                // Find and uncheck the removed backup in both tbodies
+                [els.backupTbody1, els.backupTbody2].forEach(t => {
+                  const removedCb = t.querySelector(`.backup-row[data-backup-id="${removed}"] .backup-select`);
+                  if (removedCb) removedCb.checked = false;
+                });
+              }
+              selectedBackups.push(bid);
+            } else {
+              selectedBackups = selectedBackups.filter((x) => x !== bid);
+            }
+            updateActionButtons();
+            if (selectedBackups.length !== 2) {
+              clearDiffPanel();
+            }
+          });
+        });
+      };
+
+      if (!selectedDeviceIds.length) {
+        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">请选择左侧设备</td></tr>';
+        els.backupTbody2.innerHTML = '';
+        els.pane2.classList.add("d-none");
+        els.paneHeader1.classList.add("d-none");
+        return;
+      }
+
+      // Handle dual-pane visibility
+      const isDualPane = isMultiDeviceMode && selectedDeviceIds.length === 2;
+      els.pane2.classList.toggle("d-none", !isDualPane);
+      els.paneHeader1.classList.toggle("d-none", !isMultiDeviceMode);
+      
+      // Render first device
+      const renderDevice = (did, tbody, headerEl) => {
+        const info = deviceBackupsMap[did];
+        if (!info) {
+          tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>';
+          return;
+        }
+        const device = info || {};
+        const backups = info.backups || [];
+        
+        // Update Pane Header
+        if (isMultiDeviceMode) {
+          headerEl.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between px-2 py-1 bg-body-tertiary border-bottom">
+              <span class="fw-bold text-primary small text-truncate me-2" title="${escapeText(device.name)}">
+                <i class="bi bi-hdd-network me-1"></i>${escapeText(device.name)}
+              </span>
+              <span class="text-secondary small opacity-75 text-truncate flex-shrink-0">${escapeText(device.host)}</span>
+            </div>
+          `;
+        } else {
+          headerEl.innerHTML = "";
+        }
+
+        let html = "";
+        if (!backups.length) {
+          html += '<tr><td colspan="4" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>';
+        } else {
+          backups.forEach(b => {
+            const checked = selectedBackups.includes(b.id) ? "checked" : "";
+            const status = getStatusBadge(b);
+            const err = b.error_message ? escapeText(b.error_message) : "";
+            html += `
+              <tr class="backup-row" data-backup-id="${escapeText(b.id)}">
+                <td><input class="form-check-input backup-select" type="checkbox" ${checked} /></td>
+                <td class="text-secondary small">${escapeText(b.started_at)}</td>
+                <td>${status}</td>
+                <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}">${err}</td>
+              </tr>
+            `;
+          });
+        }
+        tbody.innerHTML = html;
+        attachListeners(tbody);
+      };
+
+      renderDevice(selectedDeviceIds[0], els.backupTbody1, els.paneHeader1);
+      
+      if (isDualPane) {
+        renderDevice(selectedDeviceIds[1], els.backupTbody2, els.paneHeader2);
+      } else if (isMultiDeviceMode && selectedDeviceIds.length > 1) {
+          // This case handles more than 2 devices if ever allowed, 
+          // but our logic restricts to 2. Let's just render the first one if only 1.
+      }
+    }
+
+    function stopPolling() {
+      if (polling.timer) {
+        clearInterval(polling.timer);
+      }
+      polling = { timer: null, targetBackupId: null, tries: 0 };
+    }
+
+    async function fetchDeviceBackups(deviceId) {
+       const resp = await fetch(`/api/devices/${deviceId}/backups`);
+       if (!resp.ok) return null;
+       return await resp.json();
+    }
+
+    async function loadSelectedDevicesBackups() {
+      if (selectedDeviceIds.length === 0) {
+        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">请选择左侧设备</td></tr>';
+        els.backupTbody2.innerHTML = '';
+        els.pane2.classList.add("d-none");
+        els.selectedDeviceMeta.textContent = "未选择设备";
+        return;
+      }
+      
+      els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">加载中...</td></tr>';
+      
+      const isDualPane = isMultiDeviceMode && selectedDeviceIds.length === 2;
+      if (isDualPane) {
+        els.backupTbody2.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">加载中...</td></tr>';
+        els.pane2.classList.remove("d-none");
+      } else {
+        els.pane2.classList.add("d-none");
+      }
+      
+      // Update Meta
+      if (selectedDeviceIds.length === 1) {
+         const d = DEVICE_ROWS.find(x => String(x.id) === String(selectedDeviceIds[0]));
+         if (d) {
+            els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+         } else {
+            els.selectedDeviceMeta.textContent = "加载中...";
+         }
+      } else {
+         els.selectedDeviceMeta.textContent = `已选 ${selectedDeviceIds.length} 台设备`;
+      }
+
+      // Fetch all
+      const promises = selectedDeviceIds.map(did => fetchDeviceBackups(did));
+      const results = await Promise.all(promises);
+      
+      let successCount = 0;
+      results.forEach((data, idx) => {
+         const did = selectedDeviceIds[idx];
+         if (data) {
+           deviceBackupsMap[did] = data;
+           successCount++;
+         }
+      });
+      
+      if (successCount === 0) {
+        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">加载失败</td></tr>';
+        return;
+      }
+      
+      // Update meta title for single device
+      if (selectedDeviceIds.length === 1) {
+         const d = deviceBackupsMap[selectedDeviceIds[0]] || {};
+         els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+      }
+
+      renderBackupsTable();
+      
+      // Setup polling if needed (only for the last added device usually, or iterate)
+      // For simplicity, maybe skip auto polling for multi-device or poll all?
+      // Let's poll only if 1 device selected for now to avoid complexity
+      if (selectedDeviceIds.length === 1) {
+         const dBackups = deviceBackupsMap[selectedDeviceIds[0]].backups || [];
+         const newest = dBackups.length ? dBackups[0] : null;
+         if (newest && newest.id && !newest.finished_at) {
+            startPolling(selectedDeviceIds[0], newest.id);
+         }
+      }
+    }
+
+    function toggleDeviceSelection(deviceId) {
+      stopPolling();
+      deviceId = String(deviceId);
+      
+      if (isMultiDeviceMode) {
+        if (selectedDeviceIds.includes(deviceId)) {
+           selectedDeviceIds = selectedDeviceIds.filter(id => id !== deviceId);
+           // Remove backups from this device to prevent ghost selections
+           const info = deviceBackupsMap[deviceId];
+           if (info && info.backups) {
+              const bids = info.backups.map(b => b.id);
+              selectedBackups = selectedBackups.filter(bid => !bids.includes(bid));
+              updateActionButtons();
+              if (selectedBackups.length !== 2) clearDiffPanel();
+           }
+        } else {
+           if (selectedDeviceIds.length >= 2) {
+              // FIFO: remove first, add new
+              const removedDevId = selectedDeviceIds.shift();
+              // Remove backups from the removed device
+              const info = deviceBackupsMap[removedDevId];
+              if (info && info.backups) {
+                 const bids = info.backups.map(b => b.id);
+                 selectedBackups = selectedBackups.filter(bid => !bids.includes(bid));
+              }
+           }
+           selectedDeviceIds.push(deviceId);
+        }
+      } else {
+         // Single mode
+         selectedDeviceIds = [deviceId];
+         // Reset selected backups when switching in single mode
+         selectedBackups = []; 
+         clearDiffPanel();
+         updateActionButtons();
+      }
+      
+      // Update UI selection
+      els.deviceTbody.querySelectorAll(".backup-device-row").forEach((tr) => {
+        const did = tr.getAttribute("data-device-id");
+        tr.classList.toggle("is-selected", selectedDeviceIds.includes(did));
+      });
+      
+      setDisabled(els.backupNowBtn, !IS_ADMIN || selectedDeviceIds.length === 0);
+      loadSelectedDevicesBackups();
+    }
+
+    function startPolling(deviceId, targetBackupId) {
+      stopPolling();
+      polling.targetBackupId = targetBackupId;
+      polling.tries = 0;
+      polling.timer = setInterval(async () => {
+        polling.tries += 1;
+        // Reload for this device
+        const data = await fetchDeviceBackups(deviceId);
+        if (data) {
+           deviceBackupsMap[deviceId] = data;
+           renderBackupsTable(); // Re-render
+           
+           const target = (data.backups || []).find((b) => b.id === targetBackupId);
+           const done = target && !!target.finished_at;
+           if (done || polling.tries >= 120) {
+             stopPolling();
+             setDisabled(els.backupNowBtn, !IS_ADMIN || !deviceId);
+           }
+        }
+      }, 1500);
+    }
+
+
+    function getDiffOptions() {
+      const mode = els.diffModeSplit.checked ? "split" : "unified";
+      const onlyChanged = els.diffOnlyChanged.checked ? 1 : 0;
+      const ignoreNoise = els.diffIgnoreNoise.checked ? 1 : 0;
+      return { mode, onlyChanged, ignoreNoise };
+    }
+
+    function renderUnified(lines) {
+      els.diffRender.classList.remove("diff-render-split");
+      const table = document.createElement("table");
+      table.className = "diff-table diff-table-unified";
+      const tbody = document.createElement("tbody");
+      (lines || []).forEach((ln) => {
+        const tr = document.createElement("tr");
+        if (ln.type === "skip") {
+          tr.className = "diff-skip";
+          const td = document.createElement("td");
+          td.colSpan = 3;
+          td.textContent = `...(${ln.count || 0} lines hidden)`;
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+        tr.className = `diff-row diff-${ln.type}`;
+        const tdA = document.createElement("td");
+        tdA.className = "diff-ln";
+        tdA.textContent = ln.a_lineno == null ? "" : String(ln.a_lineno);
+        const tdB = document.createElement("td");
+        tdB.className = "diff-ln";
+        tdB.textContent = ln.b_lineno == null ? "" : String(ln.b_lineno);
+        const tdC = document.createElement("td");
+        tdC.className = "diff-code";
+        const prefix = ln.type === "add" ? "+" : ln.type === "del" ? "-" : " ";
+        tdC.textContent = `${prefix} ${ln.text || ""}`;
+        tr.appendChild(tdA);
+        tr.appendChild(tdB);
+        tr.appendChild(tdC);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      els.diffRender.innerHTML = "";
+      els.diffRender.appendChild(table);
+    }
+
+    function renderSplit(rows, onlyChanged) {
+      els.diffRender.classList.add("diff-render-split");
+      const wrap = document.createElement("div");
+      wrap.className = "diff-split-wrap";
+
+      const paneA = document.createElement("div");
+      paneA.className = "diff-split-pane diff-split-pane-a";
+      const paneB = document.createElement("div");
+      paneB.className = "diff-split-pane diff-split-pane-b";
+
+      const tableA = document.createElement("table");
+      tableA.className = "diff-table diff-table-split diff-table-split-side";
+      const tableB = document.createElement("table");
+      tableB.className = "diff-table diff-table-split diff-table-split-side";
+      if (onlyChanged) {
+        tableA.classList.add("diff-only-changed");
+        tableB.classList.add("diff-only-changed");
+      }
+
+      const tbodyA = document.createElement("tbody");
+      const tbodyB = document.createElement("tbody");
+
+      (rows || []).forEach((row) => {
+        if (row.type === "skip") {
+          const trA = document.createElement("tr");
+          trA.className = "diff-skip";
+          const tdA = document.createElement("td");
+          tdA.colSpan = 2;
+          tdA.textContent = `...(${row.count || 0} lines hidden)`;
+          trA.appendChild(tdA);
+          tbodyA.appendChild(trA);
+
+          const trB = document.createElement("tr");
+          trB.className = "diff-skip";
+          const tdB = document.createElement("td");
+          tdB.colSpan = 2;
+          tdB.textContent = `...(${row.count || 0} lines hidden)`;
+          trB.appendChild(tdB);
+          tbodyB.appendChild(trB);
+          return;
+        }
+
+        const a = row.a || {};
+        const b = row.b || {};
+
+        const trA = document.createElement("tr");
+        trA.className = "diff-row";
+        const tdALn = document.createElement("td");
+        tdALn.className = "diff-ln";
+        tdALn.textContent = a.lineno == null ? "" : String(a.lineno);
+        const tdATxt = document.createElement("td");
+        tdATxt.className = `diff-code diff-${a.kind || "context"}`;
+        tdATxt.textContent = a.kind === "empty" ? "\u00A0" : a.text || "";
+        trA.appendChild(tdALn);
+        trA.appendChild(tdATxt);
+        tbodyA.appendChild(trA);
+
+        const trB = document.createElement("tr");
+        trB.className = "diff-row";
+        const tdBLn = document.createElement("td");
+        tdBLn.className = "diff-ln";
+        tdBLn.textContent = b.lineno == null ? "" : String(b.lineno);
+        const tdBTxt = document.createElement("td");
+        tdBTxt.className = `diff-code diff-${b.kind || "context"}`;
+        tdBTxt.textContent = b.kind === "empty" ? "\u00A0" : b.text || "";
+        trB.appendChild(tdBLn);
+        trB.appendChild(tdBTxt);
+        tbodyB.appendChild(trB);
+      });
+
+      tableA.appendChild(tbodyA);
+      tableB.appendChild(tbodyB);
+      paneA.appendChild(tableA);
+      paneB.appendChild(tableB);
+      wrap.appendChild(paneA);
+      wrap.appendChild(paneB);
+
+      let syncing = false;
+      paneA.addEventListener("scroll", () => {
+        if (syncing) return;
+        syncing = true;
+        paneB.scrollLeft = paneA.scrollLeft;
+        syncing = false;
+      });
+      paneB.addEventListener("scroll", () => {
+        if (syncing) return;
+        syncing = true;
+        paneA.scrollLeft = paneB.scrollLeft;
+        syncing = false;
+      });
+
+      els.diffRender.innerHTML = "";
+      els.diffRender.appendChild(wrap);
+    }
+
+    async function loadDiff() {
+      if (selectedBackups.length !== 2) return;
+      const opts = getDiffOptions();
+      let [aId, bId] = selectedBackups;
+      
+      els.diffLoading.classList.remove("d-none");
+      els.diffRender.innerHTML = "";
+      const url = `/api/backups/${aId}/diff/${bId}?mode=${encodeURIComponent(opts.mode)}&only_changed_lines=${opts.onlyChanged}&ignore_noise_lines=${opts.ignoreNoise}`;
+      const resp = await fetch(url);
+      els.diffLoading.classList.add("d-none");
+      if (!resp.ok) {
+        els.diffRender.innerHTML = '<div class="text-danger small p-3">Diff 加载失败</div>';
+        return;
+      }
+      const data = await resp.json();
+      
+      const devA = data.device_a || data.device;
+      const devB = data.device_b || data.device;
+      
+      els.diffMetaA.textContent = `${devA?.name || ""} · ${devA?.host || ""} · ${data.a?.started_at || ""}`;
+      els.diffMetaB.textContent = `${devB?.name || ""} · ${devB?.host || ""} · ${data.b?.started_at || ""}`;
+      
+      if (data.mode === "split") {
+        renderSplit(data.rows || [], !!data.only_changed_lines);
+      } else {
+        renderUnified(data.lines || []);
+      }
+    }
+
+    els.viewBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (selectedBackups.length !== 1) return;
+      if (window.NB && typeof window.NB.openBackupView === "function") {
+        window.NB.openBackupView(selectedBackups[0]);
+      }
+    });
+
+    els.downloadBtn.addEventListener("click", (ev) => {
+       ev.preventDefault();
+       if (selectedBackups.length !== 1) return;
+       window.location.href = `/backups/${selectedBackups[0]}/download`;
+     });
+
+
+
+    els.diffBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (selectedBackups.length !== 2) return;
+      els.diffPanel.classList.remove("d-none");
+      loadDiff();
+    });
+
+    [els.diffModeUnified, els.diffModeSplit, els.diffOnlyChanged, els.diffIgnoreNoise].forEach((el) => {
+      el.addEventListener("change", () => {
+        if (selectedBackups.length === 2 && !els.diffPanel.classList.contains("d-none")) {
+          loadDiff();
+        }
+      });
+    });
+
+      els.deviceTbody.addEventListener("click", (ev) => {
+        const tr = ev.target.closest(".backup-device-row");
+        if (!tr) return;
+        const deviceId = tr.getAttribute("data-device-id");
+        toggleDeviceSelection(deviceId);
+      });
+      
+      if (els.multiDevBtn) {
+         els.multiDevBtn.addEventListener("click", () => {
+            isMultiDeviceMode = !isMultiDeviceMode;
+            els.multiDevBtn.classList.toggle("active", isMultiDeviceMode);
+            els.multiDevBtn.classList.toggle("btn-primary", isMultiDeviceMode);
+            els.multiDevBtn.classList.toggle("btn-outline-primary", !isMultiDeviceMode);
+            
+            const hint = document.getElementById("multi-mode-hint");
+            if (hint) {
+               hint.classList.toggle("d-none", !isMultiDeviceMode);
+            }
+            
+            if (!isMultiDeviceMode && selectedDeviceIds.length > 1) {
+               // Exit multi mode -> keep only the first one
+               const first = selectedDeviceIds[0];
+               selectedDeviceIds = [first];
+               // Clear selection not belonging to first
+               // (Actually keeping selection logic simple: just reset backups if we drop devices?)
+               // But user might want to keep the one they had.
+               // Let's just re-render.
+               // Update UI selection
+               els.deviceTbody.querySelectorAll(".backup-device-row").forEach((tr) => {
+                 const did = tr.getAttribute("data-device-id");
+                 tr.classList.toggle("is-selected", selectedDeviceIds.includes(did));
+               });
+               loadSelectedDevicesBackups();renderBackupsTable();
+            }
+         });
+      }
+
+      els.viewBtn.addEventListener("click", () => {
+        if (selectedBackups.length !== 1) return;
+        window.open(`/backups/${selectedBackups[0]}`, "_blank");
+      });
+
+      els.downloadBtn.addEventListener("click", () => {
+        if (selectedBackups.length !== 1) return;
+        window.location.href = `/api/backups/${selectedBackups[0]}/download`;
+      });
+
+      if (els.backupNowBtn) {
+        els.backupNowBtn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          // In multi-device mode, backup only if 1 selected?
+          if (!IS_ADMIN || selectedDeviceIds.length !== 1) return;
+          const selectedDeviceId = selectedDeviceIds[0];
+          
+          if (!confirm("确定要立即执行备份吗？")) return;
+          
+          (async () => {
+            setDisabled(els.backupNowBtn, true);
+            const fd = new FormData();
+            fd.set("template_id", "0");
+            const resp = await fetch(`/api/devices/${selectedDeviceId}/backup`, { method: "POST", body: fd });
+            
+            if (!resp.ok) {
+              setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+              return;
+            }
+            const data = await resp.json();
+            const bid = data && data.record ? data.record.id : null;
+            
+            // Refresh
+            const updated = await fetchDeviceBackups(selectedDeviceId);
+            if (updated) {
+               deviceBackupsMap[selectedDeviceId] = updated;
+               renderBackupsTable();
+            }
+  
+            if (bid) {
+              if (window.NB && typeof window.NB.trackBackups === "function") {
+                window.NB.trackBackups([bid]);
+              }
+              startPolling(selectedDeviceId, bid);
+            } else {
+              setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+            }
+          })();
+        });
+      }
+
+      els.deviceSearch.addEventListener("input", () => {
+        const q = (els.deviceSearch.value || "").trim().toLowerCase();
+        els.deviceTbody.querySelectorAll(".backup-device-row").forEach((tr) => {
+          const key = (tr.getAttribute("data-search") || "").toLowerCase();
+          tr.classList.toggle("d-none", q && !key.includes(q));
+        });
+      });
+      
+      // Removed individual row listeners in favor of delegation on deviceTbody above
+      // But need to remove the old loop that adds them
+
+
+    setDisabled(els.backupNowBtn, true);
+    updateActionButtons();
+  </script>
+{% endblock %}

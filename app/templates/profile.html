@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% set page_title = "个人中心" %}
+{% set page_subtitle = "管理您的账户安全与个性化配置" %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <!-- 统一的大卡片容器 -->
+    <div class="card border-0 shadow-sm overflow-hidden main-profile-card">
+      <div class="row g-0">
+        <!-- 左侧导航侧边栏 (在卡片内部) -->
+        <div class="col-12 col-md-3 border-end bg-light-subtle profile-sidebar">
+          <div class="p-3">
+            <!-- 用户简要信息 -->
+            <div class="text-center mb-3 pb-2 border-bottom">
+              <div class="position-relative d-inline-block mb-2">
+                <div class="avatar-wrapper rounded-circle p-1 bg-white shadow-sm border">
+                  <div class="avatar-display bg-primary bg-gradient text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                    <i class="bi bi-person-fill fs-4"></i>
+                  </div>
+                </div>
+                <span class="position-absolute bottom-0 end-0 bg-success border border-white border-2 rounded-circle p-1" title="在线"></span>
+              </div>
+              <h6 class="fw-bold mb-0 small">{{ user.username }}</h6>
+              <p class="x-small text-secondary mb-0">{% if user.role == 'admin' %}系统管理员{% else %}操作员{% endif %}</p>
+            </div>
+
+            <!-- 导航菜单 -->
+            <div class="nav flex-column custom-profile-nav" id="v-pills-tab" role="tablist">
+              <div class="nav-link active d-flex align-items-center mb-1 py-1 px-3 small">
+                <i class="bi bi-person-lines-fill me-2"></i>个人资料与安全
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧内容区域 -->
+        <div class="col-12 col-md-9">
+          <div class="p-3 p-lg-4">
+            
+            <!-- 账户信息 (直接展示) -->
+            <div class="section-header mb-3">
+              <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-person-badge me-2"></i>基本账户信息</h6>
+            </div>
+
+            <div class="row g-2 mb-4">
+              <div class="col-md-6">
+                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
+                  <div class="x-small text-secondary mb-0">用户名</div>
+                  <div class="fw-bold small">{{ user.username }}</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
+                  <div class="x-small text-secondary mb-0">系统角色</div>
+                  <div class="fw-bold text-primary small">
+                    {% if user.role == 'admin' %}管理员{% else %}操作员{% endif %}
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
+                  <div class="x-small text-secondary mb-0">权限范围</div>
+                  <p class="x-small text-body mb-0">
+                    {% if user.role == 'admin' %}
+                      拥有最高管理权限，可管理所有设备、用户及完整审计日志。
+                    {% else %}
+                      拥有受限的备份和资源查看权限。
+                    {% endif %}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-3 opacity-10">
+
+            <!-- 账户安全 (直接展示) -->
+            <div class="section-header mb-3">
+              <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-shield-lock me-2"></i>修改登录密码</h6>
+            </div>
+
+            {% if msg %}
+              <div class="alert alert-success border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <div>{{ msg }}</div>
+              </div>
+            {% endif %}
+            
+            {% if err %}
+              <div class="alert alert-danger border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <div>{{ err }}</div>
+              </div>
+            {% endif %}
+
+            <form method="post" action="/profile/change-password" class="needs-validation" id="passwordForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="form-group mb-2">
+                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">当前密码</label>
+                      <div class="input-group input-group-modern input-group-sm">
+                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-key"></i></span>
+                        <input name="old_password" id="old_password" type="password" class="form-control border-start-0" placeholder="验证身份" required />
+                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('old_password', this)">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="form-group mb-2">
+                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">设置新密码</label>
+                      <div class="input-group input-group-modern input-group-sm">
+                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-lock"></i></span>
+                        <input name="new_password" id="new_password" type="password" class="form-control border-start-0" placeholder="新密码" required minlength="5" oninput="checkStrength(this.value)" />
+                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('new_password', this)">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <div class="progress mt-1" style="height: 3px;">
+                        <div id="strengthBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                      </div>
+                      <div class="d-flex justify-content-between mt-1">
+                        <span id="strengthText" class="x-small text-secondary">强度</span>
+                        <span class="x-small text-secondary">至少 5 字符</span>
+                      </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">确认新密码</label>
+                      <div class="input-group input-group-modern input-group-sm">
+                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-lock-check"></i></span>
+                        <input name="confirm_password" id="confirm_password" type="password" class="form-control border-start-0" placeholder="确认密码" required oninput="checkMatch()" />
+                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('confirm_password', this)">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <div id="matchFeedback" class="x-small mt-1 d-none"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm rounded-pill">
+                      保存修改
+                    </button>
+                  </div>
+
+                  <!-- 侧边提示 -->
+                  <div class="col-md-6">
+                    <div class="bg-light rounded-3 p-3 border border-dashed h-100">
+                      <h6 class="fw-bold x-small mb-2"><i class="bi bi-info-circle me-1"></i>安全建议</h6>
+                      <ul class="x-small text-secondary ps-3 mb-0">
+                        <li class="mb-1">避免与用户名过于相似。</li>
+                        <li class="mb-1">组合大/小写字母、数字和符号。</li>
+                        <li>建议每 90 天更换一次密码。</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  // 切换密码可见性
+  function togglePass(id, btn) {
+    const input = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.classList.replace('bi-eye', 'bi-eye-slash');
+    } else {
+      input.type = 'password';
+      icon.classList.replace('bi-eye-slash', 'bi-eye');
+    }
+  }
+
+  // 密码强度检测
+  function checkStrength(pwd) {
+    const bar = document.getElementById('strengthBar');
+    const text = document.getElementById('strengthText');
+    let strength = 0;
+    
+    if (pwd.length >= 5) strength += 20;
+    if (pwd.length >= 8) strength += 20;
+    if (/[A-Z]/.test(pwd)) strength += 20;
+    if (/[0-9]/.test(pwd)) strength += 20;
+    if (/[^A-Za-z0-9]/.test(pwd)) strength += 20;
+
+    bar.style.width = strength + '%';
+    
+    if (strength <= 40) {
+      bar.className = 'progress-bar bg-danger';
+      text.innerText = '强度：弱';
+    } else if (strength <= 80) {
+      bar.className = 'progress-bar bg-warning';
+      text.innerText = '强度：中';
+    } else {
+      bar.className = 'progress-bar bg-success';
+      text.innerText = '强度：强';
+    }
+  }
+
+  // 密码匹配检测
+  function checkMatch() {
+    const p1 = document.getElementById('new_password').value;
+    const p2 = document.getElementById('confirm_password').value;
+    const feedback = document.getElementById('matchFeedback');
+    
+    if (!p2) {
+      feedback.classList.add('d-none');
+      return;
+    }
+
+    feedback.classList.remove('d-none');
+    if (p1 === p2) {
+      feedback.innerText = '✓ 密码匹配';
+      feedback.className = 'x-small mt-1 text-success';
+    } else {
+      feedback.innerText = '✗ 密码不一致';
+      feedback.className = 'x-small mt-1 text-danger';
+    }
+  }
+</script>
+{% endblock %}
