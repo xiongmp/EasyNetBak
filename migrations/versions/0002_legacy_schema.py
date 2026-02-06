@@ -140,80 +140,57 @@ def upgrade() -> None:
 
     # --- Data Migration: Device -> Credential ---
     if "credential" in existing_tables and "device" in existing_tables:
-        # We need to use raw SQL for data migration to avoid model dependencies
-        # This logic mimics _migrate_sqlite's extraction of credentials
-        conn.execute(
-            text(
-                """
-                INSERT INTO credential (name, username, password, enable_password, ssh_key_path, created_at)
-                SELECT 
-                    COALESCE(name, 'device-' || id) || ' 凭据',
-                    COALESCE(username, ''),
-                    password, -- Assuming encrypted or handled by app logic, pure copy here
-                    enable_password,
-                    ssh_key_path,
-                    datetime('now')
-                FROM device 
-                WHERE credential_id IS NULL 
-                  AND (username IS NOT NULL OR password IS NOT NULL OR ssh_key_path IS NOT NULL)
-                """
-            )
-        )
+        device_cols = [c['name'] for c in inspector.get_columns('device')]
         
-        # Update device credential_ids
-        # This is tricky in pure SQL without a loop if we want to link them exactly back.
-        # _migrate_sqlite did it with a loop in Python.
-        # Doing it in pure SQL:
-        # UPDATE device SET credential_id = (SELECT id FROM credential WHERE ... matches ...)
-        # But "matches" is hard because we just inserted them.
-        # For simplicity and safety, we might skip the complex data migration here if it's too risky in SQL.
-        # The Python loop in _migrate_sqlite was:
-        # for row in rows: insert credential, get id, update device.
-        
-        # We can do the same here using Alembic's bind
-        
-        rows = conn.execute(
-            text(
-                "SELECT id, name, username, password, enable_password, ssh_key_path "
-                "FROM device WHERE credential_id IS NULL AND (username IS NOT NULL OR password IS NOT NULL OR ssh_key_path IS NOT NULL)"
-            )
-        ).fetchall()
-        
-        if rows:
-            # We need to import encrypt_secret if we want to encrypt, 
-            # BUT _migrate_sqlite logic imported it: from app.services.crypto import encrypt_secret
-            # We can import it here too.
-            try:
-                from app.services.crypto import encrypt_secret
-            except ImportError:
-                # Fallback or dummy if not available
-                encrypt_secret = lambda x: x
-                
-            for device_id, device_name, username, password, enable_password, ssh_key_path in rows:
-                cred_name = (device_name or f"device-{device_id}") + " 凭据"
-                enc_password = encrypt_secret(password) if password else None
-                enc_enable = encrypt_secret(enable_password) if enable_password else None
-                created_at = datetime.utcnow().isoformat()
-                
-                result = conn.execute(
-                    text(
-                        "INSERT INTO credential (name, username, password, enable_password, ssh_key_path, created_at) "
-                        "VALUES (:name, :username, :password, :enable_password, :ssh_key_path, :created_at)"
-                    ),
-                    {
-                        "name": cred_name,
-                        "username": username or "",
-                        "password": enc_password,
-                        "enable_password": enc_enable,
-                        "ssh_key_path": ssh_key_path,
-                        "created_at": created_at,
-                    },
+        # Only migrate if device has the legacy 'password' column
+        if "password" in device_cols:
+            credential_cols = [c['name'] for c in inspector.get_columns('credential')]
+            
+            # Determine target password column name
+            target_pwd_col = "encrypted_password" if "encrypted_password" in credential_cols else "password"
+            target_enable_pwd_col = "encrypted_enable_password" if "encrypted_enable_password" in credential_cols else "enable_password"
+            
+            rows = conn.execute(
+                text(
+                    "SELECT id, name, username, password, enable_password, ssh_key_path "
+                    "FROM device WHERE credential_id IS NULL AND (username IS NOT NULL OR password IS NOT NULL OR ssh_key_path IS NOT NULL)"
                 )
-                credential_id = result.lastrowid
-                conn.execute(
-                    text("UPDATE device SET credential_id = :cid WHERE id = :did"),
-                    {"cid": credential_id, "did": device_id},
-                )
+            ).fetchall()
+            
+            if rows:
+                try:
+                    from app.services.crypto import encrypt_secret
+                except ImportError:
+                    encrypt_secret = lambda x: x
+                    
+                for device_id, device_name, username, password, enable_password, ssh_key_path in rows:
+                    cred_name = (device_name or f"device-{device_id}") + " 凭据"
+                    enc_password = encrypt_secret(password) if password else None
+                    enc_enable = encrypt_secret(enable_password) if enable_password else None
+                    created_at = datetime.utcnow().isoformat()
+                    
+                    # Construct INSERT statement dynamically based on available columns
+                    insert_sql = (
+                        f"INSERT INTO credential (name, username, {target_pwd_col}, {target_enable_pwd_col}, ssh_key_path, created_at) "
+                        f"VALUES (:name, :username, :password, :enable_password, :ssh_key_path, :created_at)"
+                    )
+                    
+                    result = conn.execute(
+                        text(insert_sql),
+                        {
+                            "name": cred_name,
+                            "username": username or "",
+                            "password": enc_password,
+                            "enable_password": enc_enable,
+                            "ssh_key_path": ssh_key_path,
+                            "created_at": created_at,
+                        },
+                    )
+                    credential_id = result.lastrowid
+                    conn.execute(
+                        text("UPDATE device SET credential_id = :cid WHERE id = :did"),
+                        {"cid": credential_id, "did": device_id},
+                    )
 
 
 def downgrade() -> None:
