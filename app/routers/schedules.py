@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func
@@ -13,8 +13,17 @@ from app.core.settings import settings
 from app.core.time import parse_timezone_offset_to_minutes
 from app.db import session_scope
 from app.models import BackupRecord, BackupSchedule, BackupScheduleRunItem, Device
-from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_admin, _require_operator, get_user_allowed_group_ids, templates
-from app.scheduler import execute_schedule_run, plan_schedule_run, resolve_device_ids_from_targets, sync_scheduler_from_db
+from app.routers.common import (
+    _dt_local_str,
+    _layout_context,
+    _log_action,
+    _require_admin,
+    _require_operator,
+    _current_user,
+    get_user_allowed_group_ids,
+    templates,
+)
+from app.scheduler import plan_schedule_run, resolve_device_ids_from_targets, sync_scheduler_from_db
 
 
 router = APIRouter()
@@ -246,21 +255,16 @@ def schedule_stats_page(request: Request, schedule_id: int):
 
 
 @router.post("/api/schedules/{schedule_id}/run")
-def api_run_schedule(request: Request, schedule_id: int, background: BackgroundTasks):
+def api_run_schedule(request: Request, schedule_id: int):
     _require_operator(request)
     run_id, jobs = plan_schedule_run(schedule_id=int(schedule_id), trigger="manual")
     with session_scope() as session:
         _log_action(request, session, "TRIGGER_SCHEDULE_API", "schedule", schedule_id, f"Run ID: {run_id}, Jobs: {len(jobs)}")
-    enqueued = False
-    try:
-        from app.celery_tasks import enqueue_schedule_run
+    from app.celery_tasks import enqueue_schedule_run
 
-        enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
-    except Exception:
-        enqueued = False
-
+    enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
     if not enqueued:
-        background.add_task(execute_schedule_run, run_id=run_id, jobs=jobs)
+        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {"run_id": str(run_id), "records": [str(rid) for _, rid, __ in jobs]}
 
 
@@ -325,9 +329,17 @@ def api_schedule_target_devices(
     platform = (platform or "").strip() or None
     group_id_val = int(group_id) if int(group_id or 0) > 0 else None
     limit = max(1, min(200, int(limit or 80)))
+    
+    # Check permissions
+    allowed_group_ids = get_user_allowed_group_ids(_current_user(request))
+
     with session_scope() as session:
-        total = crud.count_devices(session, q=q, platform=platform, group_id=group_id_val)
-        devices = crud.search_devices(session, q=q, platform=platform, group_id=group_id_val, limit=limit, offset=0)
+        total = crud.count_devices(
+            session, q=q, platform=platform, group_id=group_id_val, allowed_group_ids=allowed_group_ids
+        )
+        devices = crud.search_devices(
+            session, q=q, platform=platform, group_id=group_id_val, limit=limit, offset=0, allowed_group_ids=allowed_group_ids
+        )
         groups = {int(g.id): g.name for g in crud.list_groups(session) if g.id}
     out = []
     for d in devices:

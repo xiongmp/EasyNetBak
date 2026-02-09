@@ -419,11 +419,17 @@
 
     {% if current_user %}
           </div>
+          <footer class="py-3 text-center text-secondary small mt-auto">
+            Powered by Network Backup System Copyright © 网工漫谈
+          </footer>
         </main>
       </div>
     {% elif blank_layout %}
       </div>
     {% else %}
+      <footer class="py-3 text-center text-secondary small mt-4">
+        Powered by Network Backup System Copyright © 网工漫谈
+      </footer>
       </main>
     {% endif %}
 
@@ -501,22 +507,29 @@
             }
           }
 
-          // Global Delete Confirm
-          window.NB.confirmDelete = function(message, onConfirm) {
-            const deleteModalEl = document.getElementById('deleteConfirmModal');
-            if (!deleteModalEl) return;
+          // Global Confirm Modal
+          window.NB.confirm = function(options) {
+            const { title, message, onConfirm, confirmBtnText, confirmBtnClass } = options || {};
+            const modalEl = document.getElementById('deleteConfirmModal'); // Reusing the same modal structure
+            if (!modalEl) return;
             const bs = window.bootstrap;
             if (!bs) return;
             
-            let deleteModal = bs.Modal.getInstance(deleteModalEl);
-            if (!deleteModal) {
-                deleteModal = new bs.Modal(deleteModalEl);
+            let modal = bs.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bs.Modal(modalEl);
             }
             
+            const titleEl = modalEl.querySelector('.modal-title');
             const confirmBtn = document.getElementById('deleteConfirmBtn');
             const confirmText = document.getElementById('deleteConfirmText');
             
-            if (confirmText) confirmText.textContent = message || '确定要删除吗？此操作不可恢复。';
+            if (titleEl) titleEl.textContent = title || '确认操作';
+            if (confirmText) confirmText.textContent = message || '确定要执行此操作吗？';
+            if (confirmBtn) {
+                confirmBtn.textContent = confirmBtnText || '确定';
+                confirmBtn.className = 'btn btn-sm px-4 ' + (confirmBtnClass || 'btn-primary');
+            }
             
             // Clean up old event listeners
             const newBtn = confirmBtn.cloneNode(true);
@@ -524,11 +537,21 @@
             
             newBtn.addEventListener('click', function() {
                 if (typeof onConfirm === 'function') onConfirm();
-                // If onConfirm is not provided, we assume it's handled externally or just close
-                deleteModal.hide();
+                modal.hide();
             });
             
-            deleteModal.show();
+            modal.show();
+          };
+
+          // Global Delete Confirm
+          window.NB.confirmDelete = function(message, onConfirm) {
+            window.NB.confirm({
+              title: '确认删除',
+              message: message || '确定要删除吗？此操作不可恢复。',
+              onConfirm: onConfirm,
+              confirmBtnText: '确认删除',
+              confirmBtnClass: 'btn-danger'
+            });
           };
 
           // Global Toast Message

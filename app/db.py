@@ -31,7 +31,8 @@ def _run_alembic_upgrade() -> None:
         raise RuntimeError(f"Alembic config not found: {cfg_path}")
 
     cfg = Config(str(cfg_path))
-    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    safe_url = settings.database_url.replace("%", "%%")
+    cfg.set_main_option("sqlalchemy.url", safe_url)
     command.upgrade(cfg, "head")
 
 

@@ -433,11 +433,29 @@
             locale: "zh_CN",
             use24HourTimeFormat: true 
           });
-          // 优化中文表达：如果是每天执行的任务（分 时 * * *），将“在”替换为“每天”
-          const parts = val.trim().split(/\s+/);
-          if (parts.length >= 5 && parts.slice(2, 5).every(p => p === '*')) {
-            meaning = meaning.replace(/^在\s?/, '每天 ');
+          
+          // 优化中文表达，使其更符合习惯
+          // 例如："在02:00, 仅星期六" -> "每周六 02:00"
+          //      "在02:00" -> "每天 02:00"
+          if (meaning.startsWith("在")) {
+            const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
+            if (timeMatch) {
+              const timeStr = timeMatch[1];
+              let rest = meaning.replace(timeMatch[0], "").replace(/^[,\s，]+/, "");
+              
+              if (!rest) {
+                meaning = "每天 " + timeStr;
+              } else if (rest.startsWith("仅星期")) {
+                meaning = rest.replace("仅星期", "每周") + " " + timeStr;
+              } else if (rest.includes("每月的第")) {
+                meaning = rest.replace(/在每月的第\s?(\d+)\s?天/, "每月$1号") + " " + timeStr;
+              } else {
+                // 其他复杂情况，至少把时间挪到后面，去掉开头的“在”
+                meaning = rest + " " + timeStr;
+              }
+            }
           }
+
           targetEl.textContent = meaning;
           targetEl.classList.remove("text-danger");
           targetEl.classList.add("text-primary");

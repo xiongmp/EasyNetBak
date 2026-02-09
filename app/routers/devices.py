@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import csv
 import io
-import socket
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from sqlmodel import select
@@ -18,102 +16,9 @@ from app.db import session_scope
 from app.models import Device
 from app.platforms import TELNET_DEVICE_TYPE_MAP, normalize_platform_id, platforms_compatible
 from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_admin, _require_operator, _current_user, get_user_allowed_group_ids, templates
-from app.scheduler import execute_schedule_run, plan_bulk_backup_run
-from app.services.job_runner import run_backup_record
-from app.services.netmiko_client import test_netmiko_connection
-
-
-# 简单的内存任务存储 (Task ID -> Task State)
-# 生产环境建议使用 Redis
-REACHABILITY_TASKS: dict[str, dict[str, Any]] = {}
-
-
-def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -> dict[str, Any] | None:
-    with session_scope() as session:
-        device = crud.get_device(session, device_id)
-        if not device:
-            return None
-
-        secrets = crud.get_device_secrets(session, device)
-        if not secrets.get("username"):
-            device.reachability_status = False
-            device.reachability_error = "未配置凭据"
-            device.last_reachability_check = datetime.utcnow()
-            session.add(device)
-            session.commit()
-            return {
-                "id": device.id,
-                "name": device.name,
-                "host": device.host,
-                "success": False,
-                "error_message": "未配置凭据",
-                "duration_ms": 0,
-                "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
-                "login_method": device.login_method,
-            }
-
-        started = time.monotonic()
-        
-        # 1. Socket 端口预检 (快速失败)
-        socket_open = False
-        try:
-            # 使用较短的超时时间 (3秒) 进行端口探测
-            with socket.create_connection((device.host, device.port), timeout=3):
-                socket_open = True
-        except (OSError, socket.timeout):
-            pass
-
-        if not socket_open:
-            device.reachability_status = False
-            device.reachability_error = f"端口不可达 ({device.host}:{device.port})"
-            device.reachability_duration_ms = int((time.monotonic() - started) * 1000)
-            device.last_reachability_check = datetime.utcnow()
-            session.add(device)
-            session.commit()
-            
-            return {
-                "id": device.id,
-                "name": device.name,
-                "host": device.host,
-                "success": False,
-                "error_message": device.reachability_error,
-                "duration_ms": device.reachability_duration_ms,
-                "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
-                "login_method": device.login_method,
-            }
-
-        # 2. 尝试建立完整连接 (Netmiko)
-        try:
-            test_netmiko_connection(
-                host=device.host,
-                port=device.port,
-                login_method=device.login_method,
-                platform=device.platform,
-                username=secrets["username"],
-                password=secrets["password"],
-                enable_password=secrets["enable_password"],
-            )
-            device.reachability_status = True
-            device.reachability_error = None
-        except Exception as exc:
-            device.reachability_status = False
-            device.reachability_error = str(exc)
-
-        device.reachability_duration_ms = int((time.monotonic() - started) * 1000)
-        device.last_reachability_check = datetime.utcnow()
-        session.add(device)
-        session.commit()
-        
-        return {
-            "id": device.id,
-            "name": device.name,
-            "host": device.host,
-            "success": device.reachability_status,
-            "error_message": device.reachability_error,
-            "duration_ms": device.reachability_duration_ms,
-            "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
-            "login_method": device.login_method,
-        }
+from app.scheduler import plan_bulk_backup_run
+from app.celery_tasks import bulk_reachability_task
+from app.celery_app import celery_app
 
 
 router = APIRouter()
@@ -150,9 +55,19 @@ def devices_page(request: Request):
     msg = (request.query_params.get("msg") or "").strip()
     err = (request.query_params.get("err") or "").strip()
     offset = (page - 1) * page_size
+
+    # Check permissions
+    allowed_group_ids = get_user_allowed_group_ids(_current_user(request))
+
     with session_scope() as session:
         total = crud.count_devices(
-            session, q=q, login_method=login_method, platform=platform, group_id=group_id, reachability_status=reachability_status
+            session,
+            q=q,
+            login_method=login_method,
+            platform=platform,
+            group_id=group_id,
+            reachability_status=reachability_status,
+            allowed_group_ids=allowed_group_ids,
         )
         devices = crud.search_devices(
             session,
@@ -163,6 +78,7 @@ def devices_page(request: Request):
             reachability_status=reachability_status,
             limit=page_size,
             offset=offset,
+            allowed_group_ids=allowed_group_ids,
         )
         tmpl = crud.list_templates(session)
         creds = crud.list_credentials(session)
@@ -219,15 +135,19 @@ def devices_page(request: Request):
 @router.post("/devices/bulk_backup")
 def bulk_backup(
     request: Request,
-    background: BackgroundTasks,
     device_ids: str = Form(""),
+    mode: str = Form("selected"),
 ):
     _require_operator(request)
-    ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
-    if not ids:
-        return RedirectResponse(url="/devices", status_code=303)
-
     with session_scope() as session:
+        if mode == "all":
+            ids = [int(d.id) for d in crud.list_devices(session) if d.id]
+        else:
+            ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
+
+        if not ids:
+            return RedirectResponse(url="/devices", status_code=303)
+
         existing = {int(did) for did in session.exec(select(Device.id).where(Device.id.in_(ids)))}
         filtered_ids = [did for did in ids if did in existing]
         if not filtered_ids:
@@ -237,36 +157,13 @@ def bulk_backup(
     if not jobs:
         return RedirectResponse(url="/devices?err=未找到有效设备", status_code=303)
 
-    enqueued = False
-    try:
-        from app.celery_tasks import enqueue_schedule_run
+    from app.celery_tasks import enqueue_schedule_run
 
-        enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
-    except Exception:
-        enqueued = False
-
+    enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
     if not enqueued:
-        background.add_task(execute_schedule_run, run_id=run_id, jobs=jobs)
+        return RedirectResponse(url="/devices?err=Celery 未启用或不可用", status_code=303)
     return RedirectResponse(url="/backups", status_code=303)
 
-
-@router.post("/devices/bulk_update_group")
-def bulk_update_group(request: Request, device_ids: str = Form(""), group_id: int = Form(0)):
-    _require_operator(request)
-    ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
-    if not ids:
-        return RedirectResponse(url="/devices", status_code=303)
-    group_value = int(group_id) or None
-    with session_scope() as session:
-        for did in ids:
-            device = crud.get_device(session, did)
-            if not device:
-                continue
-            device.group_id = group_value
-            session.add(device)
-            _log_action(request, session, "UPDATE_DEVICE_GROUP", "device", did, f"New Group ID: {group_id}")
-        session.commit()
-    return RedirectResponse(url="/devices?msg=分组已更新", status_code=303)
 
 
 @router.post("/devices/bulk_delete")
@@ -580,7 +477,7 @@ def create_device(
         new_device_id = device.id
         _log_action(request, session, "CREATE_DEVICE", "device", device.id, f"Name: {name}, Host: {host}")
     
-    background.add_task(perform_single_reachability_check, new_device_id)
+    bulk_reachability_task.delay(device_ids=[new_device_id], offset_minutes=0)
     return RedirectResponse(url="/devices?msg=设备已创建", status_code=303)
 
 
@@ -754,12 +651,12 @@ def update_device(
             raise HTTPException(status_code=404)
         _log_action(request, session, "UPDATE_DEVICE", "device", device_id, f"Name: {name}, Host: {host}")
     
-    background.add_task(perform_single_reachability_check, device_id)
+    bulk_reachability_task.delay(device_ids=[device_id], offset_minutes=0)
     return RedirectResponse(url=f"/devices/{device_id}?msg=修改已保存", status_code=303)
 
 
 @router.post("/devices/{device_id}/backup")
-def trigger_backup(request: Request, device_id: int, background: BackgroundTasks, template_id: int = Form(0)):
+def trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
     _require_operator(request)
     template_id = int(template_id) if template_id else 0
     with session_scope() as session:
@@ -777,26 +674,21 @@ def trigger_backup(request: Request, device_id: int, background: BackgroundTasks
         record_id = record.id
         _log_action(request, session, "TRIGGER_BACKUP", "device", device_id, f"Backup Record ID: {record_id}")
 
-    enqueued = False
-    try:
-        from app.celery_tasks import enqueue_backup_record
+    from app.celery_tasks import enqueue_backup_record
 
-        enqueued = enqueue_backup_record(
-            record_id=record_id,
-            device_id=device_id,
-            template_id=effective_template_id or None,
-            skip_email=False,
-        )
-    except Exception:
-        enqueued = False
-
+    enqueued = enqueue_backup_record(
+        record_id=record_id,
+        device_id=device_id,
+        template_id=effective_template_id or None,
+        skip_email=False,
+    )
     if not enqueued:
-        background.add_task(run_backup_record, record_id, device_id, effective_template_id or None)
+        return RedirectResponse(url=f"/devices/{device_id}?err=Celery 未启用或不可用", status_code=303)
     return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
 
 
 @router.post("/api/devices/{device_id}/backup")
-def api_trigger_backup(request: Request, device_id: int, background: BackgroundTasks, template_id: int = Form(0)):
+def api_trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
     _require_operator(request)
     template_id = int(template_id) if template_id else 0
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
@@ -817,21 +709,16 @@ def api_trigger_backup(request: Request, device_id: int, background: BackgroundT
         record_started_at = record.started_at
         _log_action(request, session, "TRIGGER_BACKUP_API", "device", device_id, f"Backup Record ID: {record_id}")
 
-    enqueued = False
-    try:
-        from app.celery_tasks import enqueue_backup_record
+    from app.celery_tasks import enqueue_backup_record
 
-        enqueued = enqueue_backup_record(
-            record_id=record_id,
-            device_id=device_id,
-            template_id=effective_template_id or None,
-            skip_email=False,
-        )
-    except Exception:
-        enqueued = False
-
+    enqueued = enqueue_backup_record(
+        record_id=record_id,
+        device_id=device_id,
+        template_id=effective_template_id or None,
+        skip_email=False,
+    )
     if not enqueued:
-        background.add_task(run_backup_record, record_id, device_id, effective_template_id or None)
+        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {
         "record": {
             "id": str(record_id),
@@ -844,28 +731,32 @@ def api_trigger_backup(request: Request, device_id: int, background: BackgroundT
 @router.post("/api/devices/bulk_backup")
 def api_bulk_backup(
     request: Request,
-    background: BackgroundTasks,
     device_ids: str = Form(""),
+    mode: str = Form("selected"),
 ):
     _require_operator(request)
-    ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
-    if not ids:
-        return {"records": []}
-
     with session_scope() as session:
-        run_id, jobs = plan_bulk_backup_run(session, ids, trigger="manual")
+        if mode == "all":
+            ids = [int(d.id) for d in crud.list_devices(session) if d.id]
+        else:
+            ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
+
+        if not ids:
+            return {"records": []}
+
+        existing = {int(did) for did in session.exec(select(Device.id).where(Device.id.in_(ids)))}
+        filtered_ids = [did for did in ids if did in existing]
+        if not filtered_ids:
+            return {"records": []}
+
+        run_id, jobs = plan_bulk_backup_run(session, filtered_ids, trigger="manual")
         _log_action(request, session, "BULK_BACKUP_API", "device", None, f"Run ID: {run_id}, Jobs: {len(jobs)}")
 
-    enqueued = False
-    try:
-        from app.celery_tasks import enqueue_schedule_run
+    from app.celery_tasks import enqueue_schedule_run
 
-        enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
-    except Exception:
-        enqueued = False
-
+    enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
     if not enqueued:
-        background.add_task(execute_schedule_run, run_id=run_id, jobs=jobs)
+        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {"records": [str(rid) for _, rid, __ in jobs]}
 
 
@@ -944,81 +835,67 @@ def api_bulk_reachability(
     if not ids:
         return {"task_id": None}
 
-    task_id = str(uuid4())
-    REACHABILITY_TASKS[task_id] = {
-        "id": task_id,
-        "status": "pending",
-        "total": len(ids),
-        "processed": 0,
-        "success": 0,
-        "failed": 0,
-        "items": [],
-        "created_at": time.time(),
-    }
-    
-    # 清理旧任务 (保留最近 100 个)
-    if len(REACHABILITY_TASKS) > 100:
-        keys_to_remove = sorted(REACHABILITY_TASKS.keys(), key=lambda k: REACHABILITY_TASKS[k]["created_at"])[:-100]
-        for k in keys_to_remove:
-            REACHABILITY_TASKS.pop(k, None)
-
-    background.add_task(run_reachability_task, task_id, ids, offset_minutes)
-    
-    return {"task_id": task_id}
-
-
-def run_reachability_task(task_id: str, device_ids: list[int], offset_minutes: int):
-    task = REACHABILITY_TASKS.get(task_id)
-    if not task:
-        return
-    
-    task["status"] = "running"
-    task["started_at"] = time.time()
-    
-    max_workers = 10
-    with session_scope() as session:
-        try:
-            val = crud.get_setting(session, key="max_concurrent_tasks")
-            max_workers = int(val or "10")
-        except Exception:
-            pass
-
-    processed_count = 0
-    success_count = 0
-    fail_count = 0
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(perform_single_reachability_check, did, offset_minutes=offset_minutes): did for did in device_ids}
-        
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                if result:
-                    task["items"].append(result)
-                    if result["success"]:
-                        success_count += 1
-                    else:
-                        fail_count += 1
-            except Exception:
-                pass
-            
-            processed_count += 1
-            # 更新任务状态
-            task["processed"] = processed_count
-            task["success"] = success_count
-            task["failed"] = fail_count
-            
-    task["status"] = "finished"
-    task["finished_at"] = time.time()
+    task = bulk_reachability_task.delay(device_ids=ids, offset_minutes=offset_minutes)
+    return {"task_id": task.id}
 
 
 @router.get("/api/devices/reachability_tasks/{task_id}")
 def get_reachability_task_status(request: Request, task_id: str):
     _require_admin(request)
-    task = REACHABILITY_TASKS.get(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    result = AsyncResult(task_id, app=celery_app)
+    if result.state == 'PENDING':
+        return {
+            "id": task_id,
+            "status": "pending",
+            "total": 0,
+            "processed": 0,
+            "success": 0,
+            "failed": 0,
+            "items": []
+        }
+    elif result.state == 'PROGRESS':
+        meta = result.info or {}
+        return {
+            "id": task_id,
+            "status": "running",
+            "total": meta.get("total", 0),
+            "processed": meta.get("processed", 0),
+            "success": meta.get("success", 0),
+            "failed": meta.get("failed", 0),
+            "items": meta.get("items", []),
+        }
+    elif result.state == 'SUCCESS':
+        res = result.result or {}
+        return {
+            "id": task_id,
+            "status": "finished",
+            "total": res.get("total", 0),
+            "processed": res.get("processed", 0),
+            "success": res.get("success", 0),
+            "failed": res.get("failed", 0),
+            "items": res.get("items", []),
+        }
+    elif result.state == 'FAILURE':
+        return {
+            "id": task_id,
+            "status": "failed",
+            "error": str(result.result),
+            "total": 0,
+            "processed": 0,
+            "success": 0,
+            "failed": 0,
+            "items": []
+        }
+    else:
+        return {
+            "id": task_id,
+            "status": "running",
+            "total": 0,
+            "processed": 0,
+            "success": 0,
+            "failed": 0,
+            "items": []
+        }
 
 
 @router.get("/api/devices/status")

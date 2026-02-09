@@ -251,6 +251,9 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     with session_scope() as session:
         timezone_str = crud.get_setting(session, key="timezone_offset")
         max_concurrent = crud.get_setting(session, key="max_concurrent_tasks")
+        backup_max_retries = crud.get_setting(session, key="backup_max_retries")
+        backup_retry_backoff = crud.get_setting(session, key="backup_retry_backoff")
+        task_time_limit = crud.get_setting(session, key="task_time_limit")
         retention_days = crud.get_setting(session, key="backup_retention_days")
         s3_enabled = crud.get_setting(session, key="s3_enabled") or "0"
         s3_endpoint = crud.get_setting(session, key="s3_endpoint") or ""
@@ -274,6 +277,9 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
             "csrf_token": csrf_token,
             "timezone_offset": timezone_offset,
             "max_concurrent_tasks": max_concurrent or "10",
+            "backup_max_retries": backup_max_retries if backup_max_retries is not None else str(settings.celery.backup_max_retries),
+            "backup_retry_backoff": backup_retry_backoff if backup_retry_backoff is not None else str(settings.celery.backup_retry_backoff_seconds),
+            "task_time_limit": task_time_limit if (task_time_limit and task_time_limit != "0") else str(settings.celery.task_time_limit_seconds),
             "backup_retention_days": retention_days or "90",
             "s3_enabled": s3_enabled,
             "s3_endpoint": s3_endpoint,
@@ -295,6 +301,9 @@ def update_settings(
     csrf_protect: CsrfProtect = Depends(),
     timezone_offset: str = Form(settings.timezone_offset),
     max_concurrent_tasks: str = Form("10"),
+    backup_max_retries: str = Form("3"),
+    backup_retry_backoff: str = Form("10"),
+    task_time_limit: str = Form("300"),
     backup_retention_days: str = Form("90"),
     s3_enabled: str = Form("0"),
     s3_endpoint: str = Form(""),
@@ -316,6 +325,30 @@ def update_settings(
         max_concurrent_tasks = str(val)
     except (ValueError, TypeError):
         max_concurrent_tasks = "10"
+    
+    try:
+        val = int(backup_max_retries)
+        if val < 0: val = 0
+        if val > 10: val = 10
+        backup_max_retries = str(val)
+    except:
+        backup_max_retries = "3"
+
+    try:
+        val = int(backup_retry_backoff)
+        if val < 1: val = 1
+        if val > 3600: val = 3600
+        backup_retry_backoff = str(val)
+    except:
+        backup_retry_backoff = "10"
+
+    try:
+        val = int(task_time_limit)
+        if val < 0: val = 0 # 0 means no limit
+        if val > 3600: val = 3600
+        task_time_limit = str(val)
+    except:
+        task_time_limit = "300"
 
     try:
         val = int(backup_retention_days)
@@ -328,6 +361,9 @@ def update_settings(
     with session_scope() as session:
         crud.set_setting(session, key="timezone_offset", value=tz)
         crud.set_setting(session, key="max_concurrent_tasks", value=max_concurrent_tasks)
+        crud.set_setting(session, key="backup_max_retries", value=backup_max_retries)
+        crud.set_setting(session, key="backup_retry_backoff", value=backup_retry_backoff)
+        crud.set_setting(session, key="task_time_limit", value=task_time_limit)
         crud.set_setting(session, key="backup_retention_days", value=backup_retention_days)
         crud.set_setting(session, key="s3_enabled", value="1" if s3_enabled in {"1", "on"} else "0")
         crud.set_setting(session, key="s3_endpoint", value=s3_endpoint.strip())

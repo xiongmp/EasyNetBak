@@ -17,6 +17,11 @@
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" id="backup-tab" data-bs-toggle="tab" data-bs-target="#backup" type="button" role="tab" aria-controls="backup" aria-selected="false">
+                <i class="bi bi-shield-check me-1"></i>备份设置
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" id="storage-tab" data-bs-toggle="tab" data-bs-target="#storage" type="button" role="tab" aria-controls="storage" aria-selected="false">
                 <i class="bi bi-cloud me-1"></i>存储设置 (S3)
               </button>
@@ -29,22 +34,57 @@
             <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
               <div class="row g-4">
                 <div class="col-12 col-md-8 col-lg-6">
-                  <h6 class="fw-bold text-secondary mb-3">基本运行参数</h6>
+                  <h6 class="fw-bold text-secondary mb-3">
+                    <i class="bi bi-cpu me-2"></i>系统运行参数
+                  </h6>
                   
                   <div class="mb-3">
-                    <label class="form-label small text-secondary fw-bold mb-1">时区配置 (UTC Offset)</label>
+                    <label class="form-label small text-secondary mb-1">时区配置 (UTC Offset)</label>
                     <input name="timezone_offset" class="form-control" value="{{ timezone_offset }}" placeholder="+08:00" />
                     <div class="form-text x-small text-muted">示例：+08:00 (北京时间)、-05:00 (纽约时间)</div>
                   </div>
+                </div>
+              </div>
+            </div>
 
+            <!-- 标签页：备份设置 -->
+            <div class="tab-pane fade" id="backup" role="tabpanel" aria-labelledby="backup-tab">
+              <div class="row g-4">
+                <div class="col-12 col-md-8 col-lg-6">
+                  <h6 class="fw-bold text-secondary mb-3">
+                    <i class="bi bi-lightning-charge me-2"></i>并发与重试控制 (Celery)
+                  </h6>
+                  
                   <div class="mb-3">
-                    <label class="form-label small text-secondary fw-bold mb-1">最大并发线程数</label>
+                    <label class="form-label small text-secondary mb-1">最大并发任务数</label>
                     <input name="max_concurrent_tasks" type="number" class="form-control" value="{{ max_concurrent_tasks }}" min="1" max="100" />
-                    <div class="form-text x-small text-muted">控制同时进行备份的设备数量，建议值：10-50</div>
+                    <div class="form-text x-small text-muted">控制同时进行的备份任务及批量检测任务的数量。建议值：10-50</div>
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label small text-secondary fw-bold mb-1">备份保留天数</label>
+                    <label class="form-label small text-secondary mb-1">失败重试次数</label>
+                    <input name="backup_max_retries" type="number" class="form-control" value="{{ backup_max_retries }}" min="0" max="10" />
+                    <div class="form-text x-small text-muted">备份失败后的自动重试次数。范围：0-10</div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">重试间隔基数 (秒)</label>
+                    <input name="backup_retry_backoff" type="number" class="form-control" value="{{ backup_retry_backoff }}" min="1" max="3600" />
+                    <div class="form-text x-small text-muted">初始重试间隔，后续会按指数级增加。（例如基数为 10s，则重试等待时间分别为 10s, 20s, 40s...）</div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">任务超时时间 (秒)</label>
+                    <input name="task_time_limit" type="number" class="form-control" value="{{ task_time_limit }}" min="0" max="3600" />
+                    <div class="form-text x-small text-muted">单个备份任务的最大运行时间（硬超时）。0 表示不限制，建议 300。</div>
+                  </div>
+
+                  <h6 class="fw-bold text-secondary mt-4 mb-3">
+                    <i class="bi bi-recycle me-2"></i>备份生命周期管理
+                  </h6>
+                  
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">备份保留天数</label>
                     <input name="backup_retention_days" type="number" class="form-control" value="{{ backup_retention_days }}" min="1" />
                     <div class="form-text x-small text-muted">
                       超过此天数的备份将被自动清理，默认 90。
@@ -59,13 +99,9 @@
             <div class="tab-pane fade" id="storage" role="tabpanel" aria-labelledby="storage-tab">
               <div class="row g-4">
                 <div class="col-12">
-                  <div class="form-check form-switch form-switch-lg mb-3">
-                    <input class="form-check-input" type="checkbox" name="s3_enabled" id="s3_enabled" {% if s3_enabled == '1' %}checked{% endif %}>
-                    <label class="form-check-label fw-bold text-body ms-2" for="s3_enabled">启用 S3 外部存储备份</label>
-                  </div>
-                  <div class="form-text x-small text-muted mt-n2 mb-4 ms-1">
-                    <i class="bi bi-info-circle me-1"></i>启用后，系统会在本地备份完成后自动上传副本到指定的 S3 兼容存储桶
-                  </div>
+                  <h6 class="fw-bold text-secondary mb-3">
+                    <i class="bi bi-cloud-arrow-up me-2"></i>存储配置管理
+                  </h6>
                 </div>
 
                 <div class="col-12 col-lg-10">
@@ -119,6 +155,16 @@
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <div class="col-12">
+                  <div class="form-check form-switch form-switch-lg mb-2">
+                    <input class="form-check-input" type="checkbox" name="s3_enabled" id="s3_enabled" {% if s3_enabled == '1' %}checked{% endif %}>
+                    <label class="form-check-label fw-bold text-body ms-2" for="s3_enabled">启用 S3 外部存储备份</label>
+                  </div>
+                  <div class="form-text x-small text-muted ms-1">
+                    <i class="bi bi-info-circle me-1"></i>启用后，系统会在本地备份完成后自动上传副本到指定的 S3 兼容存储桶
                   </div>
                 </div>
               </div>
@@ -218,7 +264,7 @@
                   <div class="fw-bold">{{ timezone_offset }}</div>
                 </div>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">最大并发</div>
+                  <div class="small text-secondary mb-1">最大并发任务数</div>
                   <div class="fw-bold">{{ max_concurrent_tasks }}</div>
                 </div>
                 <div>

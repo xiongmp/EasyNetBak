@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 import time
+import contextlib
+import redis
 from datetime import datetime
 from uuid import UUID
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -16,11 +20,49 @@ from app.platforms import platforms_compatible
 from app.services.alert_service import check_and_alert, check_and_alert_batch
 from app.services.backup_service import backup_device
 from app.services.netmiko_client import NetmikoClientError
+from app.services.reachability import perform_single_reachability_check
 from app.services.s3_service import upload_backup_to_s3
+from typing import Any
 
 
 def celery_enabled() -> bool:
     return bool((settings.celery.broker_url or "").strip())
+
+
+def _get_redis_client() -> redis.Redis | None:
+    url = (settings.celery.broker_url or "").strip()
+    if not url:
+        return None
+    try:
+        return redis.from_url(url)
+    except Exception:
+        return None
+
+
+@contextlib.contextmanager
+def task_semaphore(redis_client: redis.Redis, semaphore_key: str, max_slots: int, task_id: str):
+    """基于 Redis 的任务信号量，控制全局并发数"""
+    if max_slots <= 0:
+        yield True
+        return
+
+    # 尝试将当前任务加入集合
+    # 注意：这里使用集合来确保幂等性（同一个任务多次进入只算一个）
+    added = False
+    try:
+        # 检查当前运行数
+        current_count = redis_client.scard(semaphore_key)
+        if current_count < max_slots:
+            redis_client.sadd(semaphore_key, task_id)
+            # 设置过期时间防止死锁（例如 1 小时）
+            redis_client.expire(semaphore_key, 3600)
+            added = True
+            yield True
+        else:
+            yield False
+    finally:
+        if added:
+            redis_client.srem(semaphore_key, task_id)
 
 
 def _parse_uuid(value: UUID | str) -> UUID:
@@ -29,8 +71,8 @@ def _parse_uuid(value: UUID | str) -> UUID:
     return UUID(str(value))
 
 
-def _retry_countdown(retry_index: int) -> int:
-    base = max(1, int(settings.celery.backup_retry_backoff_seconds or 10))
+def _retry_countdown(retry_index: int, backoff_base: int = 10) -> int:
+    base = max(1, int(backoff_base or 10))
     retry_index = max(0, int(retry_index or 0))
     countdown = base * (2**retry_index)
     return int(min(300, max(base, countdown)))
@@ -70,12 +112,60 @@ def backup_record_task(
     tpl_id = int(template_id) if template_id is not None else None
 
     with session_scope() as session:
+        # 获取并发限制及重试/超时等设置
+        try:
+            val_concurrent = crud.get_setting(session, key="max_concurrent_tasks")
+            max_slots = int(val_concurrent or "10")
+            
+            val_retries = crud.get_setting(session, key="backup_max_retries")
+            max_retries = int(val_retries or str(settings.celery.backup_max_retries))
+            
+            val_backoff = crud.get_setting(session, key="backup_retry_backoff")
+            backoff_base = int(val_backoff or str(settings.celery.backup_retry_backoff_seconds))
+
+            val_timeout = crud.get_setting(session, key="task_time_limit")
+            time_limit = int(val_timeout if (val_timeout and val_timeout != "0") else str(settings.celery.task_time_limit_seconds))
+        except Exception:
+            max_slots = 10
+            max_retries = int(settings.celery.backup_max_retries)
+            backoff_base = int(settings.celery.backup_retry_backoff_seconds)
+            time_limit = int(settings.celery.task_time_limit_seconds)
+
         record = crud.get_backup(session, rid)
         if record is None:
             return {"ok": False, "reason": "record_not_found", "record_id": str(rid)}
         if record.finished_at is not None:
             return {"ok": True, "reason": "already_finished", "record_id": str(rid)}
 
+    # 并发控制
+    redis_client = _get_redis_client()
+    if redis_client:
+        with task_semaphore(redis_client, "semaphore:backup", max_slots, str(rid)) as acquired:
+            if not acquired:
+                # 如果没有获得槽位，则重试（5-10秒后）
+                raise self.retry(countdown=5, max_retries=100)
+            
+            # 获得槽位后继续执行备份逻辑
+            return _execute_backup_logic(self, rid, did, tpl_id, skip_email=skip_email, 
+                                       max_retries=max_retries, backoff_base=backoff_base)
+    else:
+        # 如果 Redis 不可用，则降级为无并发控制
+        return _execute_backup_logic(self, rid, did, tpl_id, skip_email=skip_email, 
+                                   max_retries=max_retries, backoff_base=backoff_base)
+
+
+def _execute_backup_logic(
+    self: BaseTask,
+    rid: UUID,
+    did: int,
+    tpl_id: int | None,
+    *,
+    skip_email: bool = False,
+    max_retries: int = 3,
+    backoff_base: int = 10,
+) -> dict[str, object]:
+    with session_scope() as session:
+        record = crud.get_backup(session, rid)
         device = crud.get_device(session, did)
         if device is None:
             record2 = crud.finish_backup_record(
@@ -170,15 +260,14 @@ def backup_record_task(
         if isinstance(exc, SoftTimeLimitExceeded):
             failure_type = "TIME_LIMIT"
         else:
-            failure_type = exc.failure_type if isinstance(exc, NetmikoClientError) else "UNKNOWN"
+            failure_type = getattr(exc, "failure_type", "UNKNOWN") if isinstance(exc, NetmikoClientError) else "UNKNOWN"
 
         retries_done = int(getattr(self.request, "retries", 0) or 0)
-        max_retries = int(settings.celery.backup_max_retries or 0)
 
         if retries_done < max_retries and _is_retryable_failure(exc, failure_type):
             raise self.retry(
                 exc=exc,
-                countdown=_retry_countdown(retries_done),
+                countdown=_retry_countdown(retries_done, backoff_base=backoff_base),
                 max_retries=max_retries,
             )
 
@@ -283,11 +372,24 @@ def enqueue_backup_record(
 ) -> bool:
     if not celery_enabled():
         return False
+    
+    # 获取任务超时设置
+    time_limit = int(settings.celery.task_time_limit_seconds or 300)
+    with session_scope() as session:
+        try:
+            val_timeout = crud.get_setting(session, key="task_time_limit")
+            if val_timeout and val_timeout != "0":
+                time_limit = int(val_timeout)
+        except:
+            pass
+
     try:
         backup_record_task.apply_async(
             args=[str(record_id), int(device_id), int(template_id) if template_id is not None else None],
             kwargs={"skip_email": bool(skip_email)},
             task_id=str(record_id),
+            time_limit=time_limit if time_limit > 0 else None,
+            soft_time_limit=max(1, time_limit - 10) if time_limit > 10 else None,
         )
         return True
     except Exception:
@@ -297,6 +399,17 @@ def enqueue_backup_record(
 def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None]]) -> bool:
     if not celery_enabled():
         return False
+    
+    # 获取任务超时设置
+    time_limit = int(settings.celery.task_time_limit_seconds or 300)
+    with session_scope() as session:
+        try:
+            val_timeout = crud.get_setting(session, key="task_time_limit")
+            if val_timeout and val_timeout != "0":
+                time_limit = int(val_timeout)
+        except:
+            pass
+
     try:
         backup_ids: list[str] = []
         for did, bid, tpl_id in jobs:
@@ -305,6 +418,8 @@ def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
                 args=[str(bid), int(did), int(tpl_id) if tpl_id is not None else None],
                 kwargs={"skip_email": True},
                 task_id=str(bid),
+                time_limit=time_limit if time_limit > 0 else None,
+                soft_time_limit=max(1, time_limit - 10) if time_limit > 10 else None,
             )
         poll = max(1, int(settings.celery.schedule_finalize_poll_seconds or 5))
         finalize_schedule_run_task.apply_async(
@@ -315,3 +430,65 @@ def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
         return True
     except Exception:
         return False
+
+
+@celery_app.task(bind=True, base=BaseTask, name="app.bulk_reachability")
+def bulk_reachability_task(
+    self: BaseTask,
+    device_ids: list[int],
+    offset_minutes: int = 0,
+) -> dict[str, Any]:
+    total = len(device_ids)
+    processed = 0
+    success = 0
+    failed = 0
+    items: list[dict[str, Any]] = []
+
+    # Initialize state
+    self.update_state(state="PROGRESS", meta={
+        "total": total,
+        "processed": processed,
+        "success": success,
+        "failed": failed,
+        "items": items,
+    })
+
+    max_workers = 10
+    with session_scope() as session:
+        try:
+            val = crud.get_setting(session, key="max_concurrent_tasks")
+            max_workers = int(val or "10")
+        except Exception:
+            pass
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(perform_single_reachability_check, did, offset_minutes=offset_minutes): did for did in device_ids}
+        
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result:
+                    items.append(result)
+                    if result["success"]:
+                        success += 1
+                    else:
+                        failed += 1
+            except Exception:
+                pass
+            
+            processed += 1
+            self.update_state(state="PROGRESS", meta={
+                "total": total,
+                "processed": processed,
+                "success": success,
+                "failed": failed,
+                "items": items,
+            })
+
+    return {
+        "total": total,
+        "processed": processed,
+        "success": success,
+        "failed": failed,
+        "items": items,
+    }

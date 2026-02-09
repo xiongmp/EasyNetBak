@@ -34,8 +34,8 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       - ENABLE_SCHEDULER=true
       - APP_NAME=${APP_NAME:-网络设备备份}
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
@@ -53,11 +53,11 @@ services:
   worker:
     build: .
     restart: always
-    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    command: celery -A app.celery_app.celery_app worker --loglevel=info -P eventlet -c 100
     environment:
       - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       - APP_NAME=${APP_NAME:-Network Backup}
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
       - TIMEZONE_OFFSET=${TIMEZONE_OFFSET:-+08:00}

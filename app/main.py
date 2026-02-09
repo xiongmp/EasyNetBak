@@ -124,7 +124,7 @@ def _on_startup() -> None:
         enabled_str = crud.get_setting(session, key="schedule_enabled")
         crontab_str = crud.get_setting(session, key="backup_crontab")
     
-    # 默认值：如果没有数据库设置，也没有环境变量（已移除），则默认禁用 schedule，默认 crontab 为 0 2 * * *
+    # 默认值：如果没有数据库设置，则默认禁用 schedule，默认 crontab 为 0 2 * * *
     # 如果数据库有值，优先使用数据库值
     # 注意：BackupSchedule 模型默认也是 enabled=False
     enabled = False if enabled_str is None else enabled_str in {"1", "true", "True", "yes", "YES"}

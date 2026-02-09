@@ -787,41 +787,66 @@
       if (els.backupNowBtn) {
         els.backupNowBtn.addEventListener("click", (ev) => {
           ev.preventDefault();
-          // In multi-device mode, backup only if 1 selected?
           if (!IS_ADMIN || selectedDeviceIds.length !== 1) return;
           const selectedDeviceId = selectedDeviceIds[0];
           
-          if (!confirm("确定要立即执行备份吗？")) return;
-          
-          (async () => {
+          const doBackup = async () => {
             setDisabled(els.backupNowBtn, true);
             const fd = new FormData();
             fd.set("template_id", "0");
-            const resp = await fetch(`/api/devices/${selectedDeviceId}/backup`, { method: "POST", body: fd });
             
-            if (!resp.ok) {
-              setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
-              return;
-            }
-            const data = await resp.json();
-            const bid = data && data.record ? data.record.id : null;
-            
-            // Refresh
-            const updated = await fetchDeviceBackups(selectedDeviceId);
-            if (updated) {
-               deviceBackupsMap[selectedDeviceId] = updated;
-               renderBackupsTable();
-            }
-  
-            if (bid) {
-              if (window.NB && typeof window.NB.trackBackups === "function") {
-                window.NB.trackBackups([bid]);
+            try {
+              const resp = await fetch(`/api/devices/${selectedDeviceId}/backup`, { method: "POST", body: fd });
+              
+              if (!resp.ok) {
+                if (window.NB && typeof window.NB.showToast === "function") {
+                  window.NB.showToast("备份任务提交失败", "error");
+                }
+                setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+                return;
               }
-              startPolling(selectedDeviceId, bid);
-            } else {
+              
+              const data = await resp.json();
+              const bid = data && data.record ? data.record.id : null;
+              
+              if (window.NB && typeof window.NB.showToast === "function") {
+                window.NB.showToast("备份任务已提交", "success");
+              }
+
+              // Refresh
+              const updated = await fetchDeviceBackups(selectedDeviceId);
+              if (updated) {
+                 deviceBackupsMap[selectedDeviceId] = updated;
+                 renderBackupsTable();
+              }
+    
+              if (bid) {
+                if (window.NB && typeof window.NB.trackBackups === "function") {
+                  window.NB.trackBackups([bid]);
+                }
+                startPolling(selectedDeviceId, bid);
+              } else {
+                setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+              }
+            } catch (e) {
+              if (window.NB && typeof window.NB.showToast === "function") {
+                window.NB.showToast("请求出错: " + e.message, "error");
+              }
               setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
             }
-          })();
+          };
+
+          if (window.NB && typeof window.NB.confirm === "function") {
+            window.NB.confirm({
+              title: "立即备份",
+              message: "确定要立即执行备份吗？",
+              onConfirm: doBackup,
+              confirmBtnText: "开始备份",
+              confirmBtnClass: "btn-primary"
+            });
+          } else if (confirm("确定要立即执行备份吗？")) {
+            doBackup();
+          }
         });
       }
 

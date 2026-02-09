@@ -39,6 +39,7 @@ def search_devices(
     reachability_status: bool | None = None,
     limit: int = 50,
     offset: int = 0,
+    allowed_group_ids: list[int] | None = None,
 ) -> list[Device]:
     stmt = select(Device)
     if q:
@@ -61,6 +62,26 @@ def search_devices(
         stmt = stmt.where(Device.platform.in_(list(candidates)))
     if group_id:
         stmt = stmt.where(Device.group_id == group_id)
+    
+    if allowed_group_ids is not None:
+        allowed_set = set(allowed_group_ids)
+        # Handle ungrouped devices: if -1 or 0 is in allowed_set, include devices with group_id=None or group_id=0
+        include_ungrouped = (-1 in allowed_set or 0 in allowed_set)
+        
+        real_ids = [i for i in allowed_group_ids if i > 0]
+        
+        conditions = []
+        if real_ids:
+            conditions.append(Device.group_id.in_(real_ids))
+        if include_ungrouped:
+            conditions.append(or_(Device.group_id == None, Device.group_id == 0))
+        
+        if conditions:
+            stmt = stmt.where(or_(*conditions))
+        else:
+            # If no real IDs and no ungrouped allowed, return nothing
+            return []
+
     if reachability_status is not None:
         stmt = stmt.where(Device.reachability_status == reachability_status)
     stmt = stmt.order_by(Device.id).offset(offset).limit(limit)
@@ -75,6 +96,7 @@ def count_devices(
     platform: str | None,
     group_id: int | None,
     reachability_status: bool | None = None,
+    allowed_group_ids: list[int] | None = None,
 ) -> int:
     stmt = select(func.count()).select_from(Device)
     if q:
@@ -97,6 +119,23 @@ def count_devices(
         stmt = stmt.where(Device.platform.in_(list(candidates)))
     if group_id:
         stmt = stmt.where(Device.group_id == group_id)
+
+    if allowed_group_ids is not None:
+        allowed_set = set(allowed_group_ids)
+        include_ungrouped = (-1 in allowed_set or 0 in allowed_set)
+        real_ids = [i for i in allowed_group_ids if i > 0]
+        
+        conditions = []
+        if real_ids:
+            conditions.append(Device.group_id.in_(real_ids))
+        if include_ungrouped:
+            conditions.append(or_(Device.group_id == None, Device.group_id == 0))
+        
+        if conditions:
+            stmt = stmt.where(or_(*conditions))
+        else:
+            return 0
+
     if reachability_status is not None:
         stmt = stmt.where(Device.reachability_status == reachability_status)
     return int(session.exec(stmt).one())

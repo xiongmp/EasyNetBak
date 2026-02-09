@@ -342,20 +342,49 @@
     if (IS_ADMIN && els.form) {
       els.form.addEventListener("submit", (ev) => {
         ev.preventDefault();
-        (async () => {
+        
+        const doBackup = async () => {
           setDisabled(els.btn, true);
           stopPolling();
           const fd = new FormData();
           fd.set("template_id", els.templateSelect ? String(els.templateSelect.value || "0") : "0");
-          const resp = await fetch(`/api/devices/${DEVICE_ID}/backup`, { method: "POST", body: fd });
-          if (!resp.ok) {
+          try {
+            const resp = await fetch(`/api/devices/${DEVICE_ID}/backup`, { method: "POST", body: fd });
+            if (!resp.ok) {
+              setDisabled(els.btn, false);
+              if (window.NB && typeof window.NB.showToast === "function") {
+                window.NB.showToast("备份任务提交失败", "error");
+              }
+              return;
+            }
+            const data = await resp.json();
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast("备份任务已提交", "success");
+            }
+            
+            // 稍后刷新页面以显示新记录
+            setTimeout(() => {
+              window.location.href = `/devices/${DEVICE_ID}`;
+            }, 500);
+          } catch (e) {
             setDisabled(els.btn, false);
-            window.NB.showToast("备份任务提交失败", "error");
-            return;
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast("请求出错: " + e.message, "error");
+            }
           }
-          const data = await resp.json();
-          window.location.href = `/devices/${DEVICE_ID}`;
-        })();
+        };
+
+        if (window.NB && typeof window.NB.confirm === "function") {
+          window.NB.confirm({
+            title: "立即备份",
+            message: "确定要立即执行备份吗？",
+            onConfirm: doBackup,
+            confirmBtnText: "开始备份",
+            confirmBtnClass: "btn-primary"
+          });
+        } else if (confirm("确定要立即执行备份吗？")) {
+          doBackup();
+        }
       });
     }
   </script>

@@ -1592,7 +1592,7 @@ input[type=number] {
 
 /* Responsive Adjustments */
 @media (min-width: 1200px) {
-  .nb-backups-card { height: 45vh; } /* Adjusted from 65vh */
+  .nb-backups-card { height: 52vh; } /* Adjusted from 45vh */
 }
 
 .nb-card-body-flex {

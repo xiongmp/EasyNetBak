@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from uuid import UUID
 
@@ -14,8 +11,6 @@ from app import crud
 from app.db import session_scope
 from app.models import BackupSchedule, BackupScheduleRun
 from app.platforms import platforms_compatible
-from app.services.job_runner import run_backup_record
-from app.services.alert_service import check_and_alert_batch
 
 
 _scheduler: BackgroundScheduler | None = None
@@ -136,91 +131,21 @@ def plan_schedule_run(*, schedule_id: int, trigger: str) -> tuple[UUID, list[tup
         return run_id, jobs
 
 
-def execute_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None]]) -> None:
-    try:
-        from app.celery_tasks import enqueue_schedule_run
+def execute_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None]]) -> bool:
+    from app.celery_tasks import enqueue_schedule_run
 
-        if enqueue_schedule_run(run_id=run_id, jobs=jobs):
-            return
-    except Exception:
-        pass
+    if enqueue_schedule_run(run_id=run_id, jobs=jobs):
+        return True
 
     with session_scope() as session:
-        max_tasks_str = crud.get_setting(session, key="max_concurrent_tasks")
-    try:
-        max_workers = int(max_tasks_str or "10")
-    except (ValueError, TypeError):
-        max_workers = 10
-
-    def _worker(job_args: tuple[int, UUID, int | None]) -> dict[str, object]:
-        did, rid, tpl_id = job_args
-        try:
-            run_backup_record(rid, did, tpl_id, skip_email=True)
-            return {"ok": True, "device_id": did, "backup_id": str(rid)}
-        except Exception as exc:
-            return {
-                "ok": False,
-                "device_id": did,
-                "backup_id": str(rid),
-                "error": str(exc),
-                "error_type": exc.__class__.__name__,
-            }
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_worker, job) for job in jobs]
-        worker_errors: list[dict[str, object]] = []
-        for fut in as_completed(futures):
-            res = fut.result()
-            if not bool(res.get("ok")):
-                worker_errors.append(res)
-
-    backup_ids = [rid for _, rid, __ in jobs]
-    success_count = 0
-    fail_count = 0
-    failure_type_counts: Counter[str] = Counter()
-    with session_scope() as session:
-        for rec in crud.list_backups_by_ids(session, backup_ids):
-            if rec.finished_at is None:
-                continue
-            if rec.success:
-                success_count += 1
-            else:
-                fail_count += 1
-                failure_type_counts[str(rec.failure_type or "UNKNOWN")] += 1
-
-        error_payload: dict[str, object] = {}
-        if worker_errors:
-            samples = []
-            for it in worker_errors[:3]:
-                err = str(it.get("error") or "")[:300]
-                samples.append(
-                    {
-                        "device_id": it.get("device_id"),
-                        "backup_id": it.get("backup_id"),
-                        "error_type": it.get("error_type"),
-                        "error": err,
-                    }
-                )
-            error_payload["worker_exceptions"] = len(worker_errors)
-            error_payload["worker_exception_samples"] = samples
-        if failure_type_counts:
-            error_payload["failures_by_type"] = dict(failure_type_counts)
-
-        error_message = json.dumps(error_payload, ensure_ascii=False) if error_payload else None
-
         crud.finish_schedule_run(
             session,
             run_id=run_id,
-            success_count=success_count,
-            fail_count=fail_count,
-            error_message=error_message,
+            success_count=0,
+            fail_count=0,
+            error_message="CELERY_ENQUEUE_FAILED",
         )
-        
-        # 触发批量汇总告警
-        check_and_alert_batch(session, run_id)
-
-    # 运行过期清理
-    run_cleanup()
+    return False
 
 
 def run_cleanup() -> None:
@@ -264,6 +189,10 @@ def sync_scheduler_from_db() -> None:
             continue
 
         def _job(schedule_id: int = sid) -> None:
+            from app.celery_tasks import celery_enabled
+
+            if not celery_enabled():
+                return
             run_id, jobs = plan_schedule_run(schedule_id=schedule_id, trigger="cron")
             execute_schedule_run(run_id=run_id, jobs=jobs)
 

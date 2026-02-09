@@ -6,23 +6,23 @@
 {% block content %}
   <div class="card border">
     <div class="card-body p-3">
-      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-        <form method="get" action="/devices" class="d-flex flex-wrap gap-2 align-items-center">
-          <div style="width: 280px;">
+      <div class="mb-3">
+        <form method="get" action="/devices" class="row g-2 align-items-center">
+          <div class="col-md-3 col-sm-6">
             <div class="input-group input-group-sm">
-              <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
-              <input name="q" class="form-control border-start-0 ps-0" placeholder="搜索设备" value="{{ filters.q }}" />
+              <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-secondary"></i></span>
+              <input name="q" class="form-control border-start-0 ps-0" style="height: 31px;" placeholder="搜索设备名称或 IP..." value="{{ filters.q }}" />
             </div>
           </div>
-          <div style="width: 140px;">
-            <select name="login_method" class="form-select form-select-sm" id="device-filter-login-method">
+          <div class="col-md-2 col-sm-6">
+            <select name="login_method" class="form-select form-select-sm" id="device-filter-login-method" style="height: 31px;">
               <option value="">登录方式: 全部</option>
               <option value="ssh" {% if filters.login_method == 'ssh' %}selected{% endif %}>SSH</option>
               <option value="telnet" {% if filters.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
             </select>
           </div>
-          <div style="width: 160px;">
-            <select name="platform" class="form-select form-select-sm" id="device-filter-platform">
+          <div class="col-md-2 col-sm-6">
+            <select name="platform" class="form-select form-select-sm" id="device-filter-platform" style="height: 31px;">
               <option value="">平台类型: 全部</option>
               {% for p in ssh_platforms %}
                 <option value="{{ p.id }}" data-kind="ssh" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
@@ -32,65 +32,99 @@
               {% endfor %}
             </select>
           </div>
-          <div style="width: 160px;">
-            <select name="group_id" class="form-select form-select-sm">
+          <div class="col-md-2 col-sm-6">
+            <select name="group_id" class="form-select form-select-sm" style="height: 31px;">
               <option value="0">所属分组: 全部</option>
               {% for g in groups %}
                 <option value="{{ g.id }}" {% if filters.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
               {% endfor %}
             </select>
           </div>
-          <div style="width: 140px;">
-            <select name="status" class="form-select form-select-sm">
+          <div class="col-md-2 col-sm-6">
+            <select name="status" class="form-select form-select-sm" style="height: 31px;">
               <option value="">连通状态: 全部</option>
               <option value="online" {% if filters.status == 'online' %}selected{% endif %}>在线 (可达)</option>
               <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>离线 (不可达)</option>
             </select>
           </div>
-          <button class="btn btn-sm btn-outline-primary px-3" type="submit">筛选</button>
+          <div class="col-md-1 col-sm-6">
+            <button class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center" type="submit" style="height: 31px;">
+              <i class="bi bi-funnel-fill me-1"></i>筛选
+            </button>
+          </div>
         </form>
+      </div>
 
-        <script>
-          (function () {
-            const loginSelect = document.getElementById("device-filter-login-method");
-            const platformSelect = document.getElementById("device-filter-platform");
-            if (!loginSelect || !platformSelect) return;
+      <script>
+        (function () {
+          const loginSelect = document.getElementById("device-filter-login-method");
+          const platformSelect = document.getElementById("device-filter-platform");
+          if (!loginSelect || !platformSelect) return;
 
-            function syncPlatformOptions() {
-              const loginMethod = (loginSelect.value || "").toLowerCase();
-              const options = Array.from(platformSelect.options);
-              let firstVisibleValue = "";
+          function syncPlatformOptions() {
+            const loginMethod = (loginSelect.value || "").toLowerCase();
+            const options = Array.from(platformSelect.options);
+            let firstVisibleValue = "";
 
-              options.forEach((opt, idx) => {
-                if (idx === 0) return;
-                const kind = opt.getAttribute("data-kind") || "ssh";
-                const visible = !loginMethod || kind === loginMethod;
-                opt.hidden = !visible;
-                opt.disabled = !visible;
-                if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
-              });
+            options.forEach((opt, idx) => {
+              if (idx === 0) return;
+              const kind = opt.getAttribute("data-kind") || "ssh";
+              const visible = !loginMethod || kind === loginMethod;
+              opt.hidden = !visible;
+              opt.disabled = !visible;
+              if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
+            });
 
-              const current = platformSelect.value;
-              if (!current) return;
-              const currentOpt = options.find((o) => o.value === current);
-              if (currentOpt && (currentOpt.hidden || currentOpt.disabled)) {
-                platformSelect.value = "";
-              }
+            const current = platformSelect.value;
+            if (!current) return;
+            const currentOpt = options.find((o) => o.value === current);
+            if (currentOpt && (currentOpt.hidden || currentOpt.disabled)) {
+              platformSelect.value = "";
             }
+          }
 
-            loginSelect.addEventListener("change", syncPlatformOptions);
-            syncPlatformOptions();
-          })();
-        </script>
+          loginSelect.addEventListener("change", syncPlatformOptions);
+          syncPlatformOptions();
+        })();
+      </script>
+
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          {% if is_operator %}
+            <div class="btn btn-sm btn-light border shadow-sm me-2" style="pointer-events: none;">
+              <span class="fw-semibold text-primary"><i class="bi bi-check2-square me-1"></i>已选 <span id="bulk-selected-count">0</span> 台</span>
+            </div>
+
+            <form method="post" action="/devices/bulk_backup" class="d-inline" id="bulk-backup-form">
+              <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
+              <input type="hidden" name="mode" id="bulk-backup-mode" value="selected" />
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-selected-btn" disabled>
+                  <i class="bi bi-play-fill me-1"></i>备份所选
+                </button>
+                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-all-btn">
+                  <i class="bi bi-collection-play me-1"></i>备份所有
+                </button>
+              </div>
+            </form>
+
+            <form method="post" action="/devices/bulk_delete" id="bulk-delete-form" class="d-inline">
+              <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
+              <button class="btn btn-sm btn-outline-danger" type="submit" id="bulk-delete-btn" disabled>
+                <i class="bi bi-trash me-1"></i>批量删除
+              </button>
+            </form>
+
+            <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
+              <button class="btn btn-sm btn-outline-info" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
+                <i class="bi bi-lightning-charge me-1"></i>连通性检测
+              </button>
+            </span>
+          {% endif %}
+        </div>
 
         <div class="d-flex gap-2">
-            {% if is_operator %}
-              <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
-                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
-                  <i class="bi bi-lightning-charge me-1"></i>连通性检测
-                </button>
-              </span>
-            {% endif %}
+          <div class="btn-group btn-group-sm">
             <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
               <i class="bi bi-download me-1"></i>导出 CSV
             </a>
@@ -98,60 +132,16 @@
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-upload me-1"></i>导入 CSV
               </button>
-              <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#deviceCreateModal">
-                <i class="bi bi-plus-lg me-1"></i>新增设备
-              </button>
             {% endif %}
+          </div>
+          {% if is_operator %}
+            <button class="btn btn-sm btn-primary shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#deviceCreateModal">
+              <i class="bi bi-plus-lg me-1"></i>新增设备
+            </button>
+          {% endif %}
         </div>
       </div>
 
-      {% if is_operator %}
-        <div class="card bg-body-tertiary mb-3 border" id="bulk-actions-panel" style="display: none;">
-          <div class="card-body p-2">
-            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
-              <div class="d-flex align-items-center px-2">
-                 <span class="small fw-semibold text-primary">已选 <span id="bulk-selected-count">0</span> 台设备</span>
-              </div>
-
-              <div class="d-flex flex-wrap gap-2 align-items-center flex-grow-1 justify-content-end">
-                 <form method="post" action="/devices/bulk_backup" class="d-flex gap-2 align-items-center" id="bulk-backup-form">
-                    <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
-
-                    <button class="btn btn-sm btn-primary text-nowrap" type="submit" id="bulk-backup-btn" disabled>
-                      <i class="bi bi-play-fill"></i> 批量备份
-                    </button>
-                 </form>
-
-                 {% if is_operator %}
-                 <div class="vr mx-1 d-none d-md-block"></div>
-
-                 <form method="post" action="/devices/bulk_update_group" class="d-flex gap-2 align-items-center" id="bulk-group-form">
-                    <input type="hidden" name="device_ids" id="bulk-device-ids-2" value="" />
-                    <select name="group_id" class="form-select form-select-sm" style="width: 160px;">
-                      <option value="0">未分组</option>
-                      {% for g in groups %}
-                        <option value="{{ g.id }}">{{ g.name }}</option>
-                      {% endfor %}
-                    </select>
-                    <button class="btn btn-sm btn-outline-secondary text-nowrap" type="submit" id="bulk-group-btn" disabled>
-                       移动
-                    </button>
-                 </form>
-
-                 <div class="vr mx-1 d-none d-md-block"></div>
-
-                 <form method="post" action="/devices/bulk_delete" id="bulk-delete-form">
-                    <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
-                    <button class="btn btn-sm btn-outline-danger text-nowrap" type="submit" id="bulk-delete-btn" disabled>
-                      批量删除
-                    </button>
-                 </form>
-                 {% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      {% endif %}
 
       {% if is_operator %}
         <!-- 连通性检测结果弹窗 -->
@@ -350,16 +340,15 @@
       const selectAll = document.getElementById('select-all');
       const checks = Array.from(document.querySelectorAll('.device-check'));
       const idsInput = document.getElementById('bulk-device-ids');
+      const backupModeInput = document.getElementById('bulk-backup-mode');
       const countEl = document.getElementById('bulk-selected-count');
-      const btn = document.getElementById('bulk-backup-btn');
+      const btnSelected = document.getElementById('bulk-backup-selected-btn');
+      const btnAll = document.getElementById('bulk-backup-all-btn');
 
-      const idsInput2 = document.getElementById('bulk-device-ids-2');
       const idsInput3 = document.getElementById('bulk-device-ids-3');
-      const bulkGroupBtn = document.getElementById('bulk-group-btn');
       const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
       const bulkDeleteForm = document.getElementById('bulk-delete-form');
       const bulkBackupForm = document.getElementById('bulk-backup-form');
-      const bulkActionsPanel = document.getElementById('bulk-actions-panel');
       const reachBtn = document.getElementById('bulk-reachability-btn');
       const reachPanel = document.getElementById('reachabilityModal');
       const reachSummary = document.getElementById('bulk-reachability-summary');
@@ -431,11 +420,9 @@
         const ids = checks.filter(c => c.checked).map(c => c.value);
         idsInput.value = ids.join(',');
         countEl.textContent = String(ids.length);
-        btn.disabled = ids.length === 0;
-        if (idsInput2) idsInput2.value = idsInput.value;
+        if (btnSelected) btnSelected.disabled = ids.length === 0;
         if (idsInput3) idsInput3.value = idsInput.value;
         const has = ids.length > 0;
-        if (bulkGroupBtn) bulkGroupBtn.disabled = !has;
         if (bulkDeleteBtn) bulkDeleteBtn.disabled = !has;
         if (reachBtn) {
            reachBtn.disabled = !has;
@@ -449,10 +436,6 @@
            }
         }
         
-        if (bulkActionsPanel) {
-          bulkActionsPanel.style.display = has ? 'block' : 'none';
-        }
-
         if (selectAll) {
           selectAll.checked = ids.length > 0 && ids.length === checks.length;
           selectAll.indeterminate = ids.length > 0 && ids.length < checks.length;
@@ -483,30 +466,77 @@
       }
 
       if (bulkBackupForm) {
-        bulkBackupForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const ids = (idsInput.value || '').trim();
-          if (!ids) return;
-          (async () => {
-            btn.disabled = true;
-            const fd = new FormData(bulkBackupForm);
+        const doBulkBackup = async (mode) => {
+          if (btnSelected) btnSelected.disabled = true;
+          if (btnAll) btnAll.disabled = true;
+          if (backupModeInput) backupModeInput.value = mode;
+          
+          const fd = new FormData(bulkBackupForm);
+          try {
             const resp = await fetch('/api/devices/bulk_backup', { method: 'POST', body: fd });
             if (!resp.ok) {
-              window.NB.showToast('备份请求失败', 'error');
+              if (window.NB && typeof window.NB.showToast === 'function') {
+                window.NB.showToast('备份请求失败', 'error');
+              }
               updateBulkAll();
+              if (btnAll) btnAll.disabled = false;
               return;
             }
             const data = await resp.json();
             const records = (data && data.records) ? data.records : [];
             if (window.NB && typeof window.NB.trackBackups === 'function' && Array.isArray(records) && records.length) {
               window.NB.trackBackups(records);
-              window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+              if (window.NB && typeof window.NB.showToast === 'function') {
+                window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+              }
             } else {
-              window.NB.showToast('未找到可备份设备', 'warning');
+              if (window.NB && typeof window.NB.showToast === 'function') {
+                window.NB.showToast('未找到可备份设备', 'warning');
+              }
             }
             updateBulkAll();
-          })();
-        });
+            if (btnAll) btnAll.disabled = false;
+          } catch (err) {
+            if (window.NB && typeof window.NB.showToast === 'function') {
+              window.NB.showToast('请求出错: ' + err.message, 'error');
+            }
+            updateBulkAll();
+            if (btnAll) btnAll.disabled = false;
+          }
+        };
+
+        if (btnSelected) {
+          btnSelected.addEventListener('click', () => {
+            const cnt = Number(countEl.textContent || '0');
+            if (window.NB && typeof window.NB.confirm === 'function') {
+              window.NB.confirm({
+                title: '备份所选设备',
+                message: `确定要对选中的 ${cnt} 台设备立即执行备份吗？`,
+                onConfirm: () => doBulkBackup('selected'),
+                confirmBtnText: '开始备份',
+                confirmBtnClass: 'btn-primary'
+              });
+            } else if (confirm(`确定要对选中的 ${cnt} 台设备立即执行备份吗？`)) {
+              doBulkBackup('selected');
+            }
+          });
+        }
+
+        if (btnAll) {
+          btnAll.addEventListener('click', () => {
+            if (window.NB && typeof window.NB.confirm === 'function') {
+              window.NB.confirm({
+                title: '备份所有设备',
+                message: `确定要对系统中的所有设备立即执行备份吗？`,
+                onConfirm: () => doBulkBackup('all'),
+                confirmBtnText: '开始备份',
+                confirmBtnClass: 'btn-primary'
+              });
+            } else if (confirm(`确定要对系统中的所有设备立即执行备份吗？`)) {
+              doBulkBackup('all');
+            }
+          });
+        }
       }
 
       function escapeText(text) {

@@ -10,7 +10,7 @@ def _normalize_optional_backend(value: str) -> str | None:
     return v or None
 
 
-celery_app = Celery("network_backup")
+celery_app = Celery("network_backup", include=["app.celery_tasks"])
 
 conf: dict[str, object] = {
     "task_track_started": True,
