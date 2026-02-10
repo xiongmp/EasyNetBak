@@ -309,9 +309,9 @@ def update_credential(
     credential.name = name.strip()
     credential.username = username.strip()
     if password is not None:
-        credential.password = encrypt_secret(password)
+        credential.password = password
     if enable_password is not None:
-        credential.enable_password = encrypt_secret(enable_password)
+        credential.enable_password = enable_password
     credential.remarks = remarks
     session.add(credential)
     session.commit()

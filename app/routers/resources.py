@@ -77,8 +77,8 @@ def create_credential(
                 int(credential_id),
                 name=name,
                 username=username,
-                password=password or None,
-                enable_password=enable_password or None,
+                password=password,
+                enable_password=enable_password,
                 remarks=remarks.strip() or None,
             )
             _log_action(request, session, "UPDATE_CREDENTIAL", "credential", credential_id, f"Name: {name}")
@@ -86,8 +86,8 @@ def create_credential(
             cred = Credential(
                 name=name.strip(),
                 username=username.strip(),
-                password=password or None,
-                enable_password=enable_password or None,
+                password=password,
+                enable_password=enable_password,
                 remarks=remarks.strip() or None,
             )
             cred = crud.create_credential(session, credential=cred)
