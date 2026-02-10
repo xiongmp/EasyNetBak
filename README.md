@@ -42,16 +42,14 @@
 
 - **后端**: Python 3.10+, FastAPI, SQLModel (SQLAlchemy), Celery (异步任务), Redis (消息队列/缓存).
 - **前端**: Bootstrap 5, Jinja2 模板引擎, ECharts (数据可视化).
-- **数据库**: PostgreSQL (生产环境推荐), SQLite (开发环境默认).
+- **数据库**: PostgreSQL 
 - **容器化**: Docker, Docker Compose.
 
 ## 🚀 快速开始
 
-### 前置要求
+### 方式一：Docker Compose 部署 (推荐)
 
-- Docker & Docker Compose
-
-### 部署步骤 (Docker)
+最简单快捷的部署方式，适合生产环境或快速体验。
 
 1.  **克隆仓库**:
     ```bash
@@ -59,12 +57,12 @@
     cd network-backup
     ```
 
-2.  **配置环境**:
-    复制示例环境变量文件：
+2.  **配置环境变量**:
+    复制生产环境示例配置：
     ```bash
     cp .env.prod.example .env.prod
     ```
-    *建议修改 `.env.prod` 中的密钥、数据库密码及 S3 配置等敏感信息。*
+    *修改 `.env.prod` 中的 `SECRET_KEY`、`数据库密码`及其他敏感信息。*
 
 3.  **启动服务**:
     ```bash
@@ -73,13 +71,22 @@
 
 4.  **访问系统**:
     打开浏览器访问 `http://localhost:8000`。
-
+    
     **默认管理员账号**:
     - 用户名: `admin`
     - 密码: `admin`
     *(请首次登录后立即修改密码)*
 
-### 开发环境搭建 (手动)
+### 方式二：本地开发环境搭建
+
+适合开发调试或非容器化环境。
+
+#### 前置要求
+- Python 3.10+
+- Redis Server (需自行安装，必须运行，用于异步任务队列)
+- PostgreSQL (自行安装，可选，开发环境可使用 SQLite)
+
+#### 搭建步骤
 
 1.  **安装依赖**:
     ```bash
@@ -87,22 +94,45 @@
     ```
 
 2.  **配置环境变量**:
-    参考 `app/core/settings.py` 配置必要的环境变量，或直接使用默认值（开发模式使用 SQLite）。
+    复制开发环境示例配置：
+    ```bash
+    cp .env.example .env
+    ```
+    **修改 `.env` 文件**:
+    - **数据库**: 默认推荐使用 SQLite 方便开发。找到 `DATABASE_URL` 配置行，取消注释：
+      ```properties
+      DATABASE_URL=sqlite:///./dev.db
+      ```
+    - **Redis**: 确保 Redis 服务已启动，并根据需要调整 `REDIS_HOST` 等配置。
 
 3.  **初始化数据库**:
     ```bash
     alembic upgrade head
     ```
 
-4.  **启动 Worker (处理备份任务)**:
+4.  **创建初始管理员用户**:
+    *(系统启动时会自动检查，若无用户则无需手动创建，默认 admin/admin)*
+
+5.  **启动 Celery Worker (处理后台任务)**:
+    设置 Celery worker 在后台持续运行，例如：centos通过 systemd 将 Celery 配置为系统守护进程（服务），实现后台运行、开机自启和自动崩溃重启。
+    
+    **Windows**:
     ```bash
-    celery -A app.celery_app.celery_app worker --loglevel=info
+    celery -A app.celery_app.celery_app worker --loglevel=info -P eventlet -c 50
+    ```
+    
+    **Linux / macOS**:
+    ```bash
+    celery -A app.celery_app.celery_app worker --loglevel=info -c 50
     ```
 
-5.  **启动 Web 服务**:
+6.  **启动 Web 服务**:
     ```bash
     uvicorn app.main:app --reload
     ```
+
+7.  **访问系统**:
+    打开浏览器访问 `http://localhost:8000`。
 
 ## ⚙️ 关键配置
 

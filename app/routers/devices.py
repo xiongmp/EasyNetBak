@@ -538,7 +538,8 @@ def device_detail(request: Request, device_id: int):
 
         total_backups = crud.count_device_backups(session, device_id)
         backups = crud.list_device_backups(session, device_id, limit=page_size, offset=offset)
-        tmpl = crud.list_templates(session)
+        all_tmpl = crud.list_templates(session)
+        tmpl = [t for t in all_tmpl if platforms_compatible(t.platform, device.platform)]
         
         groups_list = crud.list_groups(session)
         if allowed_ids is not None:
