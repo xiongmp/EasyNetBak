@@ -53,8 +53,8 @@
 
 1.  **克隆仓库**:
     ```bash
-    git clone <repository-url>
-    cd network-backup
+    git clone https://gitee.com/xmp111/network_backup.git
+    cd network_backup
     ```
 
 2.  **配置环境变量**:

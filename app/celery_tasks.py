@@ -19,7 +19,7 @@ from app.db import session_scope
 from app.platforms import platforms_compatible
 from app.services.alert_service import check_and_alert, check_and_alert_batch
 from app.services.backup_service import backup_device
-from app.services.netmiko_client import NetmikoClientError
+from app.services.netmiko_client import NetmikoClientError, NetmikoErrorCode
 from app.services.reachability import perform_single_reachability_check
 from app.services.s3_service import upload_backup_to_s3
 from typing import Any
@@ -232,6 +232,14 @@ def _execute_backup_logic(
             enable_password=secrets["enable_password"],
             template_commands=template_commands,
         )
+
+        # Check for common CLI errors that indicate failure despite no exception
+        if "% Invalid input detected" in config_text:
+             raise NetmikoClientError(
+                 "CLI Error: Invalid input detected (check privilege level or command syntax)",
+                 error_code=NetmikoErrorCode.PROTOCOL_ERROR
+             )
+
         duration = time.time() - start_time
 
         with session_scope() as session:
