@@ -34,8 +34,8 @@ class Credential(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     username: str
-    encrypted_password: Optional[str] = Field(default=None)
-    encrypted_enable_password: Optional[str] = Field(default=None)
+    encrypted_password: Optional[str] = Field(default=None, alias="password")
+    encrypted_enable_password: Optional[str] = Field(default=None, alias="enable_password")
     remarks: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
