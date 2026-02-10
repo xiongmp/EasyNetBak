@@ -147,9 +147,7 @@
   - `DATABASE_URL`: 数据库连接字符串.
   - `CELERY_BROKER_URL`: Redis 连接地址.
 
-- **功能配置**:
-  - `S3_ENABLED`: 是否启用 S3 归档 (1/0).
-  - `S3_ENDPOINT` / `S3_BUCKET` ...: S3 相关配置.
+
 
 ## 📚 界面展示
 
