@@ -151,6 +151,42 @@
   - `S3_ENABLED`: 是否启用 S3 归档 (1/0).
   - `S3_ENDPOINT` / `S3_BUCKET` ...: S3 相关配置.
 
+## 📚 界面展示
+
+### 仪表盘 (Dashboard)
+![仪表盘](image/dashboard.png)
+
+### 设备管理 (Device Management)
+![设备列表](image/device.png)
+
+![设备分组](image/groups.png)
+
+### 备份与任务 (Backups & Tasks)
+![备份列表](image/backups.png)
+
+![备份计划](image/schedule.png)
+
+![备份模板](image/backup_templates.png)
+
+![配置差异规则](image/diff_rules.png)
+
+![配置搜索](image/config_search.png)
+
+### 凭据管理 (Credentials)
+![凭据管理](image/credentials.png)
+
+### 审计与日志 (Logs)
+![审计日志](image/audit_logs.png)
+
+![登录日志](image/login_logs.png)
+
+### 系统管理 (System Management)
+![用户管理](image/users.png)
+
+![系统设置](image/settings.png)
+
+![通知设置](image/notifications.png)
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request 来改进本项目。
