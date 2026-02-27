@@ -60,7 +60,7 @@
 2.  **配置环境变量**:
     复制docker compose 环境示例配置：
     ```bash
-    cp .env.prod.example .env
+    cp .env.docker.example .env
     ```
     *修改 `.env` 中的 `SECRET_KEY`、`数据库密码`、`redis密码`及其他敏感信息。*
 
