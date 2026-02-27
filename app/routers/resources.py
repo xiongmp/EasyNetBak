@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from urllib.parse import quote
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -168,16 +169,31 @@ def create_group(
 
 @router.post("/groups/{group_id}/delete")
 def delete_group(request: Request, group_id: int):
-    _require_operator(request)
-    with session_scope() as session:
-        group = crud.get_group(session, group_id)
-        name = group.name if group else f"ID: {group_id}"
-        try:
-            crud.delete_group(session, group_id)
-            _log_action(request, session, "DELETE_GROUP", "group", group_id, f"Name: {name}")
-        except RuntimeError as exc:
-            return RedirectResponse(url=f"/groups?err={str(exc)}", status_code=303)
-    return RedirectResponse(url="/groups?msg=已删除", status_code=303)
+    try:
+        _require_operator(request)
+        with session_scope() as session:
+            # Check if group is in use
+            usage = crud.group_usage_count(session, group_id)
+            if usage > 0:
+                msg = f"无法删除：该分组包含 {usage} 台设备，请先移除设备"
+                return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
+
+            group = crud.get_group(session, group_id)
+            if not group:
+                return RedirectResponse(url="/groups?err=分组不存在", status_code=303)
+            
+            name = group.name
+            try:
+                crud.delete_group(session, group_id)
+                _log_action(request, session, "DELETE_GROUP", "group", group_id, f"Name: {name}")
+            except Exception as exc:
+                msg = f"删除失败: {str(exc)}"
+                return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
+                
+        return RedirectResponse(url="/groups?msg=已删除", status_code=303)
+    except Exception as exc:
+        msg = f"操作失败: {str(exc)}"
+        return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
 
 
 @router.get("/templates")

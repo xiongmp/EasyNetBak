@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
+from urllib.parse import quote
 from difflib import SequenceMatcher
 from typing import Any
 from uuid import UUID
@@ -367,11 +369,11 @@ def _build_unified_diff_payload(
 
         if tag in {"delete", "replace"}:
             for k in range(i2 - i1):
-                full.append({"type": "del", "a_lineno": a_ln, "b_lineno": None, "text": a_lines[i1 + k]})
+                full.append({"type": "add", "a_lineno": a_ln, "b_lineno": None, "text": a_lines[i1 + k]})
                 a_ln += 1
         if tag in {"insert", "replace"}:
             for k in range(j2 - j1):
-                full.append({"type": "add", "a_lineno": None, "b_lineno": b_ln, "text": b_lines[j1 + k]})
+                full.append({"type": "del", "a_lineno": None, "b_lineno": b_ln, "text": b_lines[j1 + k]})
                 b_ln += 1
 
     if not only_changed_lines:
@@ -433,7 +435,7 @@ def _build_split_diff_payload(
                 full.append(
                     {
                         "type": "row",
-                        "a": {"lineno": a_ln, "text": a_lines[i1 + k], "kind": "del"},
+                        "a": {"lineno": a_ln, "text": a_lines[i1 + k], "kind": "add"},
                         "b": {"lineno": None, "text": "", "kind": "empty"},
                     }
                 )
@@ -446,7 +448,7 @@ def _build_split_diff_payload(
                     {
                         "type": "row",
                         "a": {"lineno": None, "text": "", "kind": "empty"},
-                        "b": {"lineno": b_ln, "text": b_lines[j1 + k], "kind": "add"},
+                        "b": {"lineno": b_ln, "text": b_lines[j1 + k], "kind": "del"},
                     }
                 )
                 b_ln += 1
@@ -465,11 +467,11 @@ def _build_split_diff_payload(
                 a_info = {"lineno": a_ln, "text": a_text, "kind": "chg"}
                 b_info = {"lineno": b_ln, "text": b_text, "kind": "chg"}
             elif has_a:
-                a_info = {"lineno": a_ln, "text": a_text, "kind": "del"}
+                a_info = {"lineno": a_ln, "text": a_text, "kind": "add"}
                 b_info = {"lineno": None, "text": "", "kind": "empty"}
             else:
                 a_info = {"lineno": None, "text": "", "kind": "empty"}
-                b_info = {"lineno": b_ln, "text": b_text, "kind": "add"}
+                b_info = {"lineno": b_ln, "text": b_text, "kind": "del"}
 
             full.append({"type": "row", "a": a_info, "b": b_info})
             if has_a:
@@ -539,6 +541,10 @@ def api_backup_diff(
         device_a = crud.get_device(session, a.device_id)
         device_b = crud.get_device(session, b.device_id)
         diff_rules = _load_diff_rules(session)
+
+    if a.started_at and b.started_at and a.started_at < b.started_at:
+        a, b = b, a
+        device_a, device_b = device_b, device_a
 
     noise_patterns = _build_noise_patterns(diff_rules, device_a, device_b) if ignore_noise else None
     a_lines = _normalize_lines(
@@ -751,16 +757,32 @@ def download_backup(request: Request, backup_id: UUID):
         if record is None:
             raise HTTPException(status_code=404)
         device = crud.get_device(session, record.device_id)
-    base_name = device.name if device else f"device-{record.device_id}"
-    host = device.host if device else ""
-    safe_name = "".join(ch for ch in base_name if ch.isalnum() or ch in ("-", "_")).strip() or "device"
-    safe_host = "".join(ch for ch in host if ch.isalnum() or ch in ("-", "_", ".")).strip()
+    device_id = record.device_id if record.device_id is not None else 0
+    base_name = (device.name or "") if device else f"device-{device_id}"
+    host = (device.host or "") if device else ""
+    safe_host = "".join(ch for ch in str(host) if ch.isascii() and (ch.isalnum() or ch in ("-", "_", "."))).strip()
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
-    ts = _dt_local_str(record.started_at, offset_minutes=offset_minutes).replace(":", "").replace(" ", "_")
+    if isinstance(record.started_at, datetime):
+        ts = _dt_local_str(record.started_at, offset_minutes=offset_minutes).replace(":", "").replace(" ", "_")
+    else:
+        ts = "unknown_time"
+    if not ts:
+        ts = "unknown_time"
     suffix = f"_{safe_host}" if safe_host else ""
-    filename = f"{safe_name}{suffix}_{ts}.txt"
+    filename_utf8 = f"{base_name}{suffix}_{ts}.txt"
+    filename_ascii = "".join(
+        ch for ch in str(filename_utf8) if ch.isascii() and (ch.isalnum() or ch in ("-", "_", "."))
+    ).strip() or "backup.txt"
+    content_disposition = f"attachment; filename=\"{filename_ascii}\"; filename*=UTF-8''{quote(filename_utf8)}"
+    if isinstance(record.config_text, bytes):
+        config_text = record.config_text.decode("utf-8", errors="replace")
+    elif isinstance(record.config_text, str):
+        config_text = record.config_text
+    else:
+        config_text = "" if record.config_text is None else str(record.config_text)
+    content_bytes = config_text.encode("utf-8", errors="replace")
     return Response(
-        content=(record.config_text or ""),
+        content=content_bytes,
         media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition},
     )

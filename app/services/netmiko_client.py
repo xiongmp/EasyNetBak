@@ -69,6 +69,7 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
         ("read timeout", NetmikoErrorCode.READ_TIMEOUT),
         ("eof", NetmikoErrorCode.DISCONNECTED),
         ("reset by peer", NetmikoErrorCode.DISCONNECTED),
+        ("no existing session", NetmikoErrorCode.DISCONNECTED),
         ("ssh key", NetmikoErrorCode.KEY_ERROR),
         ("private key", NetmikoErrorCode.KEY_ERROR),
         ("authorization failed", NetmikoErrorCode.PERMISSION_DENIED),
@@ -82,7 +83,11 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
         ("no route to host", NetmikoErrorCode.NETWORK_UNREACHABLE),
         ("network is unreachable", NetmikoErrorCode.NETWORK_UNREACHABLE),
         ("kex error", NetmikoErrorCode.ALGO_MISMATCH),
+        ("kex_exchange_identification", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no matching key exchange", NetmikoErrorCode.ALGO_MISMATCH),
         ("no common algorithms", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no matching cipher", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no matching mac", NetmikoErrorCode.ALGO_MISMATCH),
         ("incompatible version", NetmikoErrorCode.ALGO_MISMATCH),
         ("max sessions", NetmikoErrorCode.SESSION_LIMIT),
         ("too many connections", NetmikoErrorCode.SESSION_LIMIT),
@@ -142,8 +147,8 @@ def run_netmiko_commands(
     password: str | None,
     enable_password: str | None,
     commands: list[str],
-    conn_timeout: int = 10,
-    banner_timeout: int = 15,
+    conn_timeout: int = 15,
+    banner_timeout: int = 30,
 ) -> str:
     from app.platforms import to_netmiko_device_type
 
@@ -159,6 +164,10 @@ def run_netmiko_commands(
         "timeout": conn_timeout,
         "banner_timeout": banner_timeout,
     }
+    # Align Paramiko auth timeout with connection timeout for slow devices
+    device["auth_timeout"] = conn_timeout
+    device["allow_agent"] = False
+    device["use_keys"] = False
 
     if password:
         device["password"] = password
@@ -194,8 +203,8 @@ def test_netmiko_connection(
     username: str,
     password: str | None,
     enable_password: str | None,
-    conn_timeout: int = 8,
-    banner_timeout: int = 12,
+    conn_timeout: int = 15,
+    banner_timeout: int = 25,
 ) -> str:
     from app.platforms import to_netmiko_device_type
 
@@ -208,6 +217,9 @@ def test_netmiko_connection(
         "timeout": conn_timeout,
         "banner_timeout": banner_timeout,
     }
+    device["auth_timeout"] = conn_timeout
+    device["allow_agent"] = False
+    device["use_keys"] = False
 
     if password:
         device["password"] = password

@@ -4,6 +4,7 @@ import csv
 import io
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 from celery.result import AsyncResult
@@ -22,6 +23,23 @@ from app.celery_app import celery_app
 
 
 router = APIRouter()
+
+
+def _get_redirect_url(request: Request, base_url: str = "/devices", msg: str = None, err: str = None) -> str:
+    params = dict(request.query_params)
+    if "msg" in params:
+        del params["msg"]
+    if "err" in params:
+        del params["err"]
+    if msg:
+        params["msg"] = msg
+    if err:
+        params["err"] = err
+    
+    if not params:
+        return base_url
+    qs = urlencode(params)
+    return f"{base_url}?{qs}" if qs else base_url
 
 
 @router.get("/devices")
@@ -171,7 +189,7 @@ def bulk_delete_devices(request: Request, device_ids: str = Form("")):
     _require_operator(request)
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     if not ids:
-        return RedirectResponse(url="/devices", status_code=303)
+        return RedirectResponse(url=_get_redirect_url(request, "/devices"), status_code=303)
     with session_scope() as session:
         for did in ids:
             d = crud.get_device(session, did)
@@ -180,7 +198,23 @@ def bulk_delete_devices(request: Request, device_ids: str = Form("")):
                 crud.delete_device(session, did, commit=False)
                 _log_action(request, session, "DELETE_DEVICE", "device", did, f"Name: {name} (Bulk)")
         session.commit()
-    return RedirectResponse(url="/devices?msg=设备已删除", status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
+
+
+@router.get("/devices/import_template.csv")
+def download_import_template(request: Request):
+    _require_operator(request)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["name", "host", "port", "login_method", "platform", "group_name", "credential_name"])
+    w.writerow(["Example-Switch", "192.168.1.1", "22", "ssh", "cisco_ios", "Core", "default_cred"])
+    
+    content = "\ufeff" + buf.getvalue()
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="device_import_template.csv"'},
+    )
 
 
 @router.get("/devices/export.csv")
@@ -258,13 +292,20 @@ async def import_devices_csv(
     file: UploadFile = File(...),
     mode: str = Form("insert"),
     match_by: str = Form("host"),
-    download_report: int = Form(0),
 ):
     _require_admin(request)
     if not file.filename or not file.filename.lower().endswith(".csv"):
         return RedirectResponse(url="/devices?err=请上传CSV文件", status_code=303)
     content = await file.read()
-    text = content.decode("utf-8-sig", errors="replace")
+    text = None
+    for enc in ("utf-8-sig", "gbk", "utf-8"):
+        try:
+            text = content.decode(enc)
+            break
+        except UnicodeDecodeError:
+            text = None
+    if text is None:
+        text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     required = {"name", "host", "port", "platform", "credential_name"}
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
@@ -280,6 +321,9 @@ async def import_devices_csv(
         mode = "insert"
     if match_by not in {"host", "name"}:
         match_by = "host"
+    
+    affected_device_ids = []
+
     with session_scope() as session:
         group_by_name: dict[str, int] = {}
         for g in crud.list_groups(session):
@@ -369,6 +413,8 @@ async def import_devices_csv(
                 existing.credential_id = credential_id
                 session.add(existing)
                 updated += 1
+                affected_device_ids.append(existing.id)
+                _log_action(request, session, "UPDATE_DEVICE", "device", existing.id, f"Name: {name}, Host: {host} (Import)")
                 report.append(
                     {
                         "row": str(idx),
@@ -389,6 +435,10 @@ async def import_devices_csv(
                     credential_id=credential_id,
                 )
                 crud.create_device(session, device=device)
+                session.flush()
+                if device.id:
+                    affected_device_ids.append(device.id)
+                    _log_action(request, session, "CREATE_DEVICE", "device", device.id, f"Name: {name}, Host: {host} (Import)")
                 created += 1
                 report.append(
                     {
@@ -400,18 +450,8 @@ async def import_devices_csv(
                     }
                 )
 
-    if int(download_report or 0) == 1:
-        buf = io.StringIO()
-        w = csv.DictWriter(buf, fieldnames=["row", "action", "name", "host", "message"], lineterminator="\n")
-        w.writeheader()
-        for r in report:
-            w.writerow(r)
-        content = "\ufeff" + buf.getvalue()
-        return Response(
-            content=content,
-            media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": 'attachment; filename="import_report.csv"'},
-        )
+    if affected_device_ids:
+        bulk_reachability_task.delay(device_ids=affected_device_ids, offset_minutes=0)
 
     return templates.TemplateResponse(
         "import_result.html",
@@ -507,7 +547,7 @@ def delete_device(request: Request, device_id: int):
         name = device.name if device else f"ID: {device_id}"
         crud.delete_device(session, device_id)
         _log_action(request, session, "DELETE_DEVICE", "device", device_id, f"Name: {name}")
-    return RedirectResponse(url="/devices?msg=设备已删除", status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
 
 
 @router.get("/devices/{device_id}")

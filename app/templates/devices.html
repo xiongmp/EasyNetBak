@@ -56,9 +56,143 @@
       </div>
 
       <script>
-        (function () {
+        document.addEventListener('DOMContentLoaded', function() {
+          class SearchableSelect {
+            constructor(selectElement) {
+              if (!selectElement) return;
+              this.select = selectElement;
+              this.container = document.createElement('div');
+              this.container.className = 'dropdown w-100';
+              this.select.parentNode.insertBefore(this.container, this.select);
+              this.select.style.display = 'none';
+
+              this.buildDropdown();
+              this.attachEvents();
+            }
+
+            buildDropdown() {
+              const selectedOption = this.select.options[this.select.selectedIndex];
+              const label = selectedOption ? selectedOption.text : 'Select...';
+
+              this.btn = document.createElement('button');
+              this.btn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-white text-truncate';
+              this.btn.type = 'button';
+              this.btn.dataset.bsToggle = 'dropdown';
+              this.btn.dataset.bsAutoClose = 'outside';
+              this.btn.style.height = '31px';
+              this.btn.style.fontSize = '13px'; // 调整为 13px 以匹配视觉大小
+              this.btn.innerHTML = `<span class="text-truncate flex-grow-1">${label}</span>`;
+              this.container.appendChild(this.btn);
+
+              this.menu = document.createElement('ul');
+              this.menu.className = 'dropdown-menu w-100 p-0 shadow'; // 去掉 p-2，因为搜索框需要贴边，或者在 searchContainer 里处理
+              this.menu.style.maxHeight = '300px';
+              this.menu.style.overflowY = 'auto';
+              this.menu.style.fontSize = '13px'; // 菜单字体也设为 13px
+
+              // Search Input
+              const searchContainer = document.createElement('div'); // 改为 div 以便做 sticky
+              searchContainer.className = 'p-2 bg-white sticky-top border-bottom'; // sticky-top 加上白色背景
+              searchContainer.style.top = '0';
+              searchContainer.style.zIndex = '1';
+
+              this.searchInput = document.createElement('input');
+              this.searchInput.type = 'text';
+              this.searchInput.className = 'form-control form-control-sm'; // 去掉 mb-2，由容器 padding 控制
+              this.searchInput.style.fontSize = '13px'; // 搜索框字体
+              this.searchInput.placeholder = '搜索...';
+              this.searchInput.addEventListener('click', (e) => e.stopPropagation());
+              searchContainer.appendChild(this.searchInput);
+              this.menu.appendChild(searchContainer);
+
+              // Options Container
+              this.optionsList = document.createElement('div');
+              this.optionsList.className = 'p-1'; // 把 padding 移到这里
+              this.menu.appendChild(this.optionsList);
+
+              this.container.appendChild(this.menu);
+              this.renderOptions();
+            }
+
+            renderOptions() {
+              this.optionsList.innerHTML = '';
+              const filter = this.searchInput.value.toLowerCase();
+              let hasVisibleOption = false;
+              
+              Array.from(this.select.options).forEach(opt => {
+                if (opt.hidden || opt.disabled || opt.style.display === 'none') return;
+
+                const text = opt.text;
+                if (filter && !text.toLowerCase().includes(filter)) return;
+
+                hasVisibleOption = true;
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.className = `dropdown-item ${opt.selected ? 'active' : ''} text-truncate`;
+                a.style.fontSize = '13px'; // 选项字体
+                a.href = '#';
+                a.textContent = text;
+                a.dataset.value = opt.value;
+                a.onclick = (e) => {
+                  e.preventDefault();
+                  this.select.value = opt.value;
+                  this.select.dispatchEvent(new Event('change'));
+                  this.updateLabel();
+                  const dropdownInstance = bootstrap.Dropdown.getInstance(this.btn);
+                  if (dropdownInstance) dropdownInstance.hide();
+                };
+                li.appendChild(a);
+                this.optionsList.appendChild(li);
+              });
+
+              if (!hasVisibleOption) {
+                  const li = document.createElement('li');
+                  li.className = 'dropdown-item disabled text-muted text-center small';
+                  li.textContent = '无匹配项';
+                  this.optionsList.appendChild(li);
+              }
+            }
+
+            updateLabel() {
+              const selectedOption = this.select.options[this.select.selectedIndex];
+              const span = this.btn.querySelector('span');
+              if (span) span.textContent = selectedOption ? selectedOption.text : 'Select...';
+            }
+
+            attachEvents() {
+              this.searchInput.addEventListener('input', () => {
+                this.renderOptions();
+              });
+              
+              this.select.addEventListener('change', () => {
+                 this.updateLabel();
+              });
+              
+              this.btn.addEventListener('show.bs.dropdown', () => {
+                  this.renderOptions();
+                  setTimeout(() => this.searchInput.focus(), 0);
+              });
+            }
+
+            refresh() {
+              this.renderOptions();
+              this.updateLabel();
+            }
+          }
+
           const loginSelect = document.getElementById("device-filter-login-method");
           const platformSelect = document.getElementById("device-filter-platform");
+          const groupSelect = document.querySelector('select[name="group_id"]');
+
+          let platformDropdown;
+          if (platformSelect) {
+             platformDropdown = new SearchableSelect(platformSelect);
+          }
+          
+          if (groupSelect) {
+             new SearchableSelect(groupSelect);
+          }
+
           if (!loginSelect || !platformSelect) return;
 
           function syncPlatformOptions() {
@@ -76,16 +210,20 @@
             });
 
             const current = platformSelect.value;
-            if (!current) return;
-            const currentOpt = options.find((o) => o.value === current);
-            if (currentOpt && (currentOpt.hidden || currentOpt.disabled)) {
-              platformSelect.value = "";
+            if (current) {
+              const currentOpt = options.find((o) => o.value === current);
+              if (currentOpt && (currentOpt.hidden || currentOpt.disabled)) {
+                platformSelect.value = "";
+                platformSelect.dispatchEvent(new Event('change'));
+              }
             }
+            
+            if (platformDropdown) platformDropdown.refresh();
           }
 
           loginSelect.addEventListener("change", syncPlatformOptions);
           syncPlatformOptions();
-        })();
+        });
       </script>
 
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
@@ -108,7 +246,7 @@
               </div>
             </form>
 
-            <form method="post" action="/devices/bulk_delete" id="bulk-delete-form" class="d-inline">
+            <form method="post" action="/devices/bulk_delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" id="bulk-delete-form" class="d-inline">
               <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
               <button class="btn btn-sm btn-outline-danger" type="submit" id="bulk-delete-btn" disabled>
                 <i class="bi bi-trash me-1"></i>批量删除
@@ -297,7 +435,7 @@
                       <i class="bi bi-search me-1"></i>详情
                     </a>
                     {% if is_operator %}
-                      <form method="post" action="/devices/{{ d.id }}/delete" class="d-inline m-0 text-nowrap">
+                      <form method="post" action="/devices/{{ d.id }}/delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" class="d-inline m-0 text-nowrap">
                         <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此设备吗？">
                           <i class="bi bi-trash me-1"></i>删除
                         </button>
@@ -1008,48 +1146,63 @@
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
           <form method="post" action="/devices/import.csv" enctype="multipart/form-data">
-            <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
-              <h5 class="modal-title d-flex align-items-center">
-                <i class="bi bi-file-earmark-arrow-up-fill text-success me-2"></i>
+            <div class="modal-header border-bottom-0 pb-0">
+              <h5 class="modal-title d-flex align-items-center text-secondary">
+                <i class="bi bi-file-earmark-spreadsheet-fill text-success me-2 fs-4"></i>
                 <span>批量导入设备</span>
               </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
+              <!-- File Upload Section -->
               <div class="mb-4">
-                <label class="form-label small fw-bold text-secondary">选择 CSV 文件</label>
-                <div class="input-group">
-                  <input class="form-control form-control-lg fs-6" type="file" name="file" accept=".csv" required />
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label fw-bold text-secondary mb-0">选择 CSV 文件</label>
+                  <a href="/devices/import_template.csv" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                    <i class="bi bi-download me-1"></i>下载导入模板
+                  </a>
                 </div>
-                <div class="form-text x-small mt-2">
-                  <i class="bi bi-info-circle me-1"></i>文件列名：name, host, port, login_method(可选), platform, group_name(可选), credential_name
+                
+                <div class="input-group mb-2">
+                  <input class="form-control" type="file" name="file" accept=".csv" id="importFile" required />
+                  <label class="input-group-text text-secondary bg-light" for="importFile">浏览...</label>
+                </div>
+                
+                <div class="form-text small text-secondary">
+                  <i class="bi bi-info-circle me-1"></i>文件列名：
+                  <code class="text-dark bg-light px-1 rounded">name</code>, 
+                  <code class="text-dark bg-light px-1 rounded">host</code>, 
+                  <code class="text-dark bg-light px-1 rounded">port</code>, 
+                  <code class="text-dark bg-light px-1 rounded">login_method</code>(可选), 
+                  <code class="text-dark bg-light px-1 rounded">platform</code>, 
+                  <code class="text-dark bg-light px-1 rounded">group_name</code>(可选), 
+                  <code class="text-dark bg-light px-1 rounded">credential_name</code>
                 </div>
               </div>
-              <div class="row g-3 mb-4">
-                <div class="col-6">
-                  <label class="form-label small fw-bold text-secondary">导入模式</label>
+
+              <!-- Options Section -->
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold text-secondary mb-1">导入模式</label>
                   <select class="form-select" name="mode">
-                    <option value="insert">仅新增</option>
-                    <option value="upsert">新增或更新</option>
+                    <option value="insert">仅新增 (Skip Existing)</option>
+                    <option value="upsert">新增或更新 (Upsert)</option>
                   </select>
                 </div>
-                <div class="col-6">
-                  <label class="form-label small fw-bold text-secondary">匹配字段</label>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold text-secondary mb-1">匹配字段</label>
                   <select class="form-select" name="match_by">
                     <option value="host">Host IP</option>
                     <option value="name">设备名称</option>
                   </select>
                 </div>
               </div>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="download_report" value="1" id="downloadReport" checked />
-                <label class="form-check-label small fw-medium" for="downloadReport">导入完成后自动下载处理报告</label>
-              </div>
             </div>
-            <div class="modal-footer bg-body-tertiary border-top-0 py-3">
-              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
-              <button type="submit" class="btn btn-success px-5 shadow-sm">
-                <i class="bi bi-cloud-upload me-1"></i>开始导入
+            
+            <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+              <button type="button" class="btn btn-light text-secondary px-4" data-bs-dismiss="modal">取消</button>
+              <button type="submit" class="btn btn-success px-4 shadow-sm">
+                <i class="bi bi-cloud-upload me-2"></i>开始导入
               </button>
             </div>
           </form>

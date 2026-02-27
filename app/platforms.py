@@ -3,23 +3,8 @@ from __future__ import annotations
 import importlib
 
 
-_LABEL_OVERRIDES: dict[str, str] = {
-    "cisco_ios": "Cisco IOS",
-    "cisco_xe": "Cisco IOS-XE",
-    "cisco_xr": "Cisco IOS-XR",
-    "cisco_nxos": "Cisco NX-OS",
-    "cisco_asa": "Cisco ASA",
-    "huawei_vrp": "Huawei VRP",
-    "hp_comware": "H3C Comware",
-    "arista_eos": "Arista EOS",
-    "juniper_junos": "Juniper Junos",
-}
-
-
 def _labelize(platform_id: str) -> str:
-    if platform_id in _LABEL_OVERRIDES:
-        return _LABEL_OVERRIDES[platform_id]
-    return platform_id.replace("_", " ")
+    return (platform_id or "").strip()
 
 
 def _load_netmiko_platforms() -> list[str]:
@@ -55,15 +40,12 @@ def _load_telnet_device_type_map() -> dict[str, str]:
         return {}
 
 
-_KEEP_KEYWORDS: tuple[str, ...] = ("cisco", "huawei", "juniper", "ruijie", "comware", "h3c")
 _EXCLUDE_SUFFIXES: tuple[str, ...] = ("_ssh", "_telnet", "_serial")
 
 
 def _is_kept(platform_id: str) -> bool:
     pid = (platform_id or "").strip().lower()
     if not pid:
-        return False
-    if not any(k in pid for k in _KEEP_KEYWORDS):
         return False
     if any(pid.endswith(sfx) for sfx in _EXCLUDE_SUFFIXES):
         return False
@@ -123,30 +105,39 @@ def platforms_compatible(a: str, b: str) -> bool:
     return normalize_platform_id(a) == normalize_platform_id(b)
 
 
-DEFAULT_COMMANDS: dict[str, str] = {
-    "cisco_apic": "show running-config",
-    "cisco_ios": "show running-config",
-    "cisco_asa": "show running-config",
-    "cisco_ftd": "show running-config",
-    "cisco_nxos": "show running-config",
-    "cisco_s200": "show running-config",
-    "cisco_s300": "show running-config",
-    "cisco_tp": "show running-config",
-    "cisco_viptela": "show running-config",
-    "cisco_wlc": "show run-config commands",
-    "cisco_xe": "show running-config",
-    "cisco_xr": "show running-config",
-    "arista_eos": "show running-config",
-    "huawei": "display current-configuration",
-    "huawei_olt": "display current-configuration",
-    "huawei_smartax": "display current-configuration",
-    "huawei_smartaxmmi": "display current-configuration",
-    "juniper_junos": "show configuration | display set",
-    "juniper": "show configuration | display set",
-    "juniper_screenos": "get config",
-    "huawei_vrp": "display current-configuration",
-    "huawei_vrpv8": "display current-configuration",
-    "h3c_comware": "display current-configuration",
-    "hp_comware": "display current-configuration",
-    "ruijie_os": "show running-config",
-}
+def _default_command_for(pid: str) -> str:
+    p = pid.lower()
+    if "cisco" in p and "wlc" in p:
+        return "show run-config commands"
+    if any(k in p for k in ("juniper", "junos")) and "screenos" not in p:
+        return "show configuration | display set"
+    if "screenos" in p:
+        return "get config"
+    if any(k in p for k in ("huawei", "vrp")):
+        return "display current-configuration"
+    if any(k in p for k in ("comware", "h3c", "hp_comware")):
+        return "display current-configuration"
+    if any(k in p for k in ("vyos", "vyatta")):
+        return "show configuration commands"
+    if any(k in p for k in ("mikrotik", "routeros", "ros")):
+        return "export"
+    if any(k in p for k in ("f5", "ltm", "bigip", "tmsh")):
+        return "tmsh list /"
+    if any(k in p for k in ("fortinet", "fortios", "fortigate")):
+        return "show full-configuration"
+    if any(k in p for k in ("paloalto", "panos", "pan")):
+        return "show config running"
+    if any(k in p for k in ("checkpoint", "gaia")):
+        return "show configuration"
+    if any(k in p for k in ("extreme", "exos")):
+        return "show configuration"
+    if any(k in p for k in ("dell", "os6", "os9", "os10", "force10", "powerconnect")):
+        return "show running-configuration"
+    if any(k in p for k in ("arista", "eos", "ruijie", "brocade_fastiron", "icx", "netiron", "lenovo_cnos", "cnos", "quanta", "qnos", "hpe_procurve", "procurve", "aruba", "hp_procurve")):
+        return "show running-config"
+    if any(k in p for k in ("extremexos", "aos", "omniswitch")):
+        return "show configuration"
+    return "show running-config"
+
+
+DEFAULT_COMMANDS: dict[str, str] = {pid: _default_command_for(pid) for pid in _ALL_PLATFORM_IDS}

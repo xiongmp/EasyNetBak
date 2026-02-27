@@ -4,13 +4,13 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-networkbackup}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_NAME:-networkbackup}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-networkbackup}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -18,10 +18,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    env_file:
+      - .env
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,16 +35,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      - ENABLE_SCHEDULER=true
-      - APP_NAME=${APP_NAME:-网络设备备份}
-      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
-      - TIMEZONE_OFFSET=${TIMEZONE_OFFSET:-+08:00}
     env_file:
-      - .env.prod
+      - .env
     volumes:
       - app_data:/app/data
     depends_on:
@@ -54,15 +49,8 @@ services:
     build: .
     restart: always
     command: celery -A app.celery_app.celery_app worker --loglevel=info -P eventlet -c 100
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-networkbackup}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-networkbackup}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      - APP_NAME=${APP_NAME:-Network Backup}
-      - SECRET_KEY=${SECRET_KEY:-change-this-secret-in-production}
-      - TIMEZONE_OFFSET=${TIMEZONE_OFFSET:-+08:00}
     env_file:
-      - .env.prod
+      - .env
     volumes:
       - app_data:/app/data
       # Mount your SSH keys directory if needed

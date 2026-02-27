@@ -243,6 +243,10 @@ def group_usage_count(session: Session, group_id: int) -> int:
     return int(session.exec(stmt).one())
 
 
+def get_group(session: Session, group_id: int) -> DeviceGroup | None:
+    return session.get(DeviceGroup, group_id)
+
+
 def create_group(session: Session, *, name: str) -> DeviceGroup:
     group = DeviceGroup(name=name.strip())
     session.add(group)

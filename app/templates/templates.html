@@ -7,7 +7,7 @@
   <div class="card mb-3 border">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center">
-        <div class="fw-bold text-secondary small">内置默认模板（常用厂商预置）</div>
+        <div class="fw-bold text-secondary small">内置默认模板</div>
         <button
           class="btn btn-outline-secondary btn-sm px-3"
           type="button"
@@ -20,9 +20,9 @@
         </button>
       </div>
       <div class="collapse mt-3" id="default-platforms-collapse">
-        <div class="table-responsive">
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
           <table class="table table-sm align-middle mb-0">
-            <thead class="bg-body-tertiary">
+            <thead class="bg-body-tertiary" style="position: sticky; top: 0; z-index: 1;">
               <tr>
                 <th style="width: 200px;">设备类型</th>
                 <th>默认备份命令</th>
@@ -56,7 +56,6 @@
             </tbody>
           </table>
         </div>
-        <div class="form-text mt-2 small text-secondary">系统已预置 Ruijie, Huawei, H3C, Cisco, Juniper 等主流厂商的默认备份指令。</div>
       </div>
     </div>
   </div>
