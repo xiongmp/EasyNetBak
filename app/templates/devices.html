@@ -75,7 +75,7 @@
               const label = selectedOption ? selectedOption.text : 'Select...';
 
               this.btn = document.createElement('button');
-              this.btn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-white text-truncate';
+              this.btn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-body text-truncate';
               this.btn.type = 'button';
               this.btn.dataset.bsToggle = 'dropdown';
               this.btn.dataset.bsAutoClose = 'outside';
@@ -92,7 +92,7 @@
 
               // Search Input
               const searchContainer = document.createElement('div'); // 改为 div 以便做 sticky
-              searchContainer.className = 'p-2 bg-white sticky-top border-bottom'; // sticky-top 加上白色背景
+              searchContainer.className = 'p-2 bg-body sticky-top border-bottom'; // sticky-top 加上白色背景
               searchContainer.style.top = '0';
               searchContainer.style.zIndex = '1';
 
