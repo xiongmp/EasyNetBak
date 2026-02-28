@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -8,28 +8,38 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import select
 
 from app import crud
+from app.core.settings import settings
+from app.core.time import normalize_timezone_offset, parse_timezone_offset_to_minutes
 from app.db import session_scope
 from app.models import BackupSchedule, BackupScheduleRun
 from app.platforms import platforms_compatible
 
 
 _scheduler: BackgroundScheduler | None = None
+_scheduler_offset_minutes: int | None = None
 
 
-def start_scheduler() -> None:
+def start_scheduler(*, offset_minutes: int) -> None:
     global _scheduler
-    if _scheduler is None:
-        _scheduler = BackgroundScheduler()
+    global _scheduler_offset_minutes
+    offset_minutes = int(offset_minutes)
+    if _scheduler is None or _scheduler_offset_minutes != offset_minutes:
+        if _scheduler is not None:
+            _scheduler.shutdown(wait=False)
+        _scheduler = BackgroundScheduler(timezone=timezone(timedelta(minutes=offset_minutes)))
+        _scheduler_offset_minutes = offset_minutes
     if not _scheduler.running:
         _scheduler.start()
 
 
 def stop_scheduler() -> None:
     global _scheduler
+    global _scheduler_offset_minutes
     if _scheduler is None:
         return
     _scheduler.shutdown(wait=False)
     _scheduler = None
+    _scheduler_offset_minutes = None
 
 
 def _normalize_targets_text(value: str | None) -> str:
@@ -163,19 +173,22 @@ def run_cleanup() -> None:
 
 
 def sync_scheduler_from_db() -> None:
-    start_scheduler()
+    with session_scope() as session:
+        tz_str = crud.get_setting(session, key="timezone_offset")
+        schedules = crud.list_schedules(session)
+
+    tz_offset = normalize_timezone_offset(tz_str, default=settings.timezone_offset)
+    offset_minutes = parse_timezone_offset_to_minutes(tz_offset) or 0
+    start_scheduler(offset_minutes=offset_minutes)
     if _scheduler is None:
         return
-
-    with session_scope() as session:
-        schedules = crud.list_schedules(session)
 
     _scheduler.remove_all_jobs()
 
     # 添加定时清理任务，每天凌晨 3:00 执行
     _scheduler.add_job(
         run_cleanup,
-        CronTrigger.from_crontab("0 3 * * *"),
+        CronTrigger.from_crontab("0 3 * * *", timezone=_scheduler.timezone),
         id="backup_cleanup",
         replace_existing=True,
     )
@@ -198,7 +211,7 @@ def sync_scheduler_from_db() -> None:
 
         _scheduler.add_job(
             _job,
-            CronTrigger.from_crontab(crontab),
+            CronTrigger.from_crontab(crontab, timezone=_scheduler.timezone),
             id=f"schedule_{sid}",
             replace_existing=True,
             max_instances=1,

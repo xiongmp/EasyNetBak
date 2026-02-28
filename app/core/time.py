@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta, timezone
 
 # To avoid circular imports, we don't import settings here for the default value.
 # Callers should pass the default if needed, or we can handle it inside.
@@ -33,3 +34,12 @@ def normalize_timezone_offset(value: str | None, *, default: str = "+08:00") -> 
     h = mins // 60
     m = mins % 60
     return f"{sign}{h:02d}:{m:02d}"
+
+
+def apply_timezone_offset(value: datetime | None, offset_minutes: int) -> datetime | None:
+    if value is None:
+        return None
+    offset_minutes = int(offset_minutes)
+    if value.tzinfo is not None and value.utcoffset() is not None:
+        return value.astimezone(timezone(timedelta(minutes=offset_minutes)))
+    return value + timedelta(minutes=offset_minutes)

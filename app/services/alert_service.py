@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import UUID
 from sqlmodel import Session
 
 from app import crud
 from app.core.settings import settings
-from app.core.time import parse_timezone_offset_to_minutes
+from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
 from app.models import BackupRecord, Device
 from app.services.notification_service import send_email
 
@@ -18,7 +18,10 @@ def _format_datetime(dt: datetime | None, session: Session) -> str:
         return ""
     tz_str = crud.get_setting(session, key="timezone_offset") or settings.timezone_offset
     offset_minutes = parse_timezone_offset_to_minutes(tz_str) or 0
-    return (dt + timedelta(minutes=offset_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    local_value = apply_timezone_offset(dt, offset_minutes)
+    if local_value is None:
+        return ""
+    return local_value.strftime("%Y-%m-%d %H:%M:%S")
 
 def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = False):
     """
@@ -170,4 +173,3 @@ def check_and_alert_batch(session: Session, run_id: UUID):
         content += "\n"
 
     send_email(subject, content)
-

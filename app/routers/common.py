@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -9,6 +9,7 @@ from jinja2 import pass_context
 from sqlmodel import Session
 
 from app import crud
+from app.core.time import apply_timezone_offset
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 
 
@@ -18,7 +19,10 @@ templates = Jinja2Templates(directory="app/templates")
 def _dt_local_str(value: datetime | None, *, offset_minutes: int) -> str:
     if value is None:
         return ""
-    return (value + timedelta(minutes=int(offset_minutes))).strftime("%Y-%m-%d %H:%M:%S")
+    local_value = apply_timezone_offset(value, offset_minutes)
+    if local_value is None:
+        return ""
+    return local_value.strftime("%Y-%m-%d %H:%M:%S")
 
 
 @pass_context

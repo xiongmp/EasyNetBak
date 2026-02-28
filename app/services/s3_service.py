@@ -6,9 +6,9 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from app import crud
 from sqlmodel import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 from app.core.settings import settings
-from app.core.time import parse_timezone_offset_to_minutes
+from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
 from app.services.crypto import decrypt_secret
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
     offset_minutes = parse_timezone_offset_to_minutes(tz_str) or 0
     
     # 将 UTC 时间转换为本地时间
-    local_dt = finished_at + timedelta(minutes=offset_minutes)
+    local_dt = apply_timezone_offset(finished_at, offset_minutes) or finished_at
 
     if not all([access_key, secret_key, bucket]):
         logger.error("S3 configuration is incomplete")
