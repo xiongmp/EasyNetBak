@@ -147,8 +147,13 @@ def run_netmiko_commands(
     password: str | None,
     enable_password: str | None,
     commands: list[str],
-    conn_timeout: int = 15,
-    banner_timeout: int = 30,
+    conn_timeout: int = 30,
+    banner_timeout: int = 60,
+    global_delay_factor: float = 2.0,
+    auth_timeout: int = 45,
+    read_timeout_override: int = 60,
+    command_read_timeout: int = 180,
+    command_max_loops: int = 120,
 ) -> str:
     from app.platforms import to_netmiko_device_type
 
@@ -163,11 +168,15 @@ def run_netmiko_commands(
         "username": username,
         "timeout": conn_timeout,
         "banner_timeout": banner_timeout,
+        "global_delay_factor": global_delay_factor,
+        "read_timeout_override": read_timeout_override,
     }
-    # Align Paramiko auth timeout with connection timeout for slow devices
-    device["auth_timeout"] = conn_timeout
+    device["auth_timeout"] = auth_timeout
+    device["conn_timeout"] = conn_timeout
     device["allow_agent"] = False
     device["use_keys"] = False
+    if "huawei" in device_type:
+        device["fast_cli"] = False
 
     if password:
         device["password"] = password
@@ -180,7 +189,14 @@ def run_netmiko_commands(
             if device_type.startswith("cisco") and enable_password:
                 conn.enable()
             for cmd in commands:
-                out = conn.send_command(cmd, strip_prompt=True, strip_command=True)
+                out = conn.send_command(
+                    cmd,
+                    strip_prompt=True,
+                    strip_command=True,
+                    read_timeout=command_read_timeout,
+                    delay_factor=global_delay_factor,
+                    max_loops=command_max_loops,
+                )
                 output_parts.append(out.rstrip())
         
         duration = time.time() - start_time
@@ -203,8 +219,11 @@ def test_netmiko_connection(
     username: str,
     password: str | None,
     enable_password: str | None,
-    conn_timeout: int = 15,
-    banner_timeout: int = 25,
+    conn_timeout: int = 30,
+    banner_timeout: int = 60,
+    global_delay_factor: float = 2.0,
+    auth_timeout: int = 45,
+    read_timeout_override: int = 60,
 ) -> str:
     from app.platforms import to_netmiko_device_type
 
@@ -216,10 +235,15 @@ def test_netmiko_connection(
         "username": username,
         "timeout": conn_timeout,
         "banner_timeout": banner_timeout,
+        "global_delay_factor": global_delay_factor,
+        "read_timeout_override": read_timeout_override,
     }
-    device["auth_timeout"] = conn_timeout
+    device["auth_timeout"] = auth_timeout
+    device["conn_timeout"] = conn_timeout
     device["allow_agent"] = False
     device["use_keys"] = False
+    if "huawei" in device_type:
+        device["fast_cli"] = False
 
     if password:
         device["password"] = password
