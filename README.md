@@ -38,14 +38,6 @@
   - **S3 归档**: 支持将备份文件自动同步至 AWS S3 或兼容的对象存储（MinIO, Aliyun OSS 等）。
   - **邮件通知**: 支持备份失败、配置变更与汇总告警邮件发送与测试。
 
-## 🧭 项目结构
-
-- **app/main.py**: FastAPI 应用入口与路由注册。
-- **app/routers**: 设备、备份、调度、系统、认证等 Web 路由。
-- **app/services**: 备份执行、S3 存储、通知告警、认证与加密等核心服务。
-- **app/templates**: Jinja2 模板与页面渲染。
-- **app/static**: 前端样式与脚本资源。
-- **migrations**: Alembic 数据库迁移脚本。
 
 ## 🛠 技术栈
 
