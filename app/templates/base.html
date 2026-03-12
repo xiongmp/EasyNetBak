@@ -3,10 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{ title or "网络设备备份" }}</title>
+    <title>{% if page_title %}{% if not no_title_prefix %}网络设备备份 - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}网络设备备份{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/static/css/app.css" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
     <script>
       // 初始化暗黑模式
       (function() {
@@ -20,7 +21,7 @@
     </script>
   </head>
   <body class="{% if active == 'dashboard' %}dashboard-page{% endif %} {{ body_class }}">
-    {% if current_user %}
+    {% if current_user and not blank_layout %}
       <div class="d-flex app-shell">
         <aside class="sidebar d-flex flex-column">
           <script>
@@ -29,80 +30,144 @@
             }
           </script>
           <div class="brand">
-            <i class="bi bi-shield-check"></i>
+            <img src="/static/img/logo_abstract.svg" alt="Logo" class="brand-logo-img" style="width: 32px; height: 32px; margin-right: 12px;">
             <div class="brand-info">
               <div class="brand-title">网络设备备份</div>
               <div class="brand-subtitle">网络设备备份系统</div>
             </div>
           </div>
           <nav class="nav flex-column mt-2">
-            <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="/dashboard" data-title="仪表盘">
-              <i class="bi bi-speedometer2"></i><span class="nav-text">仪表盘</span>
-            </a>
+            {% set can_dashboard = has_permission('dashboard.view') %}
+            {% if can_dashboard %}
+              <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="/dashboard" data-title="仪表盘">
+                <i class="bi bi-speedometer2"></i><span class="nav-text">仪表盘</span>
+              </a>
+            {% endif %}
 
             <!-- 资源管理 -->
+            {% set can_devices = has_permission('devices.view') or has_permission('devices.create') or has_permission('devices.update') or has_permission('devices.delete') %}
+            {% set can_groups = has_permission('groups.view') or has_permission('groups.create') or has_permission('groups.update') or has_permission('groups.delete') %}
+            {% set can_credentials = has_permission('credentials.view') or has_permission('credentials.create') or has_permission('credentials.update') or has_permission('credentials.delete') %}
+            {% set can_templates = has_permission('templates.view') or has_permission('templates.create') or has_permission('templates.update') or has_permission('templates.delete') %}
             {% set res_active = active in ['devices', 'groups', 'credentials', 'templates'] %}
-            <div class="sidebar-group">
-              <div class="sidebar-group-label {% if res_active %}active{% endif %} {% if not res_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-resources" data-title="资源管理">
-                <span><i class="bi bi-box"></i><span class="nav-text">资源管理</span></span>
-                <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+            {% set res_visible = can_devices or can_groups or can_credentials or can_templates %}
+            {% if res_visible %}
+              <div class="sidebar-group">
+                <div class="sidebar-group-label {% if res_active %}active{% endif %} {% if not res_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-resources" data-title="资源管理">
+                  <span><i class="bi bi-box"></i><span class="nav-text">资源管理</span></span>
+                  <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+                </div>
+                <div class="collapse {% if res_active %}show{% endif %}" id="group-resources">
+                  {% if can_devices %}
+                    <a class="nav-link {% if active == 'devices' %}active{% endif %}" href="/devices" data-title="设备管理"><i class="bi bi-hdd-network"></i><span class="nav-text">设备管理</span></a>
+                  {% endif %}
+                  {% if can_groups %}
+                    <a class="nav-link {% if active == 'groups' %}active{% endif %}" href="/groups" data-title="设备分组"><i class="bi bi-diagram-3"></i><span class="nav-text">设备分组</span></a>
+                  {% endif %}
+                  {% if can_credentials %}
+                    <a class="nav-link {% if active == 'credentials' %}active{% endif %}" href="/credentials" data-title="凭据管理"><i class="bi bi-key"></i><span class="nav-text">凭据管理</span></a>
+                  {% endif %}
+                  {% if can_templates %}
+                    <a class="nav-link {% if active == 'templates' %}active{% endif %}" href="/templates" data-title="备份命令模板"><i class="bi bi-terminal"></i><span class="nav-text">备份命令模板</span></a>
+                  {% endif %}
+                </div>
               </div>
-              <div class="collapse {% if res_active %}show{% endif %}" id="group-resources">
-                <a class="nav-link {% if active == 'devices' %}active{% endif %}" href="/devices" data-title="设备管理"><i class="bi bi-hdd-network"></i><span class="nav-text">设备管理</span></a>
-                {% if is_operator %}
-                <a class="nav-link {% if active == 'groups' %}active{% endif %}" href="/groups" data-title="设备分组"><i class="bi bi-diagram-3"></i><span class="nav-text">设备分组</span></a>
-                <a class="nav-link {% if active == 'credentials' %}active{% endif %}" href="/credentials" data-title="凭据管理"><i class="bi bi-key"></i><span class="nav-text">凭据管理</span></a>
-                <a class="nav-link {% if active == 'templates' %}active{% endif %}" href="/templates" data-title="备份命令模板"><i class="bi bi-terminal"></i><span class="nav-text">备份命令模板</span></a>
-                {% endif %}
-              </div>
-            </div>
+            {% endif %}
 
             <!-- 备份管理 -->
+            {% set can_backups = has_permission('backups.view') %}
+            {% set can_config_search = has_permission('config_search.view') %}
+            {% set can_diff_rules = has_permission('diff_rules.view') or has_permission('diff_rules.update') %}
+            {% set can_schedules = has_permission('schedules.view') or has_permission('schedules.create') or has_permission('schedules.update') or has_permission('schedules.delete') %}
             {% set backup_active = active in ['backups', 'schedules', 'config_search', 'diff_rules'] %}
-            <div class="sidebar-group">
-              <div class="sidebar-group-label {% if backup_active %}active{% endif %} {% if not backup_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-backups" data-title="备份管理">
-                <span><i class="bi bi-cloud-arrow-up"></i><span class="nav-text">备份管理</span></span>
-                <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+            {% set backup_visible = can_backups or can_config_search or can_diff_rules or can_schedules %}
+            {% if backup_visible %}
+              <div class="sidebar-group">
+                <div class="sidebar-group-label {% if backup_active %}active{% endif %} {% if not backup_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-backups" data-title="备份管理">
+                  <span><i class="bi bi-cloud-arrow-up"></i><span class="nav-text">备份管理</span></span>
+                  <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+                </div>
+                <div class="collapse {% if backup_active %}show{% endif %}" id="group-backups">
+                  {% if can_backups %}
+                    <a class="nav-link {% if active == 'backups' %}active{% endif %}" href="/backups" data-title="备份历史"><i class="bi bi-archive"></i><span class="nav-text">备份历史</span></a>
+                  {% endif %}
+                  {% if can_diff_rules %}
+                    <a class="nav-link {% if active == 'diff_rules' %}active{% endif %}" href="/diff-rules" data-title="Diff 忽略规则"><i class="bi bi-filter"></i><span class="nav-text">Diff 忽略规则</span></a>
+                  {% endif %}
+                  {% if can_config_search %}
+                    <a class="nav-link {% if active == 'config_search' %}active{% endif %}" href="/config-search" data-title="配置搜索"><i class="bi bi-search"></i><span class="nav-text">配置搜索</span></a>
+                  {% endif %}
+                  {% if can_schedules %}
+                    <a class="nav-link {% if active == 'schedules' %}active{% endif %}" href="/schedules" data-title="定时任务"><i class="bi bi-clock"></i><span class="nav-text">定时任务</span></a>
+                  {% endif %}
+                </div>
               </div>
-              <div class="collapse {% if backup_active %}show{% endif %}" id="group-backups">
-                <a class="nav-link {% if active == 'backups' %}active{% endif %}" href="/backups" data-title="备份历史"><i class="bi bi-archive"></i><span class="nav-text">备份历史</span></a>
-                {% if is_operator %}
-                <a class="nav-link {% if active == 'diff_rules' %}active{% endif %}" href="/diff-rules" data-title="Diff 忽略规则"><i class="bi bi-filter"></i><span class="nav-text">Diff 忽略规则</span></a>
-                {% endif %}
-                <a class="nav-link {% if active == 'config_search' %}active{% endif %}" href="/config-search" data-title="配置搜索"><i class="bi bi-search"></i><span class="nav-text">配置搜索</span></a>
-                <a class="nav-link {% if active == 'schedules' %}active{% endif %}" href="/schedules" data-title="定时任务"><i class="bi bi-clock"></i><span class="nav-text">定时任务</span></a>
-              </div>
-            </div>
+            {% endif %}
 
             <!-- 日志管理 -->
-            {% if is_operator %}
-              {% set logs_active = active in ['audit_logs', 'login_logs'] %}
+            {% set can_audit_logs = has_permission('audit_logs.view') %}
+            {% set can_login_logs = has_permission('login_logs.view') %}
+            {% set logs_active = active in ['audit_logs', 'login_logs'] %}
+            {% set logs_visible = can_audit_logs or can_login_logs %}
+            {% if logs_visible %}
               <div class="sidebar-group">
                 <div class="sidebar-group-label {% if logs_active %}active{% endif %} {% if not logs_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-logs" data-title="日志管理">
                   <span><i class="bi bi-journal-text"></i><span class="nav-text">日志管理</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if logs_active %}show{% endif %}" id="group-logs">
-                  <a class="nav-link {% if active == 'audit_logs' %}active{% endif %}" href="/audit-logs" data-title="操作日志"><i class="bi bi-shield-check"></i><span class="nav-text">操作日志</span></a>
-                  <a class="nav-link {% if active == 'login_logs' %}active{% endif %}" href="/login-logs" data-title="登录日志"><i class="bi bi-door-open"></i><span class="nav-text">登录日志</span></a>
+                  {% if can_audit_logs %}
+                    <a class="nav-link {% if active == 'audit_logs' %}active{% endif %}" href="/audit-logs" data-title="操作日志"><i class="bi bi-shield-check"></i><span class="nav-text">操作日志</span></a>
+                  {% endif %}
+                  {% if can_login_logs %}
+                    <a class="nav-link {% if active == 'login_logs' %}active{% endif %}" href="/login-logs" data-title="登录日志"><i class="bi bi-door-open"></i><span class="nav-text">登录日志</span></a>
+                  {% endif %}
                 </div>
               </div>
             {% endif %}
 
             <!-- 系统管理 -->
-            {% if is_admin %}
-            {% set system_active = active in ['settings', 'notifications', 'users'] %}
-            <div class="sidebar-group">
-              <div class="sidebar-group-label {% if not system_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-system" data-title="系统管理">
-                <span><i class="bi bi-cpu"></i><span class="nav-text">系统管理</span></span>
-                <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+            {% set can_settings = has_permission('settings.view') or has_permission('settings.update') %}
+            {% set can_notifications = has_permission('notifications.view') or has_permission('notifications.update') %}
+            {% set system_active = active in ['settings', 'notifications'] %}
+            {% set system_visible = can_settings or can_notifications %}
+            {% if system_visible %}
+              <div class="sidebar-group">
+                <div class="sidebar-group-label {% if not system_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-system" data-title="系统管理">
+                  <span><i class="bi bi-cpu"></i><span class="nav-text">系统管理</span></span>
+                  <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+                </div>
+                <div class="collapse {% if system_active %}show{% endif %}" id="group-system">
+                  {% if can_settings %}
+                    <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="系统设置"><i class="bi bi-gear"></i><span class="nav-text">系统设置</span></a>
+                  {% endif %}
+                  {% if can_notifications %}
+                    <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="通知设置"><i class="bi bi-bell"></i><span class="nav-text">通知设置</span></a>
+                  {% endif %}
+                </div>
               </div>
-              <div class="collapse {% if system_active %}show{% endif %}" id="group-system">
-                <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="系统设置"><i class="bi bi-gear"></i><span class="nav-text">系统设置</span></a>
-                <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="通知设置"><i class="bi bi-bell"></i><span class="nav-text">通知设置</span></a>
-                <a class="nav-link {% if active == 'users' %}active{% endif %}" href="/users" data-title="用户管理"><i class="bi bi-people"></i><span class="nav-text">用户管理</span></a>
+            {% endif %}
+
+            <!-- 用户与授权 -->
+            {% set can_users = has_permission('users.view') or has_permission('users.create') or has_permission('users.update') or has_permission('users.delete') %}
+            {% set can_roles = has_permission('roles.view') or has_permission('roles.create') or has_permission('roles.update') or has_permission('roles.delete') %}
+            {% set access_active = active in ['users', 'roles'] %}
+            {% set access_visible = can_users or can_roles %}
+            {% if access_visible %}
+              <div class="sidebar-group">
+                <div class="sidebar-group-label {% if not access_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-access" data-title="用户与授权">
+                  <span><i class="bi bi-people"></i><span class="nav-text">用户与授权</span></span>
+                  <i class="bi bi-chevron-right sidebar-group-arrow"></i>
+                </div>
+                <div class="collapse {% if access_active %}show{% endif %}" id="group-access">
+                  {% if can_users %}
+                    <a class="nav-link {% if active == 'users' %}active{% endif %}" href="/users" data-title="用户管理"><i class="bi bi-person-lines-fill"></i><span class="nav-text">用户管理</span></a>
+                  {% endif %}
+                  {% if can_roles %}
+                    <a class="nav-link {% if active == 'roles' %}active{% endif %}" href="/roles" data-title="角色管理"><i class="bi bi-person-badge"></i><span class="nav-text">角色管理</span></a>
+                  {% endif %}
+                </div>
               </div>
-            </div>
             {% endif %}
           </nav>
         </aside>
@@ -267,8 +332,10 @@
                     <div class="breadcrumb-item"><span class="breadcrumb-link">备份管理</span></div>
                   {% elif active in ['audit_logs'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">日志管理</span></div>
-                  {% elif active in ['settings', 'notifications', 'users'] %}
+                  {% elif active in ['settings', 'notifications'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">系统管理</span></div>
+                  {% elif active in ['users', 'roles'] %}
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">用户与授权</span></div>
                   {% elif active == 'profile' %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">用户中心</span></div>
                   {% endif %}
@@ -287,6 +354,7 @@
                       {% elif active == 'settings' %}系统设置
                       {% elif active == 'notifications' %}通知设置
                       {% elif active == 'users' %}用户管理
+                      {% elif active == 'roles' %}角色管理
                       {% elif active == 'profile' %}个人设置
                       {% endif %}
                     </span>
@@ -337,7 +405,8 @@
                   <div class="header-user-info text-end d-none d-lg-block">
                     <div class="header-user-name fw-semibold">{{ current_user.username }}</div>
                     <div class="small text-secondary opacity-75" style="font-size: 0.75rem; line-height: 1;">
-                      {% if current_user.role == 'admin' %}管理员{% elif current_user.role == 'operator' %}操作员{% else %}只读{% endif %}
+                      {% set current_role_label = role_labels.get(current_user.role, current_user.role) %}
+                      {{ current_role_label }}
                     </div>
                   </div>
                   <div class="header-user-avatar">
@@ -354,17 +423,22 @@
                       <div class="overflow-hidden">
                         <div class="fw-bold text-truncate text-body">{{ current_user.username }}</div>
                         <div class="d-flex align-items-center gap-1 mt-1">
-                          {% if current_user.role == 'admin' %}
+                          {% set current_role_label = role_labels.get(current_user.role, current_user.role) %}
+                          {% if current_user.role in admin_role_codes %}
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal">
-                              <i class="bi bi-shield-lock-fill me-1"></i>系统管理员
+                              <i class="bi bi-shield-lock-fill me-1"></i>{{ current_role_label }}
                             </span>
                           {% elif current_user.role == 'operator' %}
                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill fw-normal">
-                              <i class="bi bi-gear-fill me-1"></i>操作员
+                              <i class="bi bi-gear-fill me-1"></i>{{ current_role_label }}
+                            </span>
+                          {% elif current_user.role == 'readonly' %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">
+                              <i class="bi bi-person-fill me-1"></i>{{ current_role_label }}
                             </span>
                           {% else %}
-                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">
-                              <i class="bi bi-person-fill me-1"></i>只读用户
+                            <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill fw-normal">
+                              <i class="bi bi-person-gear me-1"></i>{{ current_role_label }}
                             </span>
                           {% endif %}
                         </div>
@@ -611,7 +685,7 @@
             });
           });
 
-          const IS_ADMIN = {{ "true" if is_admin else "false" }};
+          const CAN_TRACK_BACKUPS = {{ "true" if has_permission('backups.view') else "false" }};
           const panel = document.getElementById("nb-job-panel");
           const tbody = document.getElementById("nb-job-tbody");
           const summary = document.getElementById("nb-job-summary");
@@ -935,7 +1009,7 @@
           }
 
           window.NB.trackBackups = function (backupIds) {
-            if (!IS_ADMIN) return;
+            if (!CAN_TRACK_BACKUPS) return;
             const ids = Array.isArray(backupIds) ? backupIds : [backupIds];
             const clean = ids.map((x) => (x == null ? "" : String(x))).filter((x) => x.trim() !== "");
             if (!clean.length) return;

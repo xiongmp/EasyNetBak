@@ -13,7 +13,7 @@ from app.core.settings import settings
 from app.core.time import normalize_timezone_offset
 from app.db import session_scope
 from app.models import AuditLog, BackupSchedule
-from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_admin, _require_operator, templates
+from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_permission, templates
 from app.scheduler import run_cleanup, sync_scheduler_from_db
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.s3_service import test_s3_connection
@@ -48,10 +48,18 @@ AUDIT_ACTION_MAP = {
     "UPDATE_SETTINGS": "更新系统设置",
     "UPDATE_DIFF_RULES": "更新Diff忽略规则",
     "UPDATE_NOTIFICATIONS": "更新通知设置",
+    "OPEN_WEBSHELL": "打开 WebShell",
+    "CLOSE_WEBSHELL": "关闭 WebShell",
     "CREATE_USER": "创建用户",
     "UPDATE_USER": "更新用户",
     "DELETE_USER": "删除用户",
+    "RESET_RECOVERY_CODES": "重置恢复码",
+    "USE_RECOVERY_CODE": "使用恢复码",
+    "CREATE_ROLE": "创建角色",
+    "UPDATE_ROLE": "更新角色",
+    "DELETE_ROLE": "删除角色",
     "CHANGE_PASSWORD": "修改密码",
+    "ENABLE_MFA": "启用 MFA",
 }
 
 AUDIT_RESOURCE_MAP = {
@@ -63,6 +71,7 @@ AUDIT_RESOURCE_MAP = {
     "settings": "系统设置",
     "notifications": "通知设置",
     "user": "用户",
+    "role": "角色",
 }
 
 
@@ -75,7 +84,7 @@ def list_audit_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
 ):
-    _require_operator(request)
+    _require_permission(request, "audit_logs.view")
     offset = (page - 1) * limit
     with session_scope() as session:
         logs = crud.list_audit_logs(session, q=q, action=action, resource_type=resource_type, limit=limit, offset=offset)
@@ -122,7 +131,7 @@ def export_audit_logs(
     action: str = Query(None),
     resource_type: str = Query(None),
 ):
-    _require_operator(request)
+    _require_permission(request, "audit_logs.view")
     with session_scope() as session:
         logs = crud.list_audit_logs(session, q=q, action=action, resource_type=resource_type, limit=10000, offset=0)
 
@@ -164,7 +173,7 @@ def list_login_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
 ):
-    _require_operator(request)
+    _require_permission(request, "login_logs.view")
     offset = (page - 1) * limit
     
     # status is now passed directly as string (success, fail, logout)
@@ -207,7 +216,7 @@ def export_login_logs(
     q: str = Query(None),
     status: str = Query(None),
 ):
-    _require_operator(request)
+    _require_permission(request, "login_logs.view")
     status_bool = None
     if status == "success":
         status_bool = True
@@ -248,6 +257,7 @@ def export_login_logs(
 
 @router.get("/settings")
 def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
+    _require_permission(request, "settings.view")
     with session_scope() as session:
         timezone_str = crud.get_setting(session, key="timezone_offset")
         max_concurrent = crud.get_setting(session, key="max_concurrent_tasks")
@@ -314,7 +324,7 @@ def update_settings(
     s3_prefix: str = Form("backups"),
 ):
     csrf_protect.validate_csrf(request)
-    _require_admin(request)
+    _require_permission(request, "settings.update")
     tz = normalize_timezone_offset(timezone_offset, default=settings.timezone_offset)
     try:
         val = int(max_concurrent_tasks)
@@ -402,7 +412,7 @@ def api_test_s3(
     s3_secret_key: str = Form(""),
     s3_bucket: str = Form(""),
 ):
-    _require_admin(request)
+    _require_permission(request, "settings.update")
     
     # 如果 secret_key 为空或为纯星号掩码，尝试从数据库获取
     if not s3_secret_key or (set(s3_secret_key) == {'*'}):
@@ -427,6 +437,7 @@ def api_test_s3(
 
 @router.get("/notifications")
 def notifications_page(request: Request):
+    _require_permission(request, "notifications.view")
     with session_scope() as session:
         smtp_host = crud.get_setting(session, key="smtp_host") or ""
         smtp_port = crud.get_setting(session, key="smtp_port") or "25"
@@ -468,7 +479,7 @@ def test_notifications(
     smtp_from: str = Form(""),
     smtp_to: str = Form(""),
 ):
-    _require_admin(request)
+    _require_permission(request, "notifications.update")
 
     # 如果 smtp_pass 为空或为纯星号掩码，尝试从数据库获取
     if not smtp_pass or (set(smtp_pass) == {'*'}):
@@ -510,7 +521,7 @@ def update_notifications(
     alert_on_config_change: str = Form("0"),
     always_send_summary: str = Form("0"),
 ):
-    _require_admin(request)
+    _require_permission(request, "notifications.update")
     with session_scope() as session:
         crud.set_setting(session, key="smtp_host", value=smtp_host.strip())
         crud.set_setting(session, key="smtp_port", value=smtp_port.strip())
@@ -539,7 +550,7 @@ def legacy_update_schedule(
     backup_crontab: str = Form("0 2 * * *"),
     timezone_offset: str = Form(settings.timezone_offset),
 ):
-    _require_admin(request)
+    _require_permission(request, "settings.update")
     enabled = schedule_enabled in {"1", "true", "True", "yes", "YES", "on"}
     crontab = (backup_crontab or "").strip() or "0 2 * * *"
     tz = normalize_timezone_offset(timezone_offset, default=settings.timezone_offset)
@@ -583,7 +594,7 @@ def list_login_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
 ):
-    _require_admin(request)
+    _require_permission(request, "login_logs.view")
     offset = (page - 1) * limit
     status_bool = None
     if status == "success":
@@ -627,7 +638,7 @@ def export_login_logs_csv(
     q: str = Query(None),
     status: str = Query(None),
 ):
-    _require_admin(request)
+    _require_permission(request, "login_logs.view")
     
     # status is now passed directly as string (success, fail, logout)
     status_filter = status if status in ["success", "fail", "logout"] else None

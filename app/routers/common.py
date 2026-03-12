@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 
 from fastapi import HTTPException, Request
 from fastapi.templating import Jinja2Templates
@@ -15,6 +15,47 @@ from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, norm
 
 templates = Jinja2Templates(directory="app/templates")
 
+def _permission_codes() -> set[str]:
+    try:
+        return {x["code"] for x in getattr(crud, "PERMISSION_CATALOG", [])}
+    except Exception:
+        return set()
+
+def _role_default_perms(role: str) -> set[str]:
+    try:
+        return set(crud.get_role_default_permissions(role))
+    except Exception:
+        return set()
+
+def _user_effective_perms(user) -> set[str] | None:
+    if not user:
+        return set()
+    if crud.is_admin_role_code(getattr(user, "role", "")):
+        return None
+    valid = _permission_codes()
+    eff = crud.get_effective_permission_codes(user)
+    return {c for c in eff if c in valid}
+
+def has_permission(user, code: str) -> bool:
+    if not user:
+        return False
+    if crud.is_admin_role_code(getattr(user, "role", "")):
+        return True
+    eff = _user_effective_perms(user)
+    return bool(eff and (code in eff))
+
+def _require_permission(request: Request, code: str):
+    user = _current_user(request)
+    if not has_permission(user, code):
+        raise HTTPException(status_code=403, detail=f"Require permission: {code}")
+    return user
+
+def _require_any_permission(request: Request, codes: Iterable[str]):
+    user = _current_user(request)
+    for code in codes:
+        if has_permission(user, code):
+            return user
+    raise HTTPException(status_code=403, detail="Require permission")
 
 def _dt_local_str(value: datetime | None, *, offset_minutes: int) -> str:
     if value is None:
@@ -41,14 +82,14 @@ def _current_user(request: Request):
 
 def _require_admin(request: Request):
     user = _current_user(request)
-    if not user or getattr(user, "role", "") != "admin":
+    if not user or not crud.is_admin_role_code(getattr(user, "role", "")):
         raise HTTPException(status_code=403, detail="Admin only")
     return user
 
 
 def _require_operator(request: Request):
     user = _current_user(request)
-    if not user or getattr(user, "role", "") not in ("admin", "operator"):
+    if not user or (not crud.is_admin_role_code(getattr(user, "role", "")) and getattr(user, "role", "") != "operator"):
         raise HTTPException(status_code=403, detail="Operator or Admin only")
     return user
 
@@ -63,7 +104,7 @@ def get_user_allowed_group_ids(user) -> list[int] | None:
         return []
     
     # Admin always has full access
-    if getattr(user, "role", "") == "admin":
+    if crud.is_admin_role_code(getattr(user, "role", "")):
         return None
         
     # Check access type
@@ -106,6 +147,7 @@ def _log_action(
 def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
     user = _current_user(request)
     role = getattr(user, "role", "") if user else ""
+    eff = _user_effective_perms(user)
     return {
         "request": request,
         "active": active,
@@ -115,6 +157,10 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
         "telnet_platform_ids": TELNET_PLATFORM_IDS,
         "telnet_platform_base_ids": [normalize_platform_id(pid) for pid in TELNET_PLATFORM_IDS],
         "current_user": user,
-        "is_admin": role == "admin",
+        "is_admin": crud.is_admin_role_code(role),
         "is_operator": role in ("admin", "operator"),
+        "perms": eff if eff is not None else {"*"},
+        "has_permission": lambda code: has_permission(user, code),
+        "role_labels": getattr(crud, "ROLE_LABELS", {}),
+        "admin_role_codes": list(getattr(crud, "ROLE_ADMIN_CODES", set())),
     }

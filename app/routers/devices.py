@@ -1,30 +1,319 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
+import json
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
+import asyncssh
+import telnetlib3
 from celery.result import AsyncResult
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse, Response
+from fastapi_csrf_protect import CsrfProtect
+from starlette.concurrency import run_in_threadpool
 from sqlmodel import select
 
 from app import crud
+from app.core.settings import settings
 from app.db import session_scope
 from app.models import Device
 from app.platforms import TELNET_DEVICE_TYPE_MAP, normalize_platform_id, platforms_compatible
-from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_admin, _require_operator, _current_user, get_user_allowed_group_ids, templates
+from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_permission, _current_user, get_user_allowed_group_ids, templates
 from app.scheduler import plan_bulk_backup_run
 from app.celery_tasks import bulk_reachability_task
 from app.celery_app import celery_app
+from app.services.auth import create_webshell_token, decode_session_token, decode_webshell_token
 
 
 router = APIRouter()
 
 
+def _load_webshell_context(user_id: int, device_id: int) -> dict[str, Any] | None:
+    with session_scope() as session:
+        user = crud.get_user(session, user_id)
+        if not user:
+            return None
+        perms = crud.get_effective_permission_codes(user)
+        if "devices.webshell" not in perms or "devices.view" not in perms:
+            return None
+        device = crud.get_device(session, device_id)
+        if not device:
+            return None
+        allowed_ids = get_user_allowed_group_ids(user)
+        if allowed_ids is not None:
+            gid = device.group_id if device.group_id else 0
+            allowed_set = set(allowed_ids)
+            is_allowed = (gid in allowed_set) or (gid == 0 and (-1 in allowed_set or 0 in allowed_set))
+            if not is_allowed:
+                return None
+        secrets = crud.get_device_secrets(session, device)
+        return {
+            "device_id": int(device.id),
+            "name": device.name or "",
+            "host": device.host or "",
+            "port": int(device.port or 0),
+            "login_method": (device.login_method or "ssh").strip().lower(),
+            "platform": device.platform or "",
+            "username": secrets.get("username"),
+            "password": secrets.get("password"),
+            "enable_password": secrets.get("enable_password"),
+        }
+
+
+@router.get("/devices/{device_id}/webshell")
+def device_webshell_page(request: Request, device_id: int):
+    _require_permission(request, "devices.view")
+    _require_permission(request, "devices.webshell")
+    token = (request.query_params.get("token") or "").strip()
+    payload = decode_webshell_token(token)
+    user = _current_user(request)
+    if not payload or not user:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    if int(payload.get("uid", 0)) != int(user.id) or int(payload.get("did", 0)) != int(device_id):
+        raise HTTPException(status_code=403, detail="Invalid token")
+    with session_scope() as session:
+        device = crud.get_device(session, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        # Check permission
+        allowed_ids = get_user_allowed_group_ids(_current_user(request))
+        if allowed_ids is not None:
+             gid = device.group_id if device.group_id else 0
+             allowed_set = set(allowed_ids)
+             is_allowed = (gid in allowed_set) or (gid == 0 and (-1 in allowed_set or 0 in allowed_set))
+             if not is_allowed:
+                 raise HTTPException(status_code=403, detail="Permission denied")
+
+        # Fetch credential
+        credential = crud.get_credential(session, device.credential_id) if device.credential_id else None
+
+        return templates.TemplateResponse("webshell.html", {
+            "request": request, 
+            "device": device,
+            "credential": credential,
+            "webshell_token": token,
+        })
+
+
+@router.post("/devices/{device_id}/webshell")
+def device_webshell_open(
+    request: Request,
+    device_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+):
+    csrf_protect.validate_csrf(request)
+    _require_permission(request, "devices.view")
+    user = _require_permission(request, "devices.webshell")
+    allowed_ids = get_user_allowed_group_ids(user)
+    with session_scope() as session:
+        device = crud.get_device(session, device_id)
+        if not device:
+            return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+        if allowed_ids is not None:
+            gid = device.group_id if device.group_id else 0
+            allowed_set = set(allowed_ids)
+            is_allowed = (gid in allowed_set) or (gid == 0 and (-1 in allowed_set or 0 in allowed_set))
+            if not is_allowed:
+                raise HTTPException(status_code=403, detail="Permission denied")
+        _log_action(request, session, "OPEN_WEBSHELL", "device", device_id, f"Name: {device.name}")
+    token = create_webshell_token(user_id=int(user.id), device_id=int(device_id), ttl_seconds=60)
+    return RedirectResponse(url=f"/devices/{device_id}/webshell?token={token}", status_code=303)
+
+
+@router.websocket("/ws/devices/{device_id}/shell")
+async def device_webshell(websocket: WebSocket, device_id: int):
+    token = websocket.cookies.get(settings.auth_cookie_name, "")
+    payload = decode_session_token(token)
+    user_id = int(payload.get("uid", 0)) if payload else 0
+    if user_id <= 0:
+        await websocket.close(code=4401)
+        return
+    ws_token = (websocket.query_params.get("token") or "").strip()
+    ws_payload = decode_webshell_token(ws_token)
+    if not ws_payload:
+        await websocket.close(code=4403)
+        return
+    if int(ws_payload.get("uid", 0)) != int(user_id) or int(ws_payload.get("did", 0)) != int(device_id):
+        await websocket.close(code=4403)
+        return
+    context = await run_in_threadpool(_load_webshell_context, user_id, device_id)
+    if not context:
+        await websocket.close(code=4403)
+        return
+    await websocket.accept()
+    started_at = datetime.utcnow()
+    with session_scope() as session:
+        try:
+            user = crud.get_user(session, user_id)
+            ip = getattr(websocket.client, "host", None)
+            crud.create_audit_log(
+                session,
+                user_id=int(user.id) if user and user.id else None,
+                username=user.username if user else None,
+                action="OPEN_WEBSHELL",
+                resource_type="device",
+                resource_id=str(device_id),
+                details=f"Host: {context.get('host')}:{context.get('port')} ({context.get('login_method')})",
+                ip_address=ip,
+            )
+        except Exception:
+            pass
+
+    async def send_status(message: str):
+        await websocket.send_text(json.dumps({"type": "status", "message": message}))
+
+    async def send_error(message: str):
+        await websocket.send_text(json.dumps({"type": "error", "message": message}))
+
+    username = context.get("username")
+    if not username:
+        await send_error("未配置凭据")
+        await websocket.close()
+        return
+
+    login_method = context.get("login_method") or "ssh"
+    reader = None
+    writer = None
+    process = None
+    conn = None
+
+    try:
+        await send_status(f"连接 {context.get('host')}:{context.get('port')}...")
+        if login_method == "telnet":
+            reader, writer = await telnetlib3.open_connection(
+                host=context.get("host"),
+                port=int(context.get("port") or 23),
+                encoding="utf-8",
+            )
+        else:
+            conn = await asyncssh.connect(
+                host=context.get("host"),
+                port=int(context.get("port") or 22),
+                username=username,
+                password=context.get("password") or None,
+                known_hosts=None,
+            )
+            process = await conn.create_process(
+                term_type="xterm",
+                term_size=(120, 30),
+                encoding="utf-8",
+            )
+            reader = process.stdout
+            writer = process.stdin
+        await send_status("连接成功")
+    except Exception as exc:
+        await send_error(f"连接失败: {str(exc)}")
+        await websocket.close()
+        return
+
+    telnet_login_state = {"step": 0, "buffer": ""} # 0: user, 1: pass, 2: done
+
+    async def pump_output(stream):
+        while True:
+            data = await stream.read(1024)
+            if not data:
+                break
+            await websocket.send_text(json.dumps({"type": "output", "data": data}))
+
+            # Auto-login for Telnet
+            if login_method == "telnet" and stream == reader and telnet_login_state["step"] < 2:
+                try:
+                    text = data
+                    if not isinstance(text, str):
+                        text = text.decode("utf-8", errors="ignore")
+                    
+                    telnet_login_state["buffer"] += text
+                    if len(telnet_login_state["buffer"]) > 500:
+                         telnet_login_state["buffer"] = telnet_login_state["buffer"][-500:]
+                    
+                    buf_lower = telnet_login_state["buffer"].lower()
+                    
+                    if telnet_login_state["step"] == 0:
+                        # Check for password first in case we skipped user
+                        if "password:" in buf_lower:
+                             writer.write((context.get("password") or "") + "\r\n")
+                             telnet_login_state["step"] = 2
+                             telnet_login_state["buffer"] = ""
+                        elif any(p in buf_lower for p in ["login:", "username:", "user:", "name:"]):
+                             writer.write((username or "") + "\r\n")
+                             telnet_login_state["step"] = 1
+                             telnet_login_state["buffer"] = ""
+                             
+                    elif telnet_login_state["step"] == 1:
+                        if "password:" in buf_lower:
+                             writer.write((context.get("password") or "") + "\r\n")
+                             telnet_login_state["step"] = 2
+                             telnet_login_state["buffer"] = ""
+                except Exception:
+                    pass
+
+    async def ws_to_device():
+        while True:
+            message = await websocket.receive_text()
+            payload = json.loads(message)
+            msg_type = payload.get("type")
+            if msg_type == "input":
+                if writer:
+                    writer.write(payload.get("data") or "")
+            elif msg_type == "resize" and process:
+                cols = int(payload.get("cols") or 120)
+                rows = int(payload.get("rows") or 30)
+                process.change_terminal_size(cols, rows)
+
+    output_tasks = []
+    try:
+        if reader:
+            output_tasks.append(asyncio.create_task(pump_output(reader)))
+        if process and process.stderr:
+            output_tasks.append(asyncio.create_task(pump_output(process.stderr)))
+        input_task = asyncio.create_task(ws_to_device())
+        done, pending = await asyncio.wait(
+            output_tasks + [input_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        for task in output_tasks:
+            task.cancel()
+        if process:
+            process.kill()
+        if conn:
+            conn.close()
+            await conn.wait_closed()
+        if writer:
+            try:
+                writer.close()
+            except Exception:
+                pass
+        try:
+            duration = ""
+            if started_at:
+                delta = datetime.utcnow() - started_at
+                duration = f"{int(delta.total_seconds())}s"
+            with session_scope() as session:
+                user = crud.get_user(session, user_id)
+                ip = getattr(websocket.client, "host", None)
+                crud.create_audit_log(
+                    session,
+                    user_id=int(user.id) if user and user.id else None,
+                    username=user.username if user else None,
+                    action="CLOSE_WEBSHELL",
+                    resource_type="device",
+                    resource_id=str(device_id),
+                    details=f"Duration: {duration}",
+                    ip_address=ip,
+                )
+        except Exception:
+            pass
 def _get_redirect_url(request: Request, base_url: str = "/devices", msg: str = None, err: str = None) -> str:
     params = dict(request.query_params)
     if "msg" in params:
@@ -43,7 +332,8 @@ def _get_redirect_url(request: Request, base_url: str = "/devices", msg: str = N
 
 
 @router.get("/devices")
-def devices_page(request: Request):
+def devices_page(request: Request, csrf_protect: CsrfProtect = Depends()):
+    _require_permission(request, "devices.view")
     q = (request.query_params.get("q") or "").strip() or None
     login_method_raw = (request.query_params.get("login_method") or "").strip().lower()
     login_method = login_method_raw if login_method_raw in {"ssh", "telnet"} else None
@@ -120,7 +410,8 @@ def devices_page(request: Request):
     if qs:
         base = base + "?" + "&".join(qs)
     pagination_base = base + ("&" if "?" in base else "?") + "page="
-    return templates.TemplateResponse(
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    response = templates.TemplateResponse(
         "devices.html",
         {
             **_layout_context(request=request, active="devices"),
@@ -130,6 +421,7 @@ def devices_page(request: Request):
             "groups": groups,
             "group_map": group_map,
             "credential_map": cred_map,
+            "csrf_token": csrf_token,
             "filters": {
                 "q": q or "",
                 "login_method": login_method or "",
@@ -148,6 +440,8 @@ def devices_page(request: Request):
             "err": err,
         },
     )
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
 
 
 @router.post("/devices/bulk_backup")
@@ -156,7 +450,8 @@ def bulk_backup(
     device_ids: str = Form(""),
     mode: str = Form("selected"),
 ):
-    _require_operator(request)
+    _require_permission(request, "devices.view")
+    _require_permission(request, "devices.backup")
     with session_scope() as session:
         if mode == "all":
             ids = [int(d.id) for d in crud.list_devices(session) if d.id]
@@ -186,7 +481,7 @@ def bulk_backup(
 
 @router.post("/devices/bulk_delete")
 def bulk_delete_devices(request: Request, device_ids: str = Form("")):
-    _require_operator(request)
+    _require_permission(request, "devices.delete")
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     if not ids:
         return RedirectResponse(url=_get_redirect_url(request, "/devices"), status_code=303)
@@ -201,9 +496,116 @@ def bulk_delete_devices(request: Request, device_ids: str = Form("")):
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
 
 
+@router.post("/devices/bulk_update")
+def bulk_update_devices(
+    request: Request,
+    device_ids: str = Form(""),
+    field: str = Form(""),
+    value: str = Form(""),
+):
+    _require_permission(request, "devices.update")
+    ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
+    if not ids:
+        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="未选择设备"), status_code=303)
+
+    valid_fields = {"group_id", "platform", "login_method", "credential_id"}
+    if field not in valid_fields:
+        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="无效的修改字段"), status_code=303)
+
+    # Validate value
+    new_value: Any = value
+    if field == "group_id":
+        try:
+            gid = int(value)
+            new_value = gid if gid > 0 else None
+        except ValueError:
+            new_value = None
+    elif field == "credential_id":
+        try:
+            cid = int(value)
+            new_value = cid
+        except ValueError:
+             return RedirectResponse(url=_get_redirect_url(request, "/devices", err="无效的凭据ID"), status_code=303)
+    elif field == "login_method":
+        if value not in ("ssh", "telnet"):
+             return RedirectResponse(url=_get_redirect_url(request, "/devices", err="无效的登录方式"), status_code=303)
+    elif field == "platform":
+        if not value:
+             return RedirectResponse(url=_get_redirect_url(request, "/devices", err="平台类型不能为空"), status_code=303)
+
+    count = 0
+    updated_ids = []
+    with session_scope() as session:
+        user = _current_user(request)
+        allowed_ids = get_user_allowed_group_ids(user)
+        
+        # Verify credential exists if we are updating it
+        if field == "credential_id":
+             if not crud.get_credential(session, new_value):
+                 return RedirectResponse(url=_get_redirect_url(request, "/devices", err="指定的凭据不存在"), status_code=303)
+
+        for did in ids:
+            d = crud.get_device(session, did)
+            if not d:
+                continue
+            
+            # Check permissions
+            if allowed_ids is not None:
+                gid = d.group_id if d.group_id else 0
+                allowed_set = set(allowed_ids)
+                is_allowed = (gid in allowed_set) or (gid == 0 and (-1 in allowed_set or 0 in allowed_set))
+                if not is_allowed:
+                    continue
+
+            old_val = getattr(d, field)
+            target_val = new_value
+            
+            updated = False
+            if field == "group_id":
+                if old_val != target_val:
+                    d.group_id = target_val
+                    _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}")
+                    updated = True
+            elif field == "platform":
+                if old_val != target_val:
+                    d.platform = target_val
+                    _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}")
+                    updated = True
+            elif field == "login_method":
+                 if old_val != target_val:
+                    d.login_method = target_val
+                    msg_suffix = ""
+                    # Auto update port if standard
+                    if target_val == "telnet" and d.port == 22:
+                        d.port = 23
+                        msg_suffix = " (Port: 22 -> 23)"
+                    elif target_val == "ssh" and d.port == 23:
+                        d.port = 22
+                        msg_suffix = " (Port: 23 -> 22)"
+                    
+                    _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}{msg_suffix}")
+                    updated = True
+            elif field == "credential_id":
+                 if old_val != target_val:
+                    d.credential_id = target_val
+                    _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}")
+                    updated = True
+            
+            if updated:
+                count += 1
+                updated_ids.append(did)
+        
+        session.commit()
+
+    if updated_ids:
+        bulk_reachability_task.delay(device_ids=updated_ids, offset_minutes=0)
+
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg=f"成功更新 {count} 台设备"), status_code=303)
+
+
 @router.get("/devices/import_template.csv")
 def download_import_template(request: Request):
-    _require_operator(request)
+    _require_permission(request, "devices.create")
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["name", "host", "port", "login_method", "platform", "group_name", "credential_name"])
@@ -219,6 +621,7 @@ def download_import_template(request: Request):
 
 @router.get("/devices/export.csv")
 def export_devices_csv(request: Request):
+    _require_permission(request, "devices.view")
     q = (request.query_params.get("q") or "").strip() or None
     login_method_raw = (request.query_params.get("login_method") or "").strip().lower()
     login_method = login_method_raw if login_method_raw in {"ssh", "telnet"} else None
@@ -293,7 +696,13 @@ async def import_devices_csv(
     mode: str = Form("insert"),
     match_by: str = Form("host"),
 ):
-    _require_admin(request)
+    mode = (mode or "insert").strip()
+    if mode not in {"insert", "upsert"}:
+        mode = "insert"
+    if mode == "upsert":
+        _require_permission(request, "devices.update")
+    else:
+        _require_permission(request, "devices.create")
     if not file.filename or not file.filename.lower().endswith(".csv"):
         return RedirectResponse(url="/devices?err=请上传CSV文件", status_code=303)
     content = await file.read()
@@ -315,10 +724,7 @@ async def import_devices_csv(
     updated = 0
     skipped = 0
     report: list[dict[str, str]] = []
-    mode = (mode or "insert").strip()
     match_by = (match_by or "host").strip()
-    if mode not in {"insert", "upsert"}:
-        mode = "insert"
     if match_by not in {"host", "name"}:
         match_by = "host"
     
@@ -480,7 +886,7 @@ def create_device(
     credential_id: int = Form(...),
     default_template_id: int = Form(0),
 ):
-    _require_operator(request)
+    _require_permission(request, "devices.create")
     with session_scope() as session:
         cred = crud.get_credential(session, int(credential_id))
         if cred is None:
@@ -523,7 +929,7 @@ def create_device(
 
 @router.post("/devices/{device_id}/delete")
 def delete_device(request: Request, device_id: int):
-    user = _require_operator(request)
+    user = _require_permission(request, "devices.delete")
     allowed_ids = get_user_allowed_group_ids(user)
 
     with session_scope() as session:
@@ -552,6 +958,7 @@ def delete_device(request: Request, device_id: int):
 
 @router.get("/devices/{device_id}")
 def device_detail(request: Request, device_id: int):
+    _require_permission(request, "devices.view")
     user = _current_user(request)
     allowed_ids = get_user_allowed_group_ids(user)
 
@@ -632,7 +1039,7 @@ def update_device(
     credential_id: int = Form(...),
     default_template_id: int = Form(0),
 ):
-    user = _require_operator(request)
+    user = _require_permission(request, "devices.update")
     allowed_ids = get_user_allowed_group_ids(user)
     
     # Check if user can move to target group
@@ -698,7 +1105,8 @@ def update_device(
 
 @router.post("/devices/{device_id}/backup")
 def trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
-    _require_operator(request)
+    _require_permission(request, "devices.view")
+    _require_permission(request, "devices.backup")
     template_id = int(template_id) if template_id else 0
     with session_scope() as session:
         device = crud.get_device(session, device_id)
@@ -730,7 +1138,8 @@ def trigger_backup(request: Request, device_id: int, template_id: int = Form(0))
 
 @router.post("/api/devices/{device_id}/backup")
 def api_trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
-    _require_operator(request)
+    _require_permission(request, "devices.view")
+    _require_permission(request, "devices.backup")
     template_id = int(template_id) if template_id else 0
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
     with session_scope() as session:
@@ -775,7 +1184,8 @@ def api_bulk_backup(
     device_ids: str = Form(""),
     mode: str = Form("selected"),
 ):
-    _require_operator(request)
+    _require_permission(request, "devices.view")
+    _require_permission(request, "devices.backup")
     with session_scope() as session:
         if mode == "all":
             ids = [int(d.id) for d in crud.list_devices(session) if d.id]
@@ -812,7 +1222,7 @@ def api_bulk_reachability(
     group_id: int = Form(0),
     status: str = Form(""),
 ):
-    _require_operator(request)
+    _require_permission(request, "devices.update")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     q = (q or "").strip() or None
@@ -882,7 +1292,7 @@ def api_bulk_reachability(
 
 @router.get("/api/devices/reachability_tasks/{task_id}")
 def get_reachability_task_status(request: Request, task_id: str):
-    _require_admin(request)
+    _require_permission(request, "devices.update")
     result = AsyncResult(task_id, app=celery_app)
     if result.state == 'PENDING':
         return {
@@ -941,7 +1351,7 @@ def get_reachability_task_status(request: Request, task_id: str):
 
 @router.get("/api/devices/status")
 def get_devices_status(request: Request, ids: str = ""):
-    _require_admin(request)
+    _require_permission(request, "devices.view")
     id_list = [int(x) for x in (ids or "").split(",") if x.strip().isdigit()]
     if not id_list:
         return {"items": []}

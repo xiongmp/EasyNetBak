@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% set page_title = "WebShell - " + (device.name or device.host) %}
+{% set blank_layout = True %}
+{% set no_title_prefix = True %}
+
+{% block content %}
+<div class="d-flex flex-column vh-100 bg-black">
+  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-dark text-white border-bottom border-secondary" style="height: 50px;">
+    <div class="d-flex align-items-center gap-2">
+       <span class="fw-bold"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
+       <span class="text-secondary small">|</span>
+       <span class="small text-light opacity-75">{{ device.host }}:{{ device.port }}</span>
+       <span class="text-secondary small">|</span>
+       <span class="small text-light opacity-75">{{ device.platform }}</span>
+       {% if credential %}
+       <span class="text-secondary small">|</span>
+       <span class="small text-light opacity-75"><i class="bi bi-person me-1"></i>{{ credential.username }}</span>
+       {% endif %}
+       <span class="badge bg-secondary ms-2" style="font-size: 0.75em;">{{ (device.login_method or 'ssh')|upper }}</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="d-flex gap-1 me-2">
+        <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="缩小字体"><i class="bi bi-dash"></i></button>
+        <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="放大字体"><i class="bi bi-plus"></i></button>
+      </div>
+       <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="导出当前会话日志"><i class="bi bi-download"></i></button>
+       <button class="btn btn-sm btn-outline-light" id="btn-reconnect">重连</button>
+       <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">关闭</button>
+    </div>
+  </div>
+  <div class="flex-grow-1 position-relative overflow-hidden" id="terminal-container"></div>
+</div>
+
+<!-- Paste Confirmation Modal -->
+<div class="modal fade" id="pasteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary py-2">
+        <h6 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>粘贴确认</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-secondary mb-2">即将粘贴以下内容到终端 (可编辑)：</p>
+        <textarea class="form-control bg-black text-white border-secondary font-monospace" id="paste-content" rows="18" spellcheck="false"></textarea>
+      </div>
+      <div class="modal-footer border-secondary py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-paste">确认粘贴</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="/static/css/xterm.css" />
+<script src="/static/js/xterm.min.js"></script>
+<script src="/static/js/xterm-addon-fit.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+      const container = document.getElementById('terminal-container');
+      const reconnectBtn = document.getElementById('btn-reconnect');
+      const exportBtn = document.getElementById('btn-export-log');
+      const zoomInBtn = document.getElementById('btn-zoom-in');
+      const zoomOutBtn = document.getElementById('btn-zoom-out');
+      const pasteModalEl = document.getElementById('pasteModal');
+      const pasteContent = document.getElementById('paste-content');
+      const confirmPasteBtn = document.getElementById('btn-confirm-paste');
+      const deviceId = {{ device.id }};
+      const deviceName = "{{ device.name }}";
+      const webshellToken = {{ webshell_token | tojson }};
+      
+      let terminal = null;
+      let fitAddon = null;
+      let socket = null;
+      let resizeObserver = null;
+      let connectionStartTime = 0;
+      let pasteModal = null;
+
+      if (typeof bootstrap !== 'undefined') {
+          pasteModal = new bootstrap.Modal(pasteModalEl);
+      }
+
+      function buildUrl() {
+          const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+          const tokenQuery = webshellToken ? `?token=${encodeURIComponent(webshellToken)}` : '';
+          return `${scheme}://${window.location.host}/ws/devices/${deviceId}/shell${tokenQuery}`;
+      }
+
+      function formatDuration(ms) {
+          if (ms < 1000) return ms + 'ms';
+          return (ms / 1000).toFixed(2) + 's';
+      }
+
+      function initTerminal() {
+          if (!window.Terminal) {
+              container.innerHTML = '<div class="p-3 text-danger">xterm.js load failed</div>';
+              return;
+          }
+          terminal = new Terminal({
+              cursorBlink: true,
+              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+              fontSize: 14,
+              theme: {
+                  background: '#000000',
+                  foreground: '#ffffff'
+              }
+          });
+          
+          if (window.FitAddon && window.FitAddon.FitAddon) {
+              fitAddon = new window.FitAddon.FitAddon();
+              terminal.loadAddon(fitAddon);
+          }
+          
+          terminal.open(container);
+          if (fitAddon) fitAddon.fit();
+          
+          terminal.onData(data => {
+              if (socket && socket.readyState === 1) {
+                  socket.send(JSON.stringify({ type: 'input', data: data }));
+              }
+          });
+          
+          terminal.focus();
+      }
+
+      function sendResize() {
+          if (!socket || socket.readyState !== 1 || !terminal) return;
+          socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }));
+      }
+
+      function writeLine(text) {
+          if (!terminal) return;
+          terminal.writeln(text.replace(/\n/g, '\r\n'));
+      }
+
+      function connect() {
+          if (socket) {
+              socket.close();
+              socket = null;
+          }
+          
+          if (!terminal) initTerminal();
+          
+          terminal.clear();
+          writeLine('正在连接...');
+          
+          connectionStartTime = Date.now();
+          socket = new WebSocket(buildUrl());
+          
+          socket.onopen = function() {
+              if (fitAddon) fitAddon.fit();
+              sendResize();
+              terminal.focus();
+          };
+          
+          socket.onmessage = function(ev) {
+              try {
+                  const payload = JSON.parse(ev.data);
+                  if (payload.type === 'output') {
+                      terminal.write(payload.data || '');
+                  } else if (payload.type === 'status') {
+                      let msg = payload.message || '';
+                      if (msg.includes('连接成功') && connectionStartTime > 0) {
+                          const duration = Date.now() - connectionStartTime;
+                          msg += ` (耗时: ${formatDuration(duration)})`;
+                          connectionStartTime = 0;
+                      }
+                      writeLine(`\r\n[系统] ${msg}`);
+                  } else if (payload.type === 'error') {
+                      writeLine(`\r\n[错误] ${payload.message || ''}`);
+                  }
+              } catch (e) {
+                  terminal.write(ev.data || '');
+              }
+          };
+          
+          socket.onclose = function() {
+              writeLine('\r\n连接已关闭');
+          };
+          
+          socket.onerror = function() {
+              writeLine('\r\n连接异常');
+          };
+      }
+
+      if (window.ResizeObserver) {
+          resizeObserver = new ResizeObserver(() => {
+              if (fitAddon) {
+                  fitAddon.fit();
+                  sendResize();
+              }
+          });
+          resizeObserver.observe(container);
+      }
+      
+      window.addEventListener('resize', () => {
+           if (fitAddon) {
+               fitAddon.fit();
+               sendResize();
+           }
+      });
+
+      reconnectBtn.addEventListener('click', connect);
+      
+      // Export Log
+      exportBtn.addEventListener('click', () => {
+          if (!terminal) return;
+          
+          let logContent = '';
+          const buffer = terminal.buffer.active;
+          for (let i = 0; i < buffer.length; i++) {
+              logContent += buffer.getLine(i).translateToString(true) + '\n';
+          }
+          
+          const blob = new Blob([logContent], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          a.download = `webshell-${deviceName}-${timestamp}.log`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      });
+
+      // Font Zoom
+      zoomInBtn.addEventListener('click', () => {
+          if (terminal) {
+              terminal.options.fontSize = (terminal.options.fontSize || 14) + 1;
+              if (fitAddon) {
+                  fitAddon.fit();
+                  sendResize();
+              }
+          }
+      });
+
+      zoomOutBtn.addEventListener('click', () => {
+          if (terminal) {
+              const current = terminal.options.fontSize || 14;
+              if (current > 8) {
+                  terminal.options.fontSize = current - 1;
+                  if (fitAddon) {
+                      fitAddon.fit();
+                      sendResize();
+                  }
+              }
+          }
+      });
+
+      function showPasteModal() {
+          if (!pasteModal) return;
+          pasteContent.value = '';
+          navigator.clipboard.readText().then(text => {
+              pasteContent.value = text;
+              pasteModal.show();
+          }).catch(err => {
+              console.error('Read clipboard failed:', err);
+              // Still show modal so user can manually paste
+              pasteModal.show();
+          });
+      }
+
+      confirmPasteBtn.addEventListener('click', () => {
+          const text = pasteContent.value;
+          if (text) {
+              if (socket && socket.readyState === 1) {
+                  socket.send(JSON.stringify({ type: 'input', data: text }));
+              }
+          }
+          if (pasteModal) pasteModal.hide();
+          if (terminal) terminal.focus();
+      });
+
+      // Intercept Paste (Ctrl+V) within terminal context
+      // Note: xterm.js handles paste via hidden textarea. We intercept it at capture phase or prevent default.
+      container.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+               e.preventDefault();
+               e.stopPropagation();
+               showPasteModal();
+          }
+      }, true); // Use capture to intercept before xterm
+
+      // Also intercept context menu paste if possible, but 'paste' event is better for that
+      container.addEventListener('paste', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Get data from event if available, otherwise use clipboard API
+          let text = (e.clipboardData || window.clipboardData).getData('text');
+          if (text) {
+              pasteContent.value = text;
+              if (pasteModal) pasteModal.show();
+          } else {
+              showPasteModal();
+          }
+      }, true);
+
+      // Auto connect
+      connect();
+  });
+</script>
+{% endblock %}

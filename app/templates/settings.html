@@ -5,7 +5,7 @@
 {% block content %}
   <div class="card border shadow-sm">
     <div class="card-body p-4">
-      {% if is_admin %}
+      {% if has_permission('settings.update') %}
         <form method="post" action="/settings">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           

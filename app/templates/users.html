@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import render_pagination %}
 {% set page_title = "用户管理" %}
-{% set page_subtitle = "管理员/只读 用户与密码管理" %}
+{% set page_subtitle = "管理系统登录账号与角色分配" %}
 
 {% block content %}
   <div class="card border-0 shadow-sm">
@@ -23,10 +23,11 @@
           <thead>
             <tr>
               <th style="width: 80px;">ID</th>
-              <th>用户名</th>
-              <th style="width: 140px;">角色</th>
+              <th style="width: 180px;">用户名</th>
+              <th style="width: 160px;">角色</th>
+              <th style="width: 120px;">MFA</th>
               <th style="width: 220px;">创建时间</th>
-              <th style="width: 220px;">操作</th>
+              <th style="width: 200px;">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -35,17 +36,23 @@
                 <td>{{ u.id }}</td>
                 <td>{{ u.username }}</td>
                 <td>
-                  {% if u.role == 'admin' %}
+                  {% set role_info = role_map.get(u.role) %}
+                  {% set role_label = role_info.name if role_info else u.role %}
+                  {% if u.role in admin_role_codes %}
                     <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;">
-                      <i class="bi bi-person-badge-fill"></i>系统管理员
+                      <i class="bi bi-person-badge-fill"></i>{{ role_label }}
                     </div>
                   {% elif u.role == 'operator' %}
                     <div class="backup-status" style="background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); border-color: var(--bs-success-border-subtle); font-size: 10px;">
-                      <i class="bi bi-gear-fill"></i>操作员
+                      <i class="bi bi-gear-fill"></i>{{ role_label }}
+                    </div>
+                  {% elif u.role == 'readonly' %}
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">
+                      <i class="bi bi-person-fill"></i>{{ role_label }}
                     </div>
                   {% else %}
-                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">
-                      <i class="bi bi-person-fill"></i>只读用户
+                    <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">
+                      <i class="bi bi-person-gear"></i>{{ role_label }}
                     </div>
                   {% endif %}
                   {% if u.group_access_type == 'specific' %}
@@ -54,24 +61,43 @@
                     </span>
                   {% endif %}
                 </td>
+                <td>
+                  {% if u.mfa_enabled %}
+                    {% if u.mfa_secret %}
+                      <span class="badge bg-success-subtle text-success border border-success-subtle">已启用</span>
+                    {% else %}
+                      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">待绑定</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">未启用</span>
+                  {% endif %}
+                </td>
                 <td class="text-secondary small">{{ u.created_at|dt_local }}</td>
                 <td class="text-nowrap">
                   <div class="d-flex gap-1 text-nowrap">
                     <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/users?edit={{ u.id }}">
                       <i class="bi bi-pencil me-1"></i>编辑
                     </a>
-                    <form method="post" action="/users/{{ u.id }}/delete" class="d-inline m-0 text-nowrap">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                      <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此用户吗？">
-                        <i class="bi bi-trash me-1"></i>删除
-                      </button>
-                    </form>
+                    {% if u.username != 'admin' %}
+                      <form method="post" action="/users/{{ u.id }}/delete" class="d-inline m-0 text-nowrap">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此用户吗？">
+                          <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                      </form>
+                    {% else %}
+                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="系统管理员账号不可删除">
+                        <button class="btn btn-sm btn-outline-secondary px-2 text-nowrap disabled" type="button" style="pointer-events: none;">
+                          <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                      </span>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="5" class="text-center text-secondary py-4">暂无用户</td>
+                <td colspan="6" class="text-center text-secondary py-4">暂无用户</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -83,9 +109,9 @@
   </div>
 
   <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content shadow-lg border-0">
-        <form method="post" action="/users">
+        <form method="post" action="/users" id="userForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           <input type="hidden" name="user_id" value="{{ current.id if current else 0 }}" />
           <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
@@ -97,73 +123,192 @@
           </div>
           <div class="modal-body p-4">
             <div class="row g-4">
-              <div class="col-12">
+              <div class="col-md-6">
                 <label class="form-label small fw-bold text-secondary">
                   <i class="bi bi-person me-1"></i>用户名
                 </label>
-                <input name="username" class="form-control form-control-lg fs-6" placeholder="请输入用户名" value="{{ current.username if current else '' }}" required />
+                <input name="username" id="usernameInput" class="form-control" placeholder="请输入用户名" value="{{ current.username if current else '' }}" {% if current and current.username == 'admin' %}readonly{% endif %} required />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-key me-1"></i>登录密码
+                </label>
+                <input name="password" type="password" class="form-control" {{ 'required' if not current else '' }} />
+                {% if current %}
+                  <div class="form-text x-small mt-1">留空表示不修改</div>
+                {% else %}
+                  <div class="form-text x-small mt-1">密码长度建议不少于 8 位</div>
+                {% endif %}
               </div>
               <div class="col-12">
                 <label class="form-label small fw-bold text-secondary">
                   <i class="bi bi-shield-lock me-1"></i>用户角色
                 </label>
-                <select name="role" class="form-select form-select-lg fs-6">
-                  <option value="admin" {% if current and current.role == 'admin' %}selected{% endif %}>系统管理员 (Full Access)</option>
-                  <option value="operator" {% if current and current.role == 'operator' %}selected{% endif %}>操作员 (Operate Only)</option>
-                  <option value="readonly" {% if not current or current.role == 'readonly' %}selected{% endif %}>只读用户 (View Only)</option>
+                <select name="role" class="form-select" {% if current and current.username == 'admin' %}disabled{% endif %}>
+                  {% if not current %}
+                    <option value="" selected disabled>请选择角色</option>
+                  {% endif %}
+                  {% for r in roles %}
+                    <option value="{{ r.code }}" {% if current and current.role == r.code %}selected{% endif %}>
+                      {{ r.name }}{% if r.is_admin %} (Full Access){% endif %}
+                    </option>
+                  {% endfor %}
                 </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-key me-1"></i>登录密码
-                </label>
-                <input name="password" type="password" class="form-control form-control-lg fs-6" {{ 'required' if not current else '' }} />
-                {% if current %}
-                  <div class="form-text x-small mt-2">留空表示不修改</div>
-                {% else %}
-                  <div class="form-text x-small mt-2">密码长度建议不少于 8 位</div>
-                {% endif %}
               </div>
 
               <div class="col-12">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-shield-check me-1"></i>MFA 认证
+                </label>
+                <div class="card bg-light-subtle border-0">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="mfa_enabled" id="mfaEnabled" value="1"
+                          {% if current and current.mfa_enabled %}checked{% endif %}>
+                        <label class="form-check-label small fw-medium" for="mfaEnabled">启用 MFA 验证</label>
+                      </div>
+                      {% if current and current.mfa_enabled %}
+                        {% if current.mfa_secret %}
+                          <span class="badge bg-success-subtle text-success border border-success-subtle">已启用</span>
+                        {% else %}
+                          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">待绑定</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">未启用</span>
+                      {% endif %}
+                    </div>
+
+                    <div id="mfaSetupPanel" style="display: {{ 'block' if not current or (current and not current.mfa_enabled) or (current and current.mfa_enabled and not current.mfa_secret) else 'none' }};">
+                      <div class="form-text x-small text-secondary mt-0">
+                        启用后，用户首次登录时将提示扫描二维码绑定验证器（如使用Microsoft Authenticator），并输入验证码完成配置。
+                      </div>
+                    </div>
+                    
+                    {% if current and current.mfa_enabled %}
+                      <div class="form-check mb-2 ms-1">
+                        <input class="form-check-input" type="checkbox" name="mfa_reset" id="mfaReset" value="1">
+                        <label class="form-check-label small text-secondary" for="mfaReset">重置 MFA 密钥</label>
+                      </div>
+                    {% endif %}
+
+                    {% if current and current.mfa_enabled and current.username != 'admin' %}
+                      <div class="form-text x-small text-secondary mt-1">
+                        用户丢失验证器时，可由管理员在此取消启用后重新登录绑定。
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              {% if current and current.role in admin_role_codes %}
+                <div class="col-12">
                   <label class="form-label small fw-bold text-secondary">
-                      <i class="bi bi-diagram-3 me-1"></i>分组访问权限
+                    <i class="bi bi-key-fill me-1"></i>恢复码
                   </label>
-                  <div class="card p-3 bg-light-subtle border-0">
-                      <div class="d-flex gap-4 mb-2">
-                          <div class="form-check">
-                              <input class="form-check-input" type="radio" name="group_access_type" id="userAccessAll" value="all" 
-                                  {% if not current or current.group_access_type == 'all' %}checked{% endif %}
-                                  onchange="document.getElementById('userGroupSelectPanel').style.display = 'none'">
-                              <label class="form-check-label small" for="userAccessAll">所有分组 (无限制)</label>
+                  <div class="card bg-light-subtle border-0">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                          <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" name="recovery_codes_enabled" id="recoveryCodesEnabled" value="1"
+                              {% if current and current.recovery_codes_enabled %}checked{% endif %}>
+                            <label class="form-check-label small fw-medium" for="recoveryCodesEnabled">启用恢复码</label>
                           </div>
-                          <div class="form-check">
-                              <input class="form-check-input" type="radio" name="group_access_type" id="userAccessSpecific" value="specific"
-                                  {% if current and current.group_access_type == 'specific' %}checked{% endif %}
-                                  onchange="document.getElementById('userGroupSelectPanel').style.display = 'block'">
-                              <label class="form-check-label small" for="userAccessSpecific">指定分组</label>
+                          <span class="badge bg-body-secondary text-secondary border fw-normal" style="font-size: 0.75rem;">已生成 {{ recovery_codes_count }} 枚</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary bg-white py-0" style="font-size: 0.8rem;" type="submit" name="recovery_codes_generate" value="1">
+                          <i class="bi bi-arrow-clockwise me-1"></i>生成恢复码
+                        </button>
+                      </div>
+                      
+                      <div class="form-text x-small text-secondary mt-0">
+                        恢复码作为管理员启用MFA后一组一次性使用的备用验证码，生成后旧恢复码将立即失效，每个恢复码也只能使用一次，使用过则失效
+                      </div>
+
+                      {% if recovery_codes %}
+                        <div class="mt-3 pt-3 border-top border-secondary-subtle">
+                          <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-danger fw-medium" style="font-size: 0.8rem;">
+                              <i class="bi bi-exclamation-circle me-1"></i>仅显示一次，请立即保存
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary bg-white py-0" style="font-size: 0.8rem;" type="button" id="copyRecoveryCodes" data-codes="{{ recovery_codes|join('\n') }}">
+                              <i class="bi bi-clipboard me-1"></i>复制恢复码
+                            </button>
+                          </div>
+                          <div class="p-2 bg-body rounded border d-flex flex-wrap gap-2 font-monospace" style="max-height: 120px; overflow-y: auto;">
+                            {% for code in recovery_codes %}
+                              <span class="badge bg-light text-dark border fw-normal user-select-all">{{ code }}</span>
+                            {% endfor %}
+                          </div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+
+              <div class="col-12">
+                  <label class="form-label small fw-bold text-secondary">
+                      <i class="bi bi-diagram-3 me-1"></i>设备分组访问权限
+                  </label>
+                  <div class="card bg-light-subtle border-0">
+                      <div class="card-header bg-transparent border-0 pt-3 pb-2">
+                          <div class="d-flex gap-4">
+                              <div class="form-check">
+                                  <input class="form-check-input" type="radio" name="group_access_type" id="userAccessAll" value="all" 
+                                      {% if not current or current.group_access_type == 'all' %}checked{% endif %}
+                                      {% if current and current.username == 'admin' %}disabled{% endif %}
+                                      onchange="toggleGroupSelect(false)">
+                                  <label class="form-check-label small" for="userAccessAll">所有分组 (无限制)</label>
+                              </div>
+                              <div class="form-check">
+                                  <input class="form-check-input" type="radio" name="group_access_type" id="userAccessSpecific" value="specific"
+                                      {% if current and current.group_access_type == 'specific' %}checked{% endif %}
+                                      {% if current and current.username == 'admin' %}disabled{% endif %}
+                                      onchange="toggleGroupSelect(true)">
+                                  <label class="form-check-label small" for="userAccessSpecific">指定分组</label>
+                              </div>
                           </div>
                       </div>
       
-                      <div id="userGroupSelectPanel" class="mt-2 ps-3 border-start border-3 border-primary-subtle" style="display: {{ 'block' if current and current.group_access_type == 'specific' else 'none' }};">
-                          <div class="small text-secondary mb-2">请选择允许访问的分组:</div>
-                          <div class="row row-cols-2 row-cols-md-3 g-2">
-                               <div class="col">
-                                  <div class="form-check">
-                                      <input class="form-check-input" type="checkbox" name="allowed_group_ids" value="-1" id="u_g_ungrouped"
-                                          {% if current and '-1' in current_allowed_ids %}checked{% endif %}>
-                                      <label class="form-check-label small" for="u_g_ungrouped">未分组设备</label>
-                                  </div>
-                               </div>
-                              {% for g in groups %}
-                               <div class="col">
-                                  <div class="form-check">
-                                      <input class="form-check-input" type="checkbox" name="allowed_group_ids" value="{{ g.id }}" id="u_g_{{ g.id }}"
-                                          {% if current and g.id|string in current_allowed_ids %}checked{% endif %}>
-                                      <label class="form-check-label small" for="u_g_{{ g.id }}">{{ g.name }}</label>
-                                  </div>
-                               </div>
-                              {% endfor %}
+                      <div id="userGroupSelectPanel" class="card-body pt-0" style="display: {{ 'block' if current and current.group_access_type == 'specific' else 'none' }};">
+                          <div class="row align-items-center g-2">
+                              <div class="col-5">
+                                  <div class="small text-secondary mb-1">可选分组</div>
+                                  <select id="source_groups" class="form-select" multiple size="8" {% if current and current.username == 'admin' %}disabled{% endif %}>
+                                      {% if current and '-1' not in current_allowed_ids or not current %}
+                                        <option value="-1">未分组设备</option>
+                                      {% endif %}
+                                      {% for g in groups %}
+                                          {% if not current or g.id|string not in current_allowed_ids %}
+                                            <option value="{{ g.id }}">{{ g.name }}</option>
+                                          {% endif %}
+                                      {% endfor %}
+                                  </select>
+                              </div>
+                              <div class="col-2 d-flex flex-column align-items-center justify-content-center gap-2">
+                                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnAllRight" title="全部添加"><i class="bi bi-chevron-double-right"></i></button>
+                                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnRight" title="添加"><i class="bi bi-chevron-right"></i></button>
+                                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnLeft" title="移除"><i class="bi bi-chevron-left"></i></button>
+                                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnAllLeft" title="全部移除"><i class="bi bi-chevron-double-left"></i></button>
+                              </div>
+                              <div class="col-5">
+                                  <div class="small text-secondary mb-1">已选分组</div>
+                                  <select id="dest_groups" name="allowed_group_ids" class="form-select" multiple size="8" {% if current and current.username == 'admin' %}disabled{% endif %}>
+                                      {% if current and '-1' in current_allowed_ids %}
+                                        <option value="-1">未分组设备</option>
+                                      {% endif %}
+                                      {% for g in groups %}
+                                          {% if current and g.id|string in current_allowed_ids %}
+                                            <option value="{{ g.id }}">{{ g.name }}</option>
+                                          {% endif %}
+                                      {% endfor %}
+                                  </select>
+                              </div>
+                          </div>
+                          <div class="form-text x-small mt-2 text-center text-secondary">
+                              <i class="bi bi-info-circle me-1"></i>按住 Ctrl 或 Shift 可多选，双击可快速移动
                           </div>
                       </div>
                   </div>
@@ -183,7 +328,15 @@
   </div>
 
   <script>
+    function toggleGroupSelect(show) {
+        document.getElementById('userGroupSelectPanel').style.display = show ? 'block' : 'none';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+      // Initialize tooltips
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
       const modalEl = document.getElementById('userModal');
       const userModal = new bootstrap.Modal(modalEl);
       
@@ -196,6 +349,121 @@
           window.location.href = '/users';
         }
       });
+
+      // Dual Listbox Logic
+      const sourceSelect = document.getElementById('source_groups');
+      const destSelect = document.getElementById('dest_groups');
+      const btnRight = document.getElementById('btnRight');
+      const btnAllRight = document.getElementById('btnAllRight');
+      const btnLeft = document.getElementById('btnLeft');
+      const btnAllLeft = document.getElementById('btnAllLeft');
+      const userForm = document.getElementById('userForm');
+      const mfaEnabled = document.getElementById('mfaEnabled');
+      const mfaReset = document.getElementById('mfaReset');
+      const mfaSetupPanel = document.getElementById('mfaSetupPanel');
+      const copyRecoveryCodes = document.getElementById('copyRecoveryCodes');
+
+      function moveOptions(src, dest, all = false) {
+          const options = Array.from(src.options);
+          options.forEach(option => {
+              if (all || option.selected) {
+                  dest.appendChild(option);
+                  option.selected = false; // Reset selection after move
+              }
+          });
+          sortSelect(dest);
+      }
+
+      function sortSelect(select) {
+          const options = Array.from(select.options);
+          options.sort((a, b) => {
+             // Keep "Ungrouped Devices" (-1) at the top always, if present
+             if (a.value === "-1") return -1;
+             if (b.value === "-1") return 1;
+             return a.text.localeCompare(b.text);
+          });
+          // Re-append sorted options
+          options.forEach(opt => select.appendChild(opt));
+      }
+
+      if (sourceSelect && destSelect) {
+          btnRight.addEventListener('click', () => moveOptions(sourceSelect, destSelect));
+          btnAllRight.addEventListener('click', () => moveOptions(sourceSelect, destSelect, true));
+          btnLeft.addEventListener('click', () => moveOptions(destSelect, sourceSelect));
+          btnAllLeft.addEventListener('click', () => moveOptions(destSelect, sourceSelect, true));
+
+          // Double click handlers
+          sourceSelect.addEventListener('dblclick', () => moveOptions(sourceSelect, destSelect));
+          destSelect.addEventListener('dblclick', () => moveOptions(destSelect, sourceSelect));
+
+          // Select all in destination before submit
+          userForm.addEventListener('submit', function() {
+              Array.from(destSelect.options).forEach(opt => opt.selected = true);
+          });
+      }
+
+      function refreshMfaPanel() {
+        if (!mfaSetupPanel || !mfaEnabled) {
+          return;
+        }
+        if (!mfaEnabled.checked) {
+          mfaSetupPanel.style.display = 'none';
+          if (mfaReset) {
+            mfaReset.checked = false;
+          }
+          return;
+        }
+        if (mfaReset && mfaReset.checked) {
+          mfaSetupPanel.style.display = 'none';
+          return;
+        }
+        mfaSetupPanel.style.display = 'block';
+      }
+
+      if (mfaEnabled) {
+        mfaEnabled.addEventListener('change', refreshMfaPanel);
+      }
+      if (mfaReset) {
+        mfaReset.addEventListener('change', refreshMfaPanel);
+      }
+      refreshMfaPanel();
+
+      if (copyRecoveryCodes) {
+        copyRecoveryCodes.addEventListener('click', async function() {
+          const codes = (copyRecoveryCodes.dataset.codes || '').trim();
+          if (!codes) {
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(codes);
+            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.classList.remove('btn-outline-secondary');
+            copyRecoveryCodes.classList.add('btn-success');
+            setTimeout(() => {
+              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.classList.add('btn-outline-secondary');
+              copyRecoveryCodes.classList.remove('btn-success');
+            }, 1500);
+          } catch (err) {
+            const fallback = document.createElement('textarea');
+            fallback.value = codes;
+            fallback.style.position = 'fixed';
+            fallback.style.opacity = '0';
+            document.body.appendChild(fallback);
+            fallback.select();
+            document.execCommand('copy');
+            document.body.removeChild(fallback);
+            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.classList.remove('btn-outline-secondary');
+            copyRecoveryCodes.classList.add('btn-success');
+            setTimeout(() => {
+              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.classList.add('btn-outline-secondary');
+              copyRecoveryCodes.classList.remove('btn-success');
+            }, 1500);
+          }
+        });
+      }
     });
   </script>
 {% endblock %}

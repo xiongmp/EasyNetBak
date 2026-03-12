@@ -11,7 +11,7 @@
         <a class="btn btn-outline-secondary btn-sm border-0" href="/schedules" title="返回列表">
           <i class="bi bi-arrow-left fs-5"></i>
         </a>
-        {% if is_admin and schedule %}
+        {% if has_permission('schedules.update') and has_permission('backups.trigger') and schedule %}
           <button class="btn btn-primary btn-sm px-3 js-schedule-run" type="button" data-schedule-id="{{ schedule.id }}">
             <i class="bi bi-play-fill me-1"></i>手动执行
           </button>
@@ -310,7 +310,7 @@
     </div>
   </div>
  
-  {% if is_admin and schedule %}
+  {% if has_permission('schedules.update') and has_permission('backups.trigger') and schedule %}
     <script>
       (function () {
         const btn = document.querySelector(".js-schedule-run");

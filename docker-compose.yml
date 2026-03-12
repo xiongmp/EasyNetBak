@@ -48,7 +48,7 @@ services:
   worker:
     build: .
     restart: always
-    command: celery -A app.celery_app.celery_app worker --loglevel=info -P eventlet -c 100
+    command: celery -A app.celery_app.celery_app worker --loglevel=info -P prefork -c 50
     env_file:
       - .env
     volumes:

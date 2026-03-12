@@ -2,13 +2,17 @@
 {% from "macros.html" import render_pagination %}
 {% set page_title = "定时任务" %}
 {% set page_subtitle = "创建定时备份任务，支持按设备/分组/平台选择目标" %}
+{% set can_schedule_create = has_permission('schedules.create') %}
+{% set can_schedule_update = has_permission('schedules.update') %}
+{% set can_schedule_delete = has_permission('schedules.delete') %}
+{% set can_schedule_write = can_schedule_create or can_schedule_update %}
 
 {% block head %}
 {% endblock %}
 
 {% block content %}
   
-  {% if is_operator %}
+  {% if can_schedule_write %}
     <!-- 定时任务配置弹窗 -->
     <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -145,7 +149,7 @@
       <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
         <div class="fw-bold text-body">任务列表</div>
         <div class="d-flex gap-2">
-          {% if is_operator %}
+          {% if can_schedule_create %}
             <button type="button" class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#scheduleModal">
               <i class="bi bi-plus-circle me-1"></i>新建定时任务
             </button>
@@ -187,7 +191,7 @@
                   <div class="form-check form-switch mb-0 d-flex flex-column align-items-start ps-0" style="width: fit-content;">
                     <input class="form-check-input js-schedule-toggle ms-0" type="checkbox" role="switch" 
                            data-schedule-id="{{ s.id }}" {% if s.enabled %}checked{% endif %}
-                           {% if not is_operator %}disabled{% endif %}
+                           {% if not can_schedule_update %}disabled{% endif %}
                            style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
                     <label class="form-check-label small fw-medium js-toggle-label mt-1" style="cursor: pointer; font-size: 0.75rem;">
                       {{ '已开启' if s.enabled else '已禁用' }}
@@ -244,13 +248,13 @@
                 </td>
                 <td class="pe-4 text-nowrap text-start">
                   <div class="d-flex gap-1 align-items-center text-nowrap justify-content-start">
-                    {% if is_operator %}
+                    {% if can_schedule_update %}
                       <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/schedules?edit={{ s.id }}">
                         <i class="bi bi-pencil me-1"></i>编辑
                       </a>
                     {% endif %}
 
-                    {% if is_operator %}
+                    {% if can_schedule_update and has_permission('backups.trigger') %}
                       <button class="btn btn-sm btn-outline-success px-2 js-schedule-run text-nowrap" type="button" data-schedule-id="{{ s.id }}">
                         <i class="bi bi-play me-1"></i>手动执行
                       </button>
@@ -260,7 +264,7 @@
                       <i class="bi bi-bar-chart me-1"></i>统计
                     </a>
 
-                    {% if is_operator %}
+                    {% if can_schedule_delete %}
                       <form method="post" action="/schedules/{{ s.id }}/delete" class="m-0 d-inline text-nowrap">
                         <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此定时任务吗？">
                           <i class="bi bi-trash me-1"></i>删除
@@ -497,7 +501,7 @@
       }
     })();
   </script>
-  {% if is_operator %}
+  {% if can_schedule_update %}
     <script>
       (function () {
         const btns = Array.from(document.querySelectorAll(".js-schedule-run"));

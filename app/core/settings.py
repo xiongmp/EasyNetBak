@@ -94,8 +94,11 @@ class Settings(BaseSettings):
     
     # 认证 Cookie 名称
     auth_cookie_name: str = Field("nb_session", alias="AUTH_COOKIE_NAME")
-    # 会话有效期(秒)，默认7天
-    session_ttl_seconds: int = Field(604800, alias="SESSION_TTL_SECONDS")
+    auth_cookie_secure: bool = Field(False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_samesite: str = Field("lax", alias="AUTH_COOKIE_SAMESITE")
+    auth_cookie_persistent: bool = Field(False, alias="AUTH_COOKIE_PERSISTENT")
+    # 会话有效期(秒)，默认2小时
+    session_ttl_seconds: int = Field(7200, alias="SESSION_TTL_SECONDS")
     # 初始管理员用户名 (仅在初始化时使用)
     bootstrap_admin_username: str = Field("admin", alias="BOOTSTRAP_ADMIN_USERNAME")
     # 初始管理员密码 (仅在初始化时使用)

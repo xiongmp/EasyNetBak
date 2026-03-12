@@ -2,13 +2,17 @@
 {% from "macros.html" import render_pagination %}
 {% set page_title = "分组管理" %}
 {% set page_subtitle = "用于按区域/业务/类型组织设备（便于批量操作）" %}
+{% set can_group_create = has_permission('groups.create') %}
+{% set can_group_update = has_permission('groups.update') %}
+{% set can_group_delete = has_permission('groups.delete') %}
+{% set can_group_write = can_group_create or can_group_update %}
 
 {% block content %}
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="small text-secondary">分组列表</div>
-        {% if is_operator %}
+        {% if can_group_create %}
           <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#groupCreateModal">
             <i class="bi bi-plus-lg me-1"></i>新增分组
           </button>
@@ -37,21 +41,25 @@
                 </td>
                 <td class="text-secondary small text-nowrap text-start">{{ g.created_at|dt_local }}</td>
                 <td class="text-start text-nowrap">
-                  {% if is_operator %}
+                  {% if can_group_update or can_group_delete %}
                     <div class="d-flex gap-1 justify-content-start text-nowrap">
-                      <button class="btn btn-sm btn-outline-primary px-2 text-nowrap" 
-                              type="button" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#groupCreateModal"
-                              data-bs-id="{{ g.id }}"
-                              data-bs-name="{{ g.name }}">
-                        <i class="bi bi-pencil me-1"></i>编辑
-                      </button>
-                      <form method="post" action="/groups/{{ g.id }}/delete" class="m-0 text-nowrap">
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？">
-                          <i class="bi bi-trash me-1"></i>删除
+                      {% if can_group_update %}
+                        <button class="btn btn-sm btn-outline-primary px-2 text-nowrap" 
+                                type="button" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#groupCreateModal"
+                                data-bs-id="{{ g.id }}"
+                                data-bs-name="{{ g.name }}">
+                          <i class="bi bi-pencil me-1"></i>编辑
                         </button>
-                      </form>
+                      {% endif %}
+                      {% if can_group_delete %}
+                        <form method="post" action="/groups/{{ g.id }}/delete" class="m-0 text-nowrap">
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？">
+                            <i class="bi bi-trash me-1"></i>删除
+                          </button>
+                        </form>
+                      {% endif %}
                     </div>
                   {% else %}
                     <span class="text-secondary small text-nowrap text-start">只读</span>
@@ -71,7 +79,7 @@
     </div>
   </div>
 
-  {% if is_operator %}
+  {% if can_group_write %}
     <div class="modal fade" id="groupCreateModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">

@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% set page_title = "角色管理" %}
+{% set page_subtitle = "维护系统角色与权限分配" %}
+
+{% block content %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="small text-secondary">角色列表</div>
+        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#roleModal">
+          <i class="bi bi-plus-lg me-1"></i>新增角色
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th style="width: 80px;">ID</th>
+              <th style="width: 180px;">角色名称</th>
+              <th style="width: 160px;">角色标识</th>
+              <th style="width: 160px;">权限</th>
+              <th style="width: 120px;">用户数</th>
+              <th style="width: 120px;">类型</th>
+              <th style="width: 200px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in items %}
+              {% set perm_count = r.permissions.split(',')|length if r.permissions else 0 %}
+              <tr>
+                <td>{{ r.id }}</td>
+                <td>{{ r.name }}</td>
+                <td class="text-secondary small">{{ r.code }}</td>
+                <td>
+                  {% if r.code in admin_role_codes %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal">全部权限</span>
+                  {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">{{ perm_count }} 项</span>
+                  {% endif %}
+                </td>
+                <td class="text-secondary small">{{ usage.get(r.code, 0) }}</td>
+                <td>
+                  {% if r.is_system or r.code in admin_role_codes %}
+                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill fw-normal">系统内置</span>
+                  {% else %}
+                    <span class="badge bg-light text-secondary border rounded-pill fw-normal">自定义</span>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">
+                  <div class="d-flex gap-1 text-nowrap">
+                    <button
+                      class="btn btn-sm btn-outline-primary px-2 text-nowrap"
+                      type="button"
+                      data-bs-toggle="modal"
+                      data-bs-target="#roleModal"
+                      data-bs-id="{{ r.id }}"
+                      data-bs-code="{{ r.code }}"
+                      data-bs-name="{{ r.name }}"
+                      data-bs-perms="{{ r.permissions or '' }}"
+                      data-bs-admin="{{ '1' if r.code in admin_role_codes else '0' }}"
+                    >
+                      <i class="bi bi-pencil me-1"></i>编辑
+                    </button>
+                    {% if r.code not in admin_role_codes %}
+                      <form method="post" action="/roles/{{ r.id }}/delete" class="d-inline m-0 text-nowrap">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此角色吗？">
+                          <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                      </form>
+                    {% else %}
+                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="系统内置角色不可删除">
+                        <button class="btn btn-sm btn-outline-secondary px-2 text-nowrap disabled" type="button" style="pointer-events: none;">
+                          <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                      </span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7" class="text-center text-secondary py-4">暂无角色</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="roleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0">
+        <form method="post" action="/roles" id="roleForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="role_id" id="roleId" value="0" />
+          <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
+            <h5 class="modal-title d-flex align-items-center">
+              <i class="bi bi-person-badge text-primary me-2"></i>
+              <span id="roleModalTitle">新增角色</span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="row g-4">
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-tag me-1"></i>角色名称
+                </label>
+                <input name="name" id="roleName" class="form-control form-control-lg fs-6" placeholder="例如：审计管理员" required />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-code-slash me-1"></i>角色标识
+                </label>
+                <input name="code" id="roleCode" class="form-control form-control-lg fs-6" placeholder="例如：audit_admin" required />
+                <div class="form-text x-small mt-2">角色标识用于系统匹配，可修改并同步更新已分配用户</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-sliders me-1"></i>权限分配
+                </label>
+                <div class="card p-3 bg-light-subtle border-0">
+                  <div class="small text-secondary mb-3" id="rolePermTips">从左侧选择权限加入右侧</div>
+                  <div class="row g-3 align-items-center">
+                    <div class="col-12 col-md-5">
+                      <div class="small text-secondary mb-2">可用权限</div>
+                      <input type="text" id="rolePermSearch" class="form-control form-control-sm mb-2" placeholder="搜索权限..." />
+                      <select id="rolePermAvailable" class="form-select" size="12" multiple></select>
+                    </div>
+                    <div class="col-12 col-md-2 d-flex flex-md-column gap-2 justify-content-center">
+                      <button class="btn btn-outline-primary btn-sm" id="rolePermAdd" type="button">
+                        <i class="bi bi-chevron-right"></i>
+                      </button>
+                      <button class="btn btn-outline-secondary btn-sm" id="rolePermRemove" type="button">
+                        <i class="bi bi-chevron-left"></i>
+                      </button>
+                    </div>
+                    <div class="col-12 col-md-5">
+                      <div class="small text-secondary mb-2">已选权限</div>
+                      <input type="text" id="rolePermSearchSelected" class="form-control form-control-sm mb-2" placeholder="搜索已选..." />
+                      <select id="rolePermSelected" name="permission_codes" class="form-select" size="12" multiple></select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-body-tertiary border-top-0 py-3">
+            <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+            <button class="btn btn-primary px-5 shadow-sm" type="submit">
+              <i class="bi bi-check-lg me-1"></i>确认保存
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <select id="roleAllPermissions" class="d-none">
+    {% for p in permission_catalog %}
+      {% set group_label = permission_group_labels.get(p.group, p.group) %}
+      <option value="{{ p.code }}">{{ group_label }} / {{ p.name }}</option>
+    {% endfor %}
+  </select>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize tooltips
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+      const modal = document.getElementById('roleModal');
+      const allOptions = Array.from(document.querySelectorAll('#roleAllPermissions option')).map((opt) => ({
+        value: opt.value,
+        text: opt.textContent,
+      }));
+      const searchInput = document.getElementById('rolePermSearch');
+      const searchInputSelected = document.getElementById('rolePermSearchSelected');
+      const available = document.getElementById('rolePermAvailable');
+      const selected = document.getElementById('rolePermSelected');
+      const codeInput = document.getElementById('roleCode');
+      const nameInput = document.getElementById('roleName');
+      const roleIdInput = document.getElementById('roleId');
+      const title = document.getElementById('roleModalTitle');
+      const addBtn = document.getElementById('rolePermAdd');
+      const removeBtn = document.getElementById('rolePermRemove');
+      const tips = document.getElementById('rolePermTips');
+      const form = document.getElementById('roleForm');
+
+      // State to track selected permission codes
+      let currentSelectedSet = new Set();
+
+      function buildOptions(target, values) {
+        target.innerHTML = '';
+        values.forEach((item) => {
+          const opt = document.createElement('option');
+          opt.value = item.value;
+          opt.textContent = item.text;
+          target.appendChild(opt);
+        });
+      }
+
+      function renderAvailable() {
+        const query = (searchInput.value || '').toLowerCase().trim();
+        const filtered = allOptions.filter(item => {
+          if (currentSelectedSet.has(item.value)) return false;
+          return item.text.toLowerCase().includes(query);
+        });
+        buildOptions(available, filtered);
+      }
+
+      function renderSelected() {
+        const query = (searchInputSelected.value || '').toLowerCase().trim();
+        const filtered = allOptions.filter(item => {
+          if (!currentSelectedSet.has(item.value)) return false;
+          return item.text.toLowerCase().includes(query);
+        });
+        buildOptions(selected, filtered);
+      }
+
+      function renderAll() {
+        renderAvailable();
+        renderSelected();
+      }
+
+      function rebuildLists(selectedValues, locked) {
+        currentSelectedSet = new Set((selectedValues || []).filter((v) => v));
+        if (locked) {
+          // If locked, show all selected regardless of search (or clear search?)
+          // Usually better to just render normally but disable inputs
+        }
+        renderAll();
+      }
+
+      function setLocked(locked) {
+        available.disabled = locked;
+        selected.disabled = locked;
+        addBtn.disabled = locked;
+        removeBtn.disabled = locked;
+        searchInput.disabled = locked;
+        searchInputSelected.disabled = locked;
+      }
+
+      addBtn.addEventListener('click', function() {
+        const toAdd = Array.from(available.selectedOptions).map(opt => opt.value);
+        toAdd.forEach(val => currentSelectedSet.add(val));
+        renderAll();
+      });
+
+      removeBtn.addEventListener('click', function() {
+        const toRemove = Array.from(selected.selectedOptions).map(opt => opt.value);
+        toRemove.forEach(val => currentSelectedSet.delete(val));
+        renderAll();
+      });
+
+      searchInput.addEventListener('input', renderAvailable);
+      searchInputSelected.addEventListener('input', renderSelected);
+
+      modal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        const id = button ? (button.getAttribute('data-bs-id') || '0') : '0';
+        const code = button ? (button.getAttribute('data-bs-code') || '') : '';
+        const name = button ? (button.getAttribute('data-bs-name') || '') : '';
+        const perms = button ? (button.getAttribute('data-bs-perms') || '') : '';
+        const locked = button ? (button.getAttribute('data-bs-admin') === '1') : false;
+        const selectedValues = perms ? perms.split(',') : [];
+
+        roleIdInput.value = id;
+        codeInput.value = code;
+        nameInput.value = name;
+        codeInput.disabled = locked;
+        title.textContent = id !== '0' ? '编辑角色' : '新增角色';
+        tips.textContent = locked ? '系统管理员拥有全部权限，权限不可修改' : '从左侧选择权限加入右侧';
+
+        searchInput.value = '';
+        searchInputSelected.value = '';
+        rebuildLists(selectedValues, locked);
+        setLocked(locked);
+      });
+
+      form.addEventListener('submit', function() {
+        // Clear search to show all selected options
+        searchInputSelected.value = '';
+        renderSelected();
+        // Select all options for submission
+        Array.from(selected.options).forEach((opt) => {
+          opt.selected = true;
+        });
+      });
+    });
+  </script>
+{% endblock %}

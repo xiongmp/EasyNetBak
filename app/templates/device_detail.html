@@ -33,7 +33,7 @@
 
       <hr class="text-black-50 opacity-10 mb-3" />
 
-      {% if is_operator %}
+      {% if has_permission('devices.backup') %}
         <!-- 设备配置表单 -->
         <form method="post" action="/devices/{{ device.id }}/update">
           <div class="row g-3">
@@ -107,11 +107,11 @@
         </form>
       {% else %}
         <div class="alert alert-secondary mb-0 border-0 shadow-sm">
-          <i class="bi bi-lock-fill me-2"></i>只读账号不可修改设备信息
+          <i class="bi bi-lock-fill me-2"></i>当前账号无权限修改设备
         </div>
       {% endif %}
 
-      {% if is_operator %}
+      {% if has_permission('devices.backup') %}
         <hr class="text-black-50 opacity-10 my-3" />
 
         <!-- 立即备份操作 -->
@@ -138,9 +138,14 @@
             </div>
           </form>
         </div>
+      {% else %}
+        <hr class="text-black-50 opacity-10 my-3" />
+        <div class="alert alert-secondary mb-0 border-0 shadow-sm">
+          <i class="bi bi-lock-fill me-2"></i>当前账号无权限执行备份
+        </div>
       {% endif %}
 
-      {% if is_operator %}
+      {% if has_permission('devices.update') %}
         <script>
           (function () {
             const loginSelect = document.getElementById("device-update-login-method");
@@ -228,7 +233,7 @@
   </div>
 
   <script>
-    const IS_ADMIN = {{ "true" if is_admin else "false" }};
+    const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('devices.backup') else "false" }};
     const DEVICE_ID = {{ device.id }};
     const CURRENT_PAGE = {{ pagination.page }};
     const PAGE_LIMIT = {{ pagination.limit }};
@@ -339,7 +344,7 @@
       }
     })();
 
-    if (IS_ADMIN && els.form) {
+    if (CAN_TRIGGER_BACKUP && els.form) {
       els.form.addEventListener("submit", (ev) => {
         ev.preventDefault();
         

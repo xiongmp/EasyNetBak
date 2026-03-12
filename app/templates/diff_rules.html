@@ -4,7 +4,7 @@
 
 <div class="container-fluid px-0">
   <form method="post" action="/diff-rules" id="diff-rules-form">
-    {% if is_operator %}
+    {% if has_permission('diff_rules.update') %}
     <div class="d-flex flex-wrap gap-3 align-items-center justify-content-end mb-4">
       <div class="d-flex gap-2">
         <button type="button" class="btn btn-link text-secondary btn-sm text-decoration-none" id="btn-reset-default">

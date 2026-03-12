@@ -72,7 +72,7 @@ async def _auth_middleware(request, call_next):
         or path in {"/openapi.json", "/redoc"}
         or path in {"/@vite/client"}
     )
-    allow_anonymous = path in {"/login", "/logout", "/@vite/client", "/change-password"}
+    allow_anonymous = path in {"/login", "/logout", "/@vite/client", "/change-password", "/mfa-verify"}
 
     user = None
     request.state.user = None
@@ -104,11 +104,17 @@ async def _auth_middleware(request, call_next):
 
     if user is None:
         nxt = quote(str(request.url.path) + (("?" + request.url.query) if request.url.query else ""))
-        return RedirectResponse(url=f"/login?next={nxt}", status_code=303)
+        response = RedirectResponse(url=f"/login?next={nxt}", status_code=303)
+        if request.cookies.get(settings.auth_cookie_name):
+            response.delete_cookie(settings.auth_cookie_name, path="/")
+        return response
 
     # 强制修改密码逻辑：如果密码已过期且当前不在修改密码页面，则强制跳转
     if user.password_expired and path != "/change-password":
         return RedirectResponse(url="/change-password", status_code=303)
+
+    if user.mfa_enabled and not user.mfa_secret and path not in {"/mfa-setup", "/logout", "/change-password"}:
+        return RedirectResponse(url="/mfa-setup", status_code=303)
 
     return await call_next(request)
 
@@ -118,6 +124,7 @@ def _on_startup() -> None:
     setup_logging()
     init_db()
     with session_scope() as session:
+        crud.ensure_default_roles(session)
         if crud.count_users(session) == 0:
             crud.create_user(session, username=settings.bootstrap_admin_username, password=settings.bootstrap_admin_password, role="admin", password_expired=True)
     with session_scope() as session:

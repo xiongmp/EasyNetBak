@@ -17,8 +17,8 @@ from app.routers.common import (
     _dt_local_str,
     _layout_context,
     _log_action,
-    _require_admin,
-    _require_operator,
+    _require_permission,
+    _require_any_permission,
     _current_user,
     get_user_allowed_group_ids,
     templates,
@@ -31,6 +31,7 @@ router = APIRouter()
 
 @router.get("/schedules")
 def schedules_page(request: Request):
+    _require_permission(request, "schedules.view")
     page_raw = (request.query_params.get("page") or "1").strip()
     page = int(page_raw) if page_raw.isdigit() and int(page_raw) > 0 else 1
     limit_raw = (request.query_params.get("limit") or "10").strip()
@@ -92,7 +93,10 @@ def upsert_schedule(
     crontab: str = Form("0 2 * * *"),
     targets: str = Form(""),
 ):
-    _require_operator(request)
+    if schedule_id and int(schedule_id) > 0:
+        _require_permission(request, "schedules.update")
+    else:
+        _require_permission(request, "schedules.create")
     name = (name or "").strip()
     crontab = (crontab or "").strip()
     targets = targets or ""
@@ -139,7 +143,7 @@ def upsert_schedule(
 
 @router.post("/schedules/{schedule_id}/delete")
 def delete_schedule(request: Request, schedule_id: int):
-    _require_operator(request)
+    _require_permission(request, "schedules.delete")
     with session_scope() as session:
         sched = crud.get_schedule(session, schedule_id)
         name = sched.name if sched else f"ID: {schedule_id}"
@@ -151,6 +155,7 @@ def delete_schedule(request: Request, schedule_id: int):
 
 @router.get("/schedules/{schedule_id}/stats")
 def schedule_stats_page(request: Request, schedule_id: int):
+    _require_permission(request, "schedules.view")
     with session_scope() as session:
         schedule = crud.get_schedule(session, int(schedule_id))
         runs = crud.list_schedule_runs(session, int(schedule_id), limit=120)
@@ -256,7 +261,8 @@ def schedule_stats_page(request: Request, schedule_id: int):
 
 @router.post("/api/schedules/{schedule_id}/run")
 def api_run_schedule(request: Request, schedule_id: int):
-    _require_operator(request)
+    _require_permission(request, "schedules.update")
+    _require_permission(request, "backups.trigger")
     run_id, jobs = plan_schedule_run(schedule_id=int(schedule_id), trigger="manual")
     with session_scope() as session:
         _log_action(request, session, "TRIGGER_SCHEDULE_API", "schedule", schedule_id, f"Run ID: {run_id}, Jobs: {len(jobs)}")
@@ -270,7 +276,7 @@ def api_run_schedule(request: Request, schedule_id: int):
 
 @router.post("/api/schedules/{schedule_id}/toggle")
 def api_toggle_schedule(request: Request, schedule_id: int):
-    _require_operator(request)
+    _require_permission(request, "schedules.update")
     with session_scope() as session:
         schedule = crud.get_schedule(session, schedule_id)
         if not schedule:
@@ -290,7 +296,7 @@ def api_toggle_schedule(request: Request, schedule_id: int):
 
 @router.get("/api/schedules/targets/groups")
 def api_schedule_target_groups(request: Request):
-    _require_operator(request)
+    _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:
         groups = crud.list_groups(session)
         return [
@@ -306,7 +312,7 @@ def api_schedule_target_groups(request: Request):
 
 @router.get("/api/schedules/targets/platforms")
 def api_schedule_target_platforms(request: Request):
-    _require_operator(request)
+    _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:
         platforms = list(session.exec(select(Device.platform).where(Device.platform.is_not(None)).distinct()).all())
         return [
@@ -324,7 +330,7 @@ def api_schedule_target_devices(
     group_id: int = 0,
     limit: int = 80,
 ):
-    _require_operator(request)
+    _require_any_permission(request, ["schedules.create", "schedules.update"])
     q = (q or "").strip() or None
     platform = (platform or "").strip() or None
     group_id_val = int(group_id) if int(group_id or 0) > 0 else None
@@ -358,7 +364,7 @@ def api_schedule_target_devices(
 
 @router.post("/api/schedules/preview")
 def api_schedule_preview(request: Request, targets: str = Form("")):
-    _require_operator(request)
+    _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:
         ids = resolve_device_ids_from_targets(session, targets=targets)
         if not ids:

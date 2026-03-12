@@ -73,11 +73,15 @@
     </svg>
   </div>
 
-  <!-- Floating Login Card -->
   <div class="login-card-wrapper">
     <div class="login-header">
-      <h1>网络设备备份系统</h1>
-      <p>请输入账号密码登录系统</p>
+      {% if allow_recovery %}
+        <h1>安全验证</h1>
+        <p>请选择一种方式进行身份验证</p>
+      {% else %}
+        <h1>验证码确认</h1>
+        <p>请输入验证器中的 6 位验证码</p>
+      {% endif %}
     </div>
 
     {% if err %}
@@ -87,75 +91,99 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/login" class="login-form" id="loginForm">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <input type="hidden" name="next" value="{{ next }}" />
-      
-      <div class="mb-3">
-        <div class="input-group">
-          <span class="input-group-text">
-            <i class="bi bi-person"></i>
-          </span>
-          <input name="username" class="form-control" autocomplete="username" placeholder="请输入用户名" required autofocus />
-        </div>
-      </div>
-      
-      <div class="mb-3">
-        <div class="input-group">
-          <span class="input-group-text">
-            <i class="bi bi-lock"></i>
-          </span>
-          <input name="password" type="password" id="passwordInput" class="form-control" autocomplete="current-password" placeholder="请输入密码" required />
-          <button type="button" class="password-toggle" id="togglePassword">
-            <i class="bi bi-eye" id="toggleIcon"></i>
+    {% if allow_recovery %}
+      <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-3" id="mfaTab" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active small fw-bold" id="app-tab" data-bs-toggle="pill" data-bs-target="#mfa-app" type="button" role="tab" aria-selected="true">
+            <i class="bi bi-shield-lock me-2"></i>验证码
           </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link small fw-bold" id="recovery-tab" data-bs-toggle="pill" data-bs-target="#mfa-recovery" type="button" role="tab" aria-selected="false">
+            <i class="bi bi-key-fill me-2"></i>恢复码
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content" id="mfaTabContent">
+        <div class="tab-pane fade show active" id="mfa-app" role="tabpanel" tabindex="0">
+          <form method="post" action="/mfa-verify" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="next" value="{{ next }}" />
+            
+            <div class="col-12">
+              <label class="form-label small text-secondary fw-bold">验证码</label>
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="bi bi-key"></i>
+                </span>
+                <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
+              </div>
+            </div>
+            
+            <div class="col-12">
+              <div class="form-text x-small text-warning-emphasis">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>若验证码多次失败，请确认服务器时间已同步正确时间。
+              </div>
+            </div>
+            
+            <div class="col-12 mt-4">
+              <button class="btn-login" type="submit">继续登录</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="tab-pane fade" id="mfa-recovery" role="tabpanel" tabindex="0">
+          <form method="post" action="/mfa-verify" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="next" value="{{ next }}" />
+
+            <div class="col-12">
+              <label class="form-label small text-secondary fw-bold">恢复码</label>
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="bi bi-key-fill"></i>
+                </span>
+                <input name="recovery_code" class="form-control" placeholder="输入恢复码" required>
+              </div>
+            </div>
+
+            <div class="col-12 mt-4">
+              <button class="btn-login" type="submit">使用恢复码登录</button>
+            </div>
+          </form>
         </div>
       </div>
-
-      <div class="text-center mt-3 mb-4" style="font-size: 0.75rem; color: #94a3b8; line-height: 1.5;">
-        <i class="bi bi-shield-lock-fill me-1" style="opacity: 0.7;"></i>
-        启用 MFA 的账号将在登录后完成验证码验证
-      </div>
-
-      <button class="btn-login" type="submit" id="submitBtn">
-        立即登录
-      </button>
-    </form>
+    {% else %}
+      <form method="post" action="/mfa-verify" class="row g-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="next" value="{{ next }}" />
+        
+        <div class="col-12 mt-2">
+          <label class="form-label small text-secondary fw-bold">验证码</label>
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="bi bi-key"></i>
+            </span>
+            <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
+          </div>
+        </div>
+        
+        <div class="col-12">
+          <div class="form-text x-small text-warning-emphasis">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>若验证码多次失败，请确认服务器时间已同步正确时间。
+          </div>
+        </div>
+        
+        <div class="col-12 mt-4">
+          <button class="btn-login" type="submit">继续登录</button>
+        </div>
+      </form>
+    {% endif %}
 
     <div class="login-footer">
       <p class="mb-0">© 2026 网络设备备份系统</p>
     </div>
   </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const togglePassword = document.querySelector('#togglePassword');
-  const password = document.querySelector('#passwordInput');
-  const toggleIcon = document.querySelector('#toggleIcon');
-  const loginForm = document.querySelector('#loginForm');
-  const submitBtn = document.querySelector('#submitBtn');
-
-  // Toggle password visibility
-  if (togglePassword) {
-    togglePassword.addEventListener('click', function() {
-      const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
-      password.setAttribute('type', type);
-      toggleIcon.classList.toggle('bi-eye');
-      toggleIcon.classList.toggle('bi-eye-slash');
-    });
-  }
-
-  // Handle form submission loading state
-  if (loginForm) {
-    loginForm.addEventListener('submit', function() {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-        正在登录...
-      `;
-    });
-  }
-});
-</script>
 {% endblock %}

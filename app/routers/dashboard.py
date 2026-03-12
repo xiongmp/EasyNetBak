@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse, Response
 
 from app import crud
 from app.db import session_scope
-from app.routers.common import _current_user, _layout_context, templates
+from app.routers.common import _current_user, _layout_context, _require_permission, templates
 
 
 router = APIRouter()
@@ -21,6 +21,7 @@ def dashboard_page(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    _require_permission(request, "dashboard.view")
 
     with session_scope() as session:
         summary = crud.get_dashboard_summary(session)
@@ -28,7 +29,7 @@ def dashboard_page(request: Request):
         trend_stats = crud.get_backup_trend_stats(session, days=30)
         change_heatmap = crud.get_config_change_heatmap_stats(session, days=90)
         health_stats = crud.get_group_health_stats(session)
-        recent_backups = crud.list_backups(session, limit=10)
+        recent_backups = crud.list_backups(session, limit=50)
 
         device_ids = {r.device_id for r in recent_backups}
         device_map = {}

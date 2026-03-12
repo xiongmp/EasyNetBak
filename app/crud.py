@@ -19,10 +19,344 @@ from app.models import (
     Device,
     DeviceGroup,
     LoginLog,
+    Role,
     User,
 )
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.auth import hash_password, verify_password
+
+_UNSET = object()
+
+PERMISSION_CATALOG = [
+    {"code": "dashboard.view", "name": "仪表盘查看", "group": "dashboard"},
+    {"code": "devices.view", "name": "设备查看", "group": "devices"},
+    {"code": "devices.create", "name": "设备新增", "group": "devices"},
+    {"code": "devices.update", "name": "设备修改", "group": "devices"},
+    {"code": "devices.delete", "name": "设备删除", "group": "devices"},
+    {"code": "devices.backup", "name": "设备备份", "group": "devices"},
+    {"code": "devices.webshell", "name": "设备 WebShell", "group": "devices"},
+    {"code": "groups.view", "name": "分组查看", "group": "groups"},
+    {"code": "groups.create", "name": "分组新增", "group": "groups"},
+    {"code": "groups.update", "name": "分组修改", "group": "groups"},
+    {"code": "groups.delete", "name": "分组删除", "group": "groups"},
+    {"code": "credentials.view", "name": "凭据查看", "group": "credentials"},
+    {"code": "credentials.create", "name": "凭据新增", "group": "credentials"},
+    {"code": "credentials.update", "name": "凭据修改", "group": "credentials"},
+    {"code": "credentials.delete", "name": "凭据删除", "group": "credentials"},
+    {"code": "templates.view", "name": "模板查看", "group": "templates"},
+    {"code": "templates.create", "name": "模板新增", "group": "templates"},
+    {"code": "templates.update", "name": "模板修改", "group": "templates"},
+    {"code": "templates.delete", "name": "模板删除", "group": "templates"},
+    {"code": "backups.view", "name": "备份历史查看", "group": "backups"},
+    {"code": "backups.trigger", "name": "立即备份", "group": "backups"},
+    {"code": "config_search.view", "name": "配置搜索查看", "group": "config_search"},
+    {"code": "schedules.view", "name": "定时任务查看", "group": "schedules"},
+    {"code": "schedules.create", "name": "定时任务新增", "group": "schedules"},
+    {"code": "schedules.update", "name": "定时任务修改", "group": "schedules"},
+    {"code": "schedules.delete", "name": "定时任务删除", "group": "schedules"},
+    {"code": "audit_logs.view", "name": "操作日志查看", "group": "audit_logs"},
+    {"code": "login_logs.view", "name": "登录日志查看", "group": "login_logs"},
+    {"code": "diff_rules.view", "name": "Diff规则查看", "group": "diff_rules"},
+    {"code": "diff_rules.update", "name": "Diff规则修改", "group": "diff_rules"},
+    {"code": "notifications.view", "name": "通知设置查看", "group": "notifications"},
+    {"code": "notifications.update", "name": "通知设置修改", "group": "notifications"},
+    {"code": "settings.view", "name": "系统设置查看", "group": "settings"},
+    {"code": "settings.update", "name": "系统设置修改", "group": "settings"},
+    {"code": "users.view", "name": "用户查看", "group": "users"},
+    {"code": "users.create", "name": "用户新增", "group": "users"},
+    {"code": "users.update", "name": "用户修改", "group": "users"},
+    {"code": "users.delete", "name": "用户删除", "group": "users"},
+    {"code": "roles.view", "name": "角色查看", "group": "roles"},
+    {"code": "roles.create", "name": "角色新增", "group": "roles"},
+    {"code": "roles.update", "name": "角色修改", "group": "roles"},
+    {"code": "roles.delete", "name": "角色删除", "group": "roles"},
+]
+
+LEGACY_PERMISSION_EXPANSIONS = {
+    "devices.manage": {"devices.view", "devices.create", "devices.update", "devices.delete", "devices.backup", "devices.webshell"},
+    "groups.manage": {"groups.view", "groups.create", "groups.update", "groups.delete"},
+    "credentials.manage": {"credentials.view", "credentials.create", "credentials.update", "credentials.delete"},
+    "templates.manage": {"templates.view", "templates.create", "templates.update", "templates.delete"},
+    "schedules.manage": {"schedules.view", "schedules.create", "schedules.update", "schedules.delete"},
+    "diff_rules.manage": {"diff_rules.view", "diff_rules.update"},
+    "notifications.manage": {"notifications.view", "notifications.update"},
+    "settings.manage": {"settings.view", "settings.update"},
+    "users.manage": {"users.view", "users.create", "users.update", "users.delete"},
+    "roles.manage": {"roles.view", "roles.create", "roles.update", "roles.delete"},
+}
+
+BUILTIN_ROLE_DEFAULTS = {
+    "operator": {
+        "dashboard.view",
+        "devices.view",
+        "devices.create",
+        "devices.update",
+        "devices.delete",
+        "devices.backup",
+        "devices.webshell",
+        "groups.view",
+        "groups.create",
+        "groups.update",
+        "groups.delete",
+        "credentials.view",
+        "credentials.create",
+        "credentials.update",
+        "credentials.delete",
+        "templates.view",
+        "templates.create",
+        "templates.update",
+        "templates.delete",
+        "backups.view",
+        "backups.trigger",
+        "config_search.view",
+        "schedules.view",
+        "schedules.create",
+        "schedules.update",
+        "schedules.delete",
+        "audit_logs.view",
+        "login_logs.view",
+    },
+    "readonly": {
+        "dashboard.view",
+        "devices.view",
+        "groups.view",
+        "credentials.view",
+        "templates.view",
+        "backups.view",
+        "config_search.view",
+        "schedules.view",
+        "audit_logs.view",
+        "login_logs.view",
+    },
+}
+
+BUILTIN_ROLE_LABELS = {
+    "admin": "系统管理员",
+    "operator": "操作员",
+    "readonly": "只读用户",
+}
+
+ROLE_DEFAULT_PERMISSIONS = {k: set(v) for k, v in BUILTIN_ROLE_DEFAULTS.items()}
+ROLE_LABELS = dict(BUILTIN_ROLE_LABELS)
+ROLE_ADMIN_CODES = {"admin"}
+
+def list_permission_catalog() -> list[dict[str, str]]:
+    return PERMISSION_CATALOG
+
+def _expand_permission_codes(codes: Iterable[str]) -> set[str]:
+    expanded: set[str] = set()
+    for raw in codes:
+        code = (raw or "").strip()
+        if not code:
+            continue
+        if code in LEGACY_PERMISSION_EXPANSIONS:
+            expanded |= LEGACY_PERMISSION_EXPANSIONS[code]
+        else:
+            expanded.add(code)
+    return expanded
+
+def normalize_permission_codes(codes: Iterable[str]) -> list[str]:
+    allowed = {p["code"] for p in PERMISSION_CATALOG}
+    expanded = _expand_permission_codes(codes)
+    normalized = sorted({c for c in expanded if c in allowed})
+    return normalized
+
+def permission_codes_to_str(codes: Iterable[str]) -> str | None:
+    normalized = normalize_permission_codes(codes)
+    return ",".join(normalized) if normalized else None
+
+def parse_permission_codes(raw: str | None) -> set[str]:
+    allowed = {p["code"] for p in PERMISSION_CATALOG}
+    expanded = _expand_permission_codes((raw or "").split(","))
+    return {c for c in expanded if c in allowed}
+
+def refresh_role_cache(session: Session) -> None:
+    global ROLE_DEFAULT_PERMISSIONS, ROLE_LABELS, ROLE_ADMIN_CODES
+    roles = list(session.exec(select(Role).order_by(Role.id)))
+    if not roles:
+        ROLE_DEFAULT_PERMISSIONS = {k: set(v) for k, v in BUILTIN_ROLE_DEFAULTS.items()}
+        ROLE_LABELS = dict(BUILTIN_ROLE_LABELS)
+        ROLE_ADMIN_CODES = {"admin"}
+        return
+
+    defaults: dict[str, set[str]] = {}
+    labels: dict[str, str] = {}
+    admin_codes: set[str] = set()
+    for role in roles:
+        code = (role.code or "").strip()
+        if not code:
+            continue
+        labels[code] = (role.name or code).strip()
+        if role.is_admin or code == "admin":
+            admin_codes.add(code)
+            continue
+        defaults[code] = parse_permission_codes(role.permissions)
+
+    if "operator" not in defaults and "operator" in BUILTIN_ROLE_DEFAULTS:
+        defaults["operator"] = set(BUILTIN_ROLE_DEFAULTS["operator"])
+    if "readonly" not in defaults and "readonly" in BUILTIN_ROLE_DEFAULTS:
+        defaults["readonly"] = set(BUILTIN_ROLE_DEFAULTS["readonly"])
+    if not admin_codes:
+        admin_codes.add("admin")
+
+    ROLE_DEFAULT_PERMISSIONS = defaults
+    ROLE_LABELS = labels
+    ROLE_ADMIN_CODES = admin_codes
+
+def ensure_default_roles(session: Session) -> None:
+    existing = set(session.exec(select(Role.code)).all())
+    seeds = [
+        {
+            "code": "admin",
+            "name": BUILTIN_ROLE_LABELS["admin"],
+            "permissions": None,
+            "is_system": True,
+            "is_admin": True,
+        },
+        {
+            "code": "operator",
+            "name": BUILTIN_ROLE_LABELS["operator"],
+            "permissions": ",".join(sorted(BUILTIN_ROLE_DEFAULTS["operator"])),
+            "is_system": True,
+            "is_admin": False,
+        },
+        {
+            "code": "readonly",
+            "name": BUILTIN_ROLE_LABELS["readonly"],
+            "permissions": ",".join(sorted(BUILTIN_ROLE_DEFAULTS["readonly"])),
+            "is_system": True,
+            "is_admin": False,
+        },
+    ]
+    created = False
+    for seed in seeds:
+        if seed["code"] in existing:
+            continue
+        role = Role(
+            code=seed["code"],
+            name=seed["name"],
+            permissions=seed["permissions"],
+            is_system=seed["is_system"],
+            is_admin=seed["is_admin"],
+        )
+        session.add(role)
+        created = True
+    if created:
+        session.commit()
+    refresh_role_cache(session)
+
+def is_admin_role_code(code: str | None) -> bool:
+    return (code or "").strip() in ROLE_ADMIN_CODES
+
+def get_role_label(code: str | None) -> str:
+    raw = (code or "").strip()
+    return ROLE_LABELS.get(raw, raw)
+
+def get_role_default_permissions(code: str | None) -> set[str]:
+    raw = (code or "").strip()
+    return set(ROLE_DEFAULT_PERMISSIONS.get(raw, set()))
+
+def get_effective_permission_codes(user: User | None) -> set[str]:
+    if not user:
+        return set()
+    if is_admin_role_code(user.role):
+        return {p["code"] for p in PERMISSION_CATALOG}
+    perms: set[str] = set()
+    perms |= get_role_default_permissions(user.role)
+    return perms
+
+def list_roles(session: Session) -> list[Role]:
+    return list(session.exec(select(Role).order_by(Role.id)))
+
+def count_roles(session: Session) -> int:
+    stmt = select(func.count()).select_from(Role)
+    return int(session.exec(stmt).one())
+
+def get_role(session: Session, role_id: int) -> Role | None:
+    return session.get(Role, role_id)
+
+def get_role_by_code(session: Session, code: str) -> Role | None:
+    target = (code or "").strip()
+    if not target:
+        return None
+    return session.exec(select(Role).where(Role.code == target)).first()
+
+def create_role(
+    session: Session,
+    *,
+    code: str,
+    name: str,
+    permissions: str | None = None,
+    is_system: bool = False,
+    is_admin: bool = False,
+) -> Role:
+    normalized_code = (code or "").strip().lower()
+    if not normalized_code:
+        raise RuntimeError("角色标识不能为空")
+    if get_role_by_code(session, normalized_code) is not None:
+        raise RuntimeError("角色标识已存在")
+    role = Role(
+        code=normalized_code,
+        name=name.strip(),
+        permissions=permissions,
+        is_system=is_system,
+        is_admin=is_admin,
+    )
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    refresh_role_cache(session)
+    return role
+
+def update_role(
+    session: Session,
+    role_id: int,
+    *,
+    code: str | None = None,
+    name: str | None = None,
+    permissions: str | None = None,
+) -> Role | None:
+    role = session.get(Role, role_id)
+    if role is None:
+        return None
+    if code is not None:
+        normalized_code = (code or "").strip().lower()
+        if not normalized_code:
+            raise RuntimeError("角色标识不能为空")
+        existing = get_role_by_code(session, normalized_code)
+        if existing is not None and existing.id != role.id:
+            raise RuntimeError("角色标识已存在")
+        if normalized_code != role.code:
+            old_code = role.code
+            role.code = normalized_code
+            users = session.exec(select(User).where(User.role == old_code)).all()
+            for user in users:
+                user.role = normalized_code
+                session.add(user)
+    if name is not None:
+        role.name = name.strip()
+    if permissions is not None:
+        role.permissions = permissions
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    refresh_role_cache(session)
+    return role
+
+def delete_role(session: Session, role_id: int) -> None:
+    role = session.get(Role, role_id)
+    if role is None:
+        return
+    session.delete(role)
+    session.commit()
+    refresh_role_cache(session)
+
+def role_usage_count(session: Session, code: str) -> int:
+    target = (code or "").strip()
+    if not target:
+        return 0
+    stmt = select(func.count()).select_from(User).where(User.role == target)
+    return int(session.exec(stmt).one())
 
 
 def list_devices(session: Session) -> list[Device]:
@@ -838,10 +1172,12 @@ def create_user(
     password_expired: bool = False,
     group_access_type: str = "all",
     allowed_group_ids: str | None = None,
+    mfa_enabled: bool = False,
+    mfa_secret: str | None = None,
 ) -> User:
     username = username.strip()
-    role = role.strip()
-    if role not in {"admin", "operator", "readonly"}:
+    role = (role or "").strip().lower()
+    if not role or get_role_by_code(session, role) is None:
         role = "readonly"
     if get_user_by_username(session, username) is not None:
         raise RuntimeError("Username already exists")
@@ -852,7 +1188,10 @@ def create_user(
         password_expired=password_expired,
         group_access_type=group_access_type,
         allowed_group_ids=allowed_group_ids,
+        mfa_enabled=mfa_enabled,
     )
+    if mfa_secret:
+        user.mfa_secret = mfa_secret
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -947,6 +1286,10 @@ def update_user(
     password: str | None = None,
     group_access_type: str | None = None,
     allowed_group_ids: str | None = None,
+    mfa_enabled: bool | None = None,
+    mfa_secret: str | None | object = _UNSET,
+    recovery_codes: list[str] | None | object = _UNSET,
+    recovery_codes_enabled: bool | None = None,
 ) -> User | None:
     user = session.get(User, user_id)
     if user is None:
@@ -961,8 +1304,8 @@ def update_user(
             user.username = username
             
     if role is not None:
-        role = role.strip()
-        if role in {"admin", "operator", "readonly"}:
+        role = (role or "").strip().lower()
+        if role and get_role_by_code(session, role) is not None:
             user.role = role
 
     if group_access_type is not None:
@@ -970,9 +1313,23 @@ def update_user(
 
     if allowed_group_ids is not None:
         user.allowed_group_ids = allowed_group_ids
-            
+
     if password:
         user.password_hash = hash_password(password)
+
+    if mfa_enabled is not None:
+        user.mfa_enabled = bool(mfa_enabled)
+        if not mfa_enabled:
+            user.mfa_secret = None
+
+    if mfa_secret is not _UNSET:
+        user.mfa_secret = mfa_secret
+
+    if recovery_codes is not _UNSET:
+        user.recovery_codes = recovery_codes
+
+    if recovery_codes_enabled is not None:
+        user.recovery_codes_enabled = bool(recovery_codes_enabled)
         
     session.add(user)
     session.commit()

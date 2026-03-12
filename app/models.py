@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -17,6 +18,50 @@ class User(SQLModel, table=True):
     allowed_group_ids: Optional[str] = None  # Comma separated IDs, e.g. "1,2,5". Special value "-1" for Ungrouped.
     password_hash: str
     password_expired: bool = Field(default=False)
+    mfa_enabled: bool = Field(default=False)
+    mfa_secret_encrypted: Optional[str] = None
+    recovery_codes_hashed: Optional[str] = None
+    recovery_codes_enabled: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    @property
+    def mfa_secret(self) -> str | None:
+        return decrypt_secret(self.mfa_secret_encrypted)
+
+    @mfa_secret.setter
+    def mfa_secret(self, value: str | None):
+        self.mfa_secret_encrypted = encrypt_secret(value)
+
+    @property
+    def recovery_codes(self) -> list[str]:
+        raw = self.recovery_codes_hashed or ""
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+        except Exception:
+            return []
+        if isinstance(value, list):
+            return [str(x) for x in value if x]
+        return []
+
+    @recovery_codes.setter
+    def recovery_codes(self, value: list[str] | None):
+        items = [str(x) for x in (value or []) if x]
+        if not items:
+            self.recovery_codes_hashed = None
+            return
+        self.recovery_codes_hashed = json.dumps(items, ensure_ascii=False)
+
+
+class Role(SQLModel, table=True):
+    __tablename__ = "role"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    name: str
+    permissions: Optional[str] = None
+    is_system: bool = Field(default=False)
+    is_admin: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 

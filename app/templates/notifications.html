@@ -5,7 +5,7 @@
 {% block content %}
 <div class="row g-4">
   <div class="col-12 col-xl-8">
-    {% if is_admin %}
+    {% if has_permission('notifications.update') %}
       <form method="post" action="/notifications">
         <!-- SMTP 服务器设置 -->
         <div class="card border shadow-sm mb-4">

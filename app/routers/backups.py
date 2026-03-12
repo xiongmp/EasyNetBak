@@ -17,7 +17,7 @@ from app import crud
 from app.db import session_scope
 from app.models import BackupRecord, Device
 from app.platforms import normalize_platform_id
-from app.routers.common import _current_user, _dt_local_str, _layout_context, _log_action, _require_admin, _require_operator, templates
+from app.routers.common import _current_user, _dt_local_str, _layout_context, _log_action, _require_permission, templates
 
 
 router = APIRouter()
@@ -25,8 +25,7 @@ router = APIRouter()
 
 @router.get("/api/tasks/backups")
 def api_tasks_backups(request: Request, ids: str = "", limit: int = 20):
-    if _current_user(request) is None:
-        raise HTTPException(status_code=403)
+    _require_permission(request, "backups.view")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
     limit = max(1, min(int(limit or 20), 200))
     wanted: list[UUID] = []
@@ -90,8 +89,7 @@ def api_tasks_backups(request: Request, ids: str = "", limit: int = 20):
 
 @router.get("/api/tasks/celery")
 def api_tasks_celery(request: Request, ids: str = ""):
-    if _current_user(request) is None:
-        raise HTTPException(status_code=403)
+    _require_permission(request, "backups.view")
 
     task_ids = [v.strip() for v in (ids or "").split(",") if v.strip()]
     if not task_ids:
@@ -125,8 +123,7 @@ def api_tasks_celery(request: Request, ids: str = ""):
 
 @router.get("/api/devices/{device_id}/backups")
 def api_device_backups(request: Request, device_id: int, page: int = 1, limit: int = 10):
-    if _current_user(request) is None:
-        raise HTTPException(status_code=403)
+    _require_permission(request, "backups.view")
     
     page = max(1, page)
     limit = max(1, min(limit, 200))
@@ -169,8 +166,7 @@ def api_device_backups(request: Request, device_id: int, page: int = 1, limit: i
 
 @router.get("/api/backups/{backup_id}")
 def api_backup_view(request: Request, backup_id: UUID):
-    if _current_user(request) is None:
-        raise HTTPException(status_code=403)
+    _require_permission(request, "backups.view")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
     with session_scope() as session:
         record = crud.get_backup(session, backup_id)
@@ -524,8 +520,7 @@ def api_backup_diff(
     ignore_noise_lines: int = 0,
     context_lines: int = 2,
 ):
-    if _current_user(request) is None:
-        raise HTTPException(status_code=403)
+    _require_permission(request, "backups.view")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
     mode = (mode or "unified").strip().lower()
     if mode not in {"unified", "split"}:
@@ -616,7 +611,7 @@ def api_backup_diff(
 
 @router.get("/diff-rules")
 def diff_rules_page(request: Request):
-    _require_operator(request)
+    _require_permission(request, "diff_rules.view")
     msg = (request.query_params.get("msg") or "").strip()
     err = (request.query_params.get("err") or "").strip()
     with session_scope() as session:
@@ -639,7 +634,7 @@ def diff_rules_page(request: Request):
 
 @router.post("/diff-rules")
 def update_diff_rules(request: Request, rules_json: str = Form("")):
-    _require_operator(request)
+    _require_permission(request, "diff_rules.update")
     try:
         payload = json.loads(rules_json or "[]")
     except Exception:
@@ -653,6 +648,7 @@ def update_diff_rules(request: Request, rules_json: str = Form("")):
 
 @router.get("/backups")
 def backups_page(request: Request):
+    _require_permission(request, "backups.view")
     with session_scope() as session:
         devices = [d for d in crud.list_devices(session) if d.id]
         count_rows = session.exec(
@@ -682,9 +678,7 @@ def config_search_page(
     q: str = "",
     scope: str = "latest",
 ):
-    user = _current_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
+    _require_permission(request, "config_search.view")
 
     page_raw = (request.query_params.get("page") or "1").strip()
     page = int(page_raw) if page_raw.isdigit() and int(page_raw) > 0 else 1

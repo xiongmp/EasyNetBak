@@ -73,11 +73,10 @@
     </svg>
   </div>
 
-  <!-- Floating Login Card -->
   <div class="login-card-wrapper">
     <div class="login-header">
-      <h1>网络设备备份系统</h1>
-      <p>请输入账号密码登录系统</p>
+      <h1>绑定验证器</h1>
+      <p>扫描二维码并输入验证码完成 MFA 绑定</p>
     </div>
 
     {% if err %}
@@ -87,39 +86,40 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/login" class="login-form" id="loginForm">
+    <form method="post" action="/mfa-setup" class="row g-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <input type="hidden" name="next" value="{{ next }}" />
+      <input type="hidden" name="mfa_secret" value="{{ mfa_secret }}" />
+      <input type="hidden" name="mfa_sig" value="{{ mfa_sig }}" />
+
+      <div class="col-12 text-center mb-2">
+        <img src="{{ mfa_qr }}" alt="MFA QR Code" class="img-fluid border rounded-3 p-2 bg-white shadow-sm" style="max-width: 180px;">
+      </div>
       
-      <div class="mb-3">
+      <div class="col-12">
+        <label class="form-label small text-secondary fw-bold">密钥</label>
         <div class="input-group">
-          <span class="input-group-text">
-            <i class="bi bi-person"></i>
-          </span>
-          <input name="username" class="form-control" autocomplete="username" placeholder="请输入用户名" required autofocus />
+          <input type="text" class="form-control bg-light border-0 small px-3" value="{{ mfa_secret }}" readonly onclick="this.select()" style="font-family: monospace; border-radius: 12px !important;">
         </div>
       </div>
       
-      <div class="mb-3">
+      <div class="col-12 mt-4">
         <div class="input-group">
           <span class="input-group-text">
-            <i class="bi bi-lock"></i>
+            <i class="bi bi-key"></i>
           </span>
-          <input name="password" type="password" id="passwordInput" class="form-control" autocomplete="current-password" placeholder="请输入密码" required />
-          <button type="button" class="password-toggle" id="togglePassword">
-            <i class="bi bi-eye" id="toggleIcon"></i>
-          </button>
+          <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required>
         </div>
       </div>
 
-      <div class="text-center mt-3 mb-4" style="font-size: 0.75rem; color: #94a3b8; line-height: 1.5;">
-        <i class="bi bi-shield-lock-fill me-1" style="opacity: 0.7;"></i>
-        启用 MFA 的账号将在登录后完成验证码验证
+      <div class="col-12">
+        <div class="form-text x-small text-warning-emphasis">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>支持离线部署，无需外网。若验证码频繁失败，请检查服务器时间是否已同步。
+        </div>
       </div>
-
-      <button class="btn-login" type="submit" id="submitBtn">
-        立即登录
-      </button>
+      
+      <div class="col-12 mt-3">
+        <button class="btn-login" type="submit">完成绑定</button>
+      </div>
     </form>
 
     <div class="login-footer">
@@ -127,35 +127,4 @@
     </div>
   </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const togglePassword = document.querySelector('#togglePassword');
-  const password = document.querySelector('#passwordInput');
-  const toggleIcon = document.querySelector('#toggleIcon');
-  const loginForm = document.querySelector('#loginForm');
-  const submitBtn = document.querySelector('#submitBtn');
-
-  // Toggle password visibility
-  if (togglePassword) {
-    togglePassword.addEventListener('click', function() {
-      const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
-      password.setAttribute('type', type);
-      toggleIcon.classList.toggle('bi-eye');
-      toggleIcon.classList.toggle('bi-eye-slash');
-    });
-  }
-
-  // Handle form submission loading state
-  if (loginForm) {
-    loginForm.addEventListener('submit', function() {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-        正在登录...
-      `;
-    });
-  }
-});
-</script>
 {% endblock %}

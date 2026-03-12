@@ -2,6 +2,12 @@
 {% from "macros.html" import render_pagination %}
 {% set page_title = "设备列表" %}
 {% set page_subtitle = "维护设备资产与登录信息，用于定时/手动备份" %}
+{% set can_device_create = has_permission('devices.create') %}
+{% set can_device_update = has_permission('devices.update') %}
+{% set can_device_delete = has_permission('devices.delete') %}
+{% set can_device_backup = has_permission('devices.backup') %}
+{% set can_device_webshell = has_permission('devices.webshell') %}
+{% set can_device_bulk = can_device_update or can_device_delete or can_device_backup %}
 
 {% block content %}
   <div class="card border">
@@ -228,36 +234,48 @@
 
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
         <div class="d-flex flex-wrap gap-2 align-items-center">
-          {% if is_operator %}
+          {% if can_device_bulk %}
             <div class="btn btn-sm btn-light border shadow-sm me-2" style="pointer-events: none;">
               <span class="fw-semibold text-primary"><i class="bi bi-check2-square me-1"></i>已选 <span id="bulk-selected-count">0</span> 台</span>
             </div>
 
-            <form method="post" action="/devices/bulk_backup" class="d-inline" id="bulk-backup-form">
-              <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
-              <input type="hidden" name="mode" id="bulk-backup-mode" value="selected" />
-              <div class="btn-group btn-group-sm">
-                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-selected-btn" disabled>
-                  <i class="bi bi-play-fill me-1"></i>备份所选
-                </button>
-                <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-all-btn">
-                  <i class="bi bi-collection-play me-1"></i>备份所有
-                </button>
-              </div>
-            </form>
+            {% if can_device_backup %}
+              <form method="post" action="/devices/bulk_backup" class="d-inline" id="bulk-backup-form">
+                <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
+                <input type="hidden" name="mode" id="bulk-backup-mode" value="selected" />
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-selected-btn" disabled>
+                    <i class="bi bi-play-fill me-1"></i>备份所选
+                  </button>
+                  <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-all-btn">
+                    <i class="bi bi-collection-play me-1"></i>备份所有
+                  </button>
+                </div>
+              </form>
+            {% endif %}
 
-            <form method="post" action="/devices/bulk_delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" id="bulk-delete-form" class="d-inline">
-              <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
-              <button class="btn btn-sm btn-outline-danger" type="submit" id="bulk-delete-btn" disabled>
-                <i class="bi bi-trash me-1"></i>批量删除
+            {% if can_device_update %}
+              <button class="btn btn-sm btn-outline-primary ms-1" type="button" id="bulk-update-btn" disabled>
+                <i class="bi bi-pencil-square me-1"></i>批量修改
               </button>
-            </form>
+            {% endif %}
 
-            <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
-              <button class="btn btn-sm btn-outline-info" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
-                <i class="bi bi-lightning-charge me-1"></i>连通性检测
-              </button>
-            </span>
+            {% if can_device_delete %}
+              <form method="post" action="/devices/bulk_delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" id="bulk-delete-form" class="d-inline">
+                <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
+                <button class="btn btn-sm btn-outline-danger" type="submit" id="bulk-delete-btn" disabled>
+                  <i class="bi bi-trash me-1"></i>批量删除
+                </button>
+              </form>
+            {% endif %}
+
+            {% if can_device_update %}
+              <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
+                <button class="btn btn-sm btn-outline-info" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
+                  <i class="bi bi-lightning-charge me-1"></i>连通性检测
+                </button>
+              </span>
+            {% endif %}
           {% endif %}
         </div>
 
@@ -266,13 +284,13 @@
             <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
               <i class="bi bi-download me-1"></i>导出 CSV
             </a>
-            {% if is_operator %}
+            {% if can_device_create or can_device_update %}
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-upload me-1"></i>导入 CSV
               </button>
             {% endif %}
           </div>
-          {% if is_operator %}
+          {% if can_device_create %}
             <button class="btn btn-sm btn-primary shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#deviceCreateModal">
               <i class="bi bi-plus-lg me-1"></i>新增设备
             </button>
@@ -281,7 +299,7 @@
       </div>
 
 
-      {% if is_operator %}
+      {% if can_device_update %}
         <!-- 连通性检测结果弹窗 -->
         <div class="modal fade" id="reachabilityModal" tabindex="-1" aria-labelledby="reachabilityModalLabel" aria-hidden="true">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -354,11 +372,11 @@
         </div>
       {% endif %}
 
-      <div class="table-responsive">
+      <div class="table-responsive device-list-table">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="bg-body-tertiary">
             <tr>
-              {% if is_operator %}
+              {% if can_device_bulk %}
                 <th style="width: 44px;">
                   <input class="form-check-input" type="checkbox" id="select-all" />
                 </th>
@@ -372,13 +390,13 @@
               <th style="width: 140px;">所属分组</th>
               <th style="width: 200px;">登录凭据</th>
               <th style="width: 180px;">创建时间</th>
-              <th style="width: 140px;" class="text-start">操作</th>
+              <th style="width: 140px;" class="text-start sticky-end">操作</th>
             </tr>
           </thead>
           <tbody>
             {% for d in devices %}
               <tr>
-                {% if is_operator %}
+                {% if can_device_bulk %}
                   <td class="text-start">
                     <input class="form-check-input device-check" type="checkbox" value="{{ d.id }}" />
                   </td>
@@ -429,12 +447,20 @@
                   {% endif %}
                 </td>
                 <td class="text-secondary small text-nowrap text-start">{{ d.created_at|dt_local }}</td>
-                <td class="text-start text-nowrap">
+                <td class="text-start text-nowrap sticky-end">
                   <div class="d-flex gap-1 justify-content-start text-nowrap">
                     <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/devices/{{ d.id }}">
                       <i class="bi bi-search me-1"></i>详情
                     </a>
-                    {% if is_operator %}
+                    {% if can_device_webshell %}
+                      <form method="post" action="/devices/{{ d.id }}/webshell" target="_blank" class="d-inline m-0 text-nowrap">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <button class="btn btn-sm btn-outline-smart-dark px-2 text-nowrap" type="submit" title="在新窗口打开 WebShell">
+                          <i class="bi bi-terminal-fill me-1"></i>WebShell
+                        </button>
+                      </form>
+                    {% endif %}
+                    {% if can_device_delete %}
                       <form method="post" action="/devices/{{ d.id }}/delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" class="d-inline m-0 text-nowrap">
                         <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此设备吗？">
                           <i class="bi bi-trash me-1"></i>删除
@@ -446,7 +472,7 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="{{ 11 if is_operator else 10 }}" class="text-center text-secondary py-4">暂无设备记录</td>
+                <td colspan="{{ 11 if can_device_bulk else 10 }}" class="text-center text-secondary py-4">暂无设备记录</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -457,7 +483,7 @@
     </div>
   </div>
 
-  {% if is_operator %}
+  {% if can_device_bulk %}
     <script>
       document.addEventListener('DOMContentLoaded', function() {
       const DEVICE_REACHABILITY = {
@@ -556,12 +582,16 @@
 
       function updateBulkAll() {
         const ids = checks.filter(c => c.checked).map(c => c.value);
-        idsInput.value = ids.join(',');
+        const idsValue = ids.join(',');
+        if (idsInput) idsInput.value = idsValue;
         countEl.textContent = String(ids.length);
         if (btnSelected) btnSelected.disabled = ids.length === 0;
-        if (idsInput3) idsInput3.value = idsInput.value;
+        if (idsInput3) idsInput3.value = idsValue;
         const has = ids.length > 0;
         if (bulkDeleteBtn) bulkDeleteBtn.disabled = !has;
+        
+        const bulkUpdateBtn = document.getElementById('bulk-update-btn');
+        if (bulkUpdateBtn) bulkUpdateBtn.disabled = !has;
         if (reachBtn) {
            reachBtn.disabled = !has;
            reachBtn.style.pointerEvents = has ? 'auto' : 'none';
@@ -987,17 +1017,80 @@
         }
       }
 
-      // Auto refresh on load to catch background task updates
-      setTimeout(refreshDeviceStatus, 1000);
-      setTimeout(refreshDeviceStatus, 3000);
-      setTimeout(refreshDeviceStatus, 6000);
+      refreshDeviceStatus();
+      let refreshCount = 0;
+      const maxRefreshCount = 12;
+      const refreshInterval = setInterval(() => {
+        refreshCount += 1;
+        refreshDeviceStatus();
+        if (refreshCount >= maxRefreshCount) {
+          clearInterval(refreshInterval);
+        }
+      }, 5000);
+
+      // Bulk Update Logic
+      const bulkUpdateBtn = document.getElementById('bulk-update-btn');
+      const bulkUpdateModalEl = document.getElementById('bulkUpdateModal');
+      const bulkUpdateModal = bulkUpdateModalEl ? new bootstrap.Modal(bulkUpdateModalEl) : null;
+      const bulkUpdateIds = document.getElementById('bulk-update-ids');
+      const bulkUpdateCount = document.getElementById('bulk-update-count');
+      const bulkUpdateField = document.getElementById('bulk-update-field');
+      
+      const bulkGroupSelect = document.getElementById('bulk-update-group-select');
+      const bulkPlatformSelect = document.getElementById('bulk-update-platform-select');
+      const bulkLoginSelect = document.getElementById('bulk-update-login-select');
+      const bulkCredentialSelect = document.getElementById('bulk-update-credential-select');
+
+      function updateBulkInputVisibility() {
+        if (!bulkUpdateField) return;
+        const field = bulkUpdateField.value;
+        
+        // Hide all first
+        [bulkGroupSelect, bulkPlatformSelect, bulkLoginSelect, bulkCredentialSelect].forEach(el => {
+          if (el) {
+            el.classList.add('d-none');
+            el.disabled = true;
+          }
+        });
+
+        // Show selected
+        let activeEl = null;
+        if (field === 'group_id') activeEl = bulkGroupSelect;
+        else if (field === 'platform') activeEl = bulkPlatformSelect;
+        else if (field === 'login_method') activeEl = bulkLoginSelect;
+        else if (field === 'credential_id') activeEl = bulkCredentialSelect;
+
+        if (activeEl) {
+          activeEl.classList.remove('d-none');
+          activeEl.disabled = false;
+        }
+      }
+
+      if (bulkUpdateBtn) {
+        bulkUpdateBtn.addEventListener('click', function() {
+           const selectedIds = checks.filter(c => c.checked).map(c => c.value);
+           if (selectedIds.length === 0) return;
+           
+           if (bulkUpdateIds) bulkUpdateIds.value = selectedIds.join(',');
+           if (bulkUpdateCount) bulkUpdateCount.textContent = selectedIds.length;
+           
+           // Reset form
+           if (bulkUpdateField) bulkUpdateField.value = 'group_id';
+           updateBulkInputVisibility();
+           
+           if (bulkUpdateModal) bulkUpdateModal.show();
+        });
+      }
+
+      if (bulkUpdateField) {
+        bulkUpdateField.addEventListener('change', updateBulkInputVisibility);
+      }
 
       if (reachBtn) {
          // Moved the click listener to earlier in the file to handle logic properly
       }
       });
     </script>
-
     <div class="modal fade" id="deviceCreateModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
@@ -1200,7 +1293,7 @@
             </div>
             
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-              <button type="button" class="btn btn-light text-secondary px-4" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">取消</button>
               <button type="submit" class="btn btn-success px-4 shadow-sm">
                 <i class="bi bi-cloud-upload me-2"></i>开始导入
               </button>
@@ -1209,6 +1302,84 @@
         </div>
       </div>
     </div>
+
+    <!-- Bulk Update Modal -->
+    <div class="modal fade" id="bulkUpdateModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
+            <h5 class="modal-title d-flex align-items-center">
+              <i class="bi bi-pencil-square text-primary me-2"></i>
+              <span>批量修改设备</span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <form method="post" action="/devices/bulk_update">
+            <div class="modal-body p-4">
+              <input type="hidden" name="device_ids" id="bulk-update-ids">
+
+              <div class="alert alert-warning border-0 shadow-sm small d-flex align-items-start mb-4">
+                <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                <div>
+                  此操作将修改 <span id="bulk-update-count" class="fw-bold">0</span> 台设备的属性，修改后无法撤销。
+                </div>
+              </div>
+
+              <div class="row g-4 align-items-start">
+                <div class="col-12 col-lg-5">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-sliders me-1"></i>修改字段
+                  </label>
+                  <select class="form-select form-select-lg fs-6" name="field" id="bulk-update-field">
+                    <option value="group_id">所属分组</option>
+                    <option value="platform">平台类型</option>
+                    <option value="login_method">登录方式</option>
+                    <option value="credential_id">登录凭据</option>
+                  </select>
+                </div>
+
+                <div class="col-12 col-lg-7" id="bulk-update-value-container">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-input-cursor-text me-1"></i>新值
+                  </label>
+
+                  <select class="form-select form-select-lg fs-6" name="value" id="bulk-update-group-select">
+                    <option value="0">无分组</option>
+                    {% for g in groups %}
+                    <option value="{{ g.id }}">{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+
+                  <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-credential-select" disabled>
+                    {% for c in credentials %}
+                    <option value="{{ c.id }}">{{ c.name }} ({{ c.username }})</option>
+                    {% endfor %}
+                  </select>
+
+                  <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-platform-select" disabled>
+                    <option value="" selected disabled>选择平台...</option>
+                    {% for p in ssh_platforms %}
+                      <option value="{{ p.id }}">{{ p.label }}</option>
+                    {% endfor %}
+                    {% for p in telnet_platforms %}
+                      <option value="{{ p.id }}">{{ p.label }}</option>
+                    {% endfor %}
+                  </select>
+
+                  <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-login-select" disabled>
+                    <option value="ssh">SSH</option>
+                    <option value="telnet">Telnet</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">取消</button>
+              <button type="submit" class="btn btn-primary px-4 shadow-sm">保存修改</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   {% endif %}
 {% endblock %}
-

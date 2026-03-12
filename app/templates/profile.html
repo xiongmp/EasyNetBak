@@ -22,7 +22,7 @@
                 <span class="position-absolute bottom-0 end-0 bg-success border border-white border-2 rounded-circle p-1" title="在线"></span>
               </div>
               <h6 class="fw-bold mb-0 small">{{ user.username }}</h6>
-              <p class="x-small text-secondary mb-0">{% if user.role == 'admin' %}系统管理员{% else %}操作员{% endif %}</p>
+              <p class="x-small text-secondary mb-0">{{ role_labels.get(user.role, user.role) }}</p>
             </div>
 
             <!-- 导航菜单 -->
@@ -53,16 +53,14 @@
               <div class="col-md-6">
                 <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
                   <div class="x-small text-secondary mb-0">系统角色</div>
-                  <div class="fw-bold text-primary small">
-                    {% if user.role == 'admin' %}管理员{% else %}操作员{% endif %}
-                  </div>
+                  <div class="fw-bold text-primary small">{{ role_labels.get(user.role, user.role) }}</div>
                 </div>
               </div>
               <div class="col-12">
                 <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
                   <div class="x-small text-secondary mb-0">权限范围</div>
                   <p class="x-small text-body mb-0">
-                    {% if user.role == 'admin' %}
+                    {% if user.role in admin_role_codes %}
                       拥有最高管理权限，可管理所有设备、用户及完整审计日志。
                     {% else %}
                       拥有受限的备份和资源查看权限。

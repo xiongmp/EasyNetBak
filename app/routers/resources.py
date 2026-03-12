@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import csv
+import io
 from urllib.parse import quote
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import RedirectResponse, Response
+from sqlmodel import select
 
 from app import crud
 from app.db import session_scope
 from app.models import BackupTemplate, Credential
 from app.platforms import DEFAULT_COMMANDS, PLATFORMS, normalize_platform_id
-from app.routers.common import _layout_context, _log_action, _require_admin, _require_operator, templates
+from app.routers.common import _layout_context, _log_action, _require_permission, templates
 
 
 router = APIRouter()
@@ -16,6 +19,7 @@ router = APIRouter()
 
 @router.get("/credentials")
 def credentials_page(request: Request):
+    _require_permission(request, "credentials.view")
     page_raw = (request.query_params.get("page") or "1").strip()
     page = int(page_raw) if page_raw.isdigit() and int(page_raw) > 0 else 1
     limit_raw = (request.query_params.get("limit") or "10").strip()
@@ -70,7 +74,10 @@ def create_credential(
     enable_password: str = Form(""),
     remarks: str = Form(""),
 ):
-    _require_operator(request)
+    if credential_id and int(credential_id) > 0:
+        _require_permission(request, "credentials.update")
+    else:
+        _require_permission(request, "credentials.create")
     with session_scope() as session:
         if credential_id and int(credential_id) > 0:
             crud.update_credential(
@@ -98,7 +105,7 @@ def create_credential(
 
 @router.post("/credentials/{credential_id}/delete")
 def delete_credential(request: Request, credential_id: int):
-    _require_operator(request)
+    _require_permission(request, "credentials.delete")
     with session_scope() as session:
         cred = crud.get_credential(session, credential_id)
         name = cred.name if cred else f"ID: {credential_id}"
@@ -110,8 +117,115 @@ def delete_credential(request: Request, credential_id: int):
     return RedirectResponse(url="/credentials?msg=已删除", status_code=303)
 
 
+@router.get("/credentials/import_template.csv")
+def download_credential_import_template(request: Request):
+    _require_permission(request, "credentials.create")
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["name", "username", "password", "enable_password", "remarks"])
+    w.writerow(["核心交换机-只读", "readonly", "pass123", "", "NOC 账号"])
+    content = "\ufeff" + buf.getvalue()
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="credential_import_template.csv"'},
+    )
+
+
+@router.post("/credentials/import.csv")
+async def import_credentials_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    mode: str = Form("insert"),
+):
+    mode = (mode or "insert").strip()
+    if mode not in {"insert", "upsert"}:
+        mode = "insert"
+    if mode == "upsert":
+        _require_permission(request, "credentials.update")
+    else:
+        _require_permission(request, "credentials.create")
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        return RedirectResponse(url="/credentials?err=请上传CSV文件", status_code=303)
+    content = await file.read()
+    text = None
+    for enc in ("utf-8-sig", "gbk", "utf-8"):
+        try:
+            text = content.decode(enc)
+            break
+        except UnicodeDecodeError:
+            text = None
+    if text is None:
+        text = content.decode("utf-8", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    required = {"name", "username"}
+    if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
+        return RedirectResponse(url="/credentials?err=CSV缺少必要列", status_code=303)
+
+    created = 0
+    updated = 0
+    skipped = 0
+    with session_scope() as session:
+        for idx, row in enumerate(reader, start=2):
+            name = (row.get("name") or "").strip()
+            username = (row.get("username") or "").strip()
+            password_raw = row.get("password")
+            enable_raw = row.get("enable_password")
+            remarks_raw = row.get("remarks")
+
+            if not name or not username:
+                skipped += 1
+                continue
+
+            password_val = (password_raw or "").strip()
+            enable_val = (enable_raw or "").strip()
+            remarks_val = (remarks_raw or "").strip() or None
+
+            existing = session.exec(select(Credential).where(Credential.name == name)).first()
+            if existing:
+                if mode == "upsert":
+                    password_update = password_val if password_val else None
+                    enable_update = enable_val if enable_val else None
+                    crud.update_credential(
+                        session,
+                        existing.id,
+                        name=name,
+                        username=username,
+                        password=password_update,
+                        enable_password=enable_update,
+                        remarks=remarks_val,
+                    )
+                    _log_action(
+                        request,
+                        session,
+                        "UPDATE_CREDENTIAL",
+                        "credential",
+                        existing.id,
+                        f"Name: {name} (Import)",
+                    )
+                    updated += 1
+                else:
+                    skipped += 1
+                continue
+
+            cred = Credential(
+                name=name,
+                username=username,
+                password=password_val if password_val else None,
+                enable_password=enable_val if enable_val else None,
+                remarks=remarks_val,
+            )
+            cred = crud.create_credential(session, credential=cred)
+            _log_action(request, session, "CREATE_CREDENTIAL", "credential", cred.id, f"Name: {name} (Import)")
+            created += 1
+
+    msg = f"导入完成：创建{created}，更新{updated}，跳过{skipped}"
+    return RedirectResponse(url=f"/credentials?msg={quote(msg)}", status_code=303)
+
+
 @router.get("/groups")
 def groups_page(request: Request):
+    _require_permission(request, "groups.view")
     page_raw = (request.query_params.get("page") or "1").strip()
     page = int(page_raw) if page_raw.isdigit() and int(page_raw) > 0 else 1
     limit_raw = (request.query_params.get("limit") or "10").strip()
@@ -156,7 +270,10 @@ def create_group(
     group_id: int = Form(0),
     name: str = Form(...),
 ):
-    _require_operator(request)
+    if group_id and int(group_id) > 0:
+        _require_permission(request, "groups.update")
+    else:
+        _require_permission(request, "groups.create")
     with session_scope() as session:
         if group_id and int(group_id) > 0:
             crud.update_group(session, int(group_id), name=name)
@@ -170,7 +287,7 @@ def create_group(
 @router.post("/groups/{group_id}/delete")
 def delete_group(request: Request, group_id: int):
     try:
-        _require_operator(request)
+        _require_permission(request, "groups.delete")
         with session_scope() as session:
             # Check if group is in use
             usage = crud.group_usage_count(session, group_id)
@@ -198,6 +315,7 @@ def delete_group(request: Request, group_id: int):
 
 @router.get("/templates")
 def templates_page(request: Request):
+    _require_permission(request, "templates.view")
     page_raw = (request.query_params.get("page") or "1").strip()
     page = int(page_raw) if page_raw.isdigit() and int(page_raw) > 0 else 1
     limit_raw = (request.query_params.get("limit") or "10").strip()
@@ -250,7 +368,10 @@ def create_template(
     platform: str = Form(...),
     commands: str = Form(""),
 ):
-    _require_operator(request)
+    if template_id and int(template_id) > 0:
+        _require_permission(request, "templates.update")
+    else:
+        _require_permission(request, "templates.create")
     commands = (commands or "").strip() or DEFAULT_COMMANDS.get(normalize_platform_id(platform), "")
     with session_scope() as session:
         if template_id and int(template_id) > 0:
@@ -270,7 +391,7 @@ def create_template(
 
 @router.post("/templates/{template_id}/delete")
 def delete_template(request: Request, template_id: int):
-    _require_operator(request)
+    _require_permission(request, "templates.delete")
     with session_scope() as session:
         tpl = crud.get_template(session, template_id)
         name = tpl.name if tpl else f"ID: {template_id}"

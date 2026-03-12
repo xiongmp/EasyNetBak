@@ -17,7 +17,7 @@
             <button class="btn btn-outline-primary btn-sm px-2" id="multi-device-btn" title="点击切换多设备对比模式">
               <i class="bi bi-intersect me-1"></i>多设备对比
             </button>
-            {% if is_operator %}
+            {% if has_permission('backups.trigger') %}
             <button class="btn btn-primary btn-sm ms-auto px-3" id="backup-now-btn" disabled>
               <i class="bi bi-play-fill me-1"></i>立即备份
             </button>
@@ -187,7 +187,7 @@
   </div>
 
   <script>
-    const IS_ADMIN = {{ "true" if is_admin else "false" }};
+    const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('backups.trigger') else "false" }};
     const DEVICE_ROWS = {{ device_rows | tojson }};
 
     const els = {
@@ -517,7 +517,7 @@
         tr.classList.toggle("is-selected", selectedDeviceIds.includes(did));
       });
       
-      setDisabled(els.backupNowBtn, !IS_ADMIN || selectedDeviceIds.length === 0);
+      setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || selectedDeviceIds.length === 0);
       loadSelectedDevicesBackups();
     }
 
@@ -537,7 +537,7 @@
            const done = target && !!target.finished_at;
            if (done || polling.tries >= 120) {
              stopPolling();
-             setDisabled(els.backupNowBtn, !IS_ADMIN || !deviceId);
+             setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !deviceId);
            }
         }
       }, 1500);
@@ -787,7 +787,7 @@
       if (els.backupNowBtn) {
         els.backupNowBtn.addEventListener("click", (ev) => {
           ev.preventDefault();
-          if (!IS_ADMIN || selectedDeviceIds.length !== 1) return;
+          if (!CAN_TRIGGER_BACKUP || selectedDeviceIds.length !== 1) return;
           const selectedDeviceId = selectedDeviceIds[0];
           
           const doBackup = async () => {
@@ -802,7 +802,7 @@
                 if (window.NB && typeof window.NB.showToast === "function") {
                   window.NB.showToast("备份任务提交失败", "error");
                 }
-                setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+                setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
                 return;
               }
               
@@ -826,13 +826,13 @@
                 }
                 startPolling(selectedDeviceId, bid);
               } else {
-                setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+                setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
               }
             } catch (e) {
               if (window.NB && typeof window.NB.showToast === "function") {
                 window.NB.showToast("请求出错: " + e.message, "error");
               }
-              setDisabled(els.backupNowBtn, !IS_ADMIN || !selectedDeviceId);
+              setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
             }
           };
 

@@ -1,0 +1,27 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="abs-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="50%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="15" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  
+  <g transform="skewX(-12) translate(80, 0)" filter="url(#shadow)">
+    <!-- First Segment (Left Vertical) -->
+    <path d="M100 400 Q120 250 100 100" stroke="url(#abs-grad)" stroke-width="65" stroke-linecap="round" />
+    
+    <!-- Second Segment (Diagonal Connect) -->
+    <path d="M100 100 C150 150 250 350 350 400" stroke="url(#abs-grad)" stroke-width="65" stroke-linecap="round" />
+    
+    <!-- Third Segment (Right Vertical) -->
+    <path d="M350 400 Q330 250 350 100" stroke="url(#abs-grad)" stroke-width="65" stroke-linecap="round" />
+    
+    <!-- Light Overlay for gloss -->
+    <path d="M115 380 Q130 250 115 120" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.4" />
+    <path d="M365 380 Q350 250 365 120" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.4" />
+  </g>
+</svg>
