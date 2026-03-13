@@ -116,7 +116,7 @@ docker-compose up -d --build
     cp .env.example .env
     ```
     **修改 `.env` 文件**:
-    - **数据库**: 默认推荐使用 SQLite 方便开发。找到 `DATABASE_URL` 配置行，取消注释：
+    - **数据库**: 默认推荐使用 SQLite 方便开发（生产环境建议使用PostgreSQL）。找到 `DATABASE_URL` 配置行，取消注释：
       ```properties
       DATABASE_URL=sqlite:///./dev.db
       ```
@@ -150,6 +150,36 @@ docker-compose up -d --build
 
 7.  **访问系统**:
     打开浏览器访问 `http://localhost:8000`。
+
+#### 🔄 版本升级
+
+本地部署环境更新时，请根据您的安装方式更新代码，并执行后续步骤：
+
+1.  **更新代码**:
+
+    - **Git 用户 (推荐)**:
+      在项目根目录执行：
+      ```bash
+      git pull origin master
+      ```
+
+    - **ZIP 下载用户**:
+      1. 备份旧目录重要文件
+      2. 下载最新的源码压缩包并解压。将新代码替换旧目录。
+      3. **⚠️ 注意**: 请务必 **跳过 (不要覆盖)** `.env` 配置文件和 `dev.db` (如果使用 SQLite) 数据库文件，以免丢失配置和数据。
+
+2.  **更新依赖**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **应用数据库变更**:
+    ```bash
+    alembic upgrade head
+    ```
+
+4.  **重启服务**:
+    请手动停止并重新启动 Celery Worker 和 Web 服务 (Uvicorn)。
 
 ## ⚙️ 关键配置
 
