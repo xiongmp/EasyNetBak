@@ -13,7 +13,7 @@ import asyncssh
 import telnetlib3
 from celery.result import AsyncResult
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi_csrf_protect import CsrfProtect
 from starlette.concurrency import run_in_threadpool
 from sqlmodel import select
@@ -31,6 +31,61 @@ from app.services.auth import create_webshell_token, decode_session_token, decod
 
 
 router = APIRouter()
+
+
+_SSH_ALGO_ERROR_MARKERS = (
+    "no matching encryption algorithm",
+    "no matching cipher",
+    "no common algorithms",
+    "algorithm negotiation failed",
+    "no matching key exchange",
+    "no matching mac",
+)
+
+_SSH_LEGACY_CONNECT_ALGS: dict[str, list[str]] = {
+    "encryption_algs": [
+        "aes128-cbc",
+        "aes192-cbc",
+        "aes256-cbc",
+        "3des-cbc",
+    ],
+    "kex_algs": [
+        "diffie-hellman-group1-sha1",
+        "diffie-hellman-group14-sha1",
+        "diffie-hellman-group-exchange-sha1",
+    ],
+    "mac_algs": [
+        "hmac-sha1",
+        "hmac-sha1-96",
+        "hmac-md5",
+    ],
+}
+
+
+async def _connect_ssh_with_legacy_fallback(
+    *,
+    host: str,
+    port: int,
+    username: str,
+    password: str | None,
+) -> tuple[asyncssh.SSHClientConnection, bool]:
+    base_kwargs: dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "username": username,
+        "password": password,
+        "known_hosts": None,
+    }
+    try:
+        conn = await asyncssh.connect(**base_kwargs)
+        return conn, False
+    except Exception as first_exc:
+        msg = str(first_exc).lower()
+        if not any(marker in msg for marker in _SSH_ALGO_ERROR_MARKERS):
+            raise
+        legacy_kwargs = {**base_kwargs, **_SSH_LEGACY_CONNECT_ALGS}
+        conn = await asyncssh.connect(**legacy_kwargs)
+        return conn, True
 
 
 def _load_webshell_context(user_id: int, device_id: int) -> dict[str, Any] | None:
@@ -66,7 +121,11 @@ def _load_webshell_context(user_id: int, device_id: int) -> dict[str, Any] | Non
 
 
 @router.get("/devices/{device_id}/webshell")
-def device_webshell_page(request: Request, device_id: int):
+def device_webshell_page(
+    request: Request,
+    device_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+):
     _require_permission(request, "devices.view")
     _require_permission(request, "devices.webshell")
     token = (request.query_params.get("token") or "").strip()
@@ -93,12 +152,16 @@ def device_webshell_page(request: Request, device_id: int):
         # Fetch credential
         credential = crud.get_credential(session, device.credential_id) if device.credential_id else None
 
-        return templates.TemplateResponse("webshell.html", {
+        csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+        response = templates.TemplateResponse("webshell.html", {
             "request": request, 
             "device": device,
             "credential": credential,
             "webshell_token": token,
+            "csrf_token": csrf_token,
         })
+        csrf_protect.set_csrf_cookie(signed_token, response)
+        return response
 
 
 @router.post("/devices/{device_id}/webshell")
@@ -124,6 +187,30 @@ def device_webshell_open(
         _log_action(request, session, "OPEN_WEBSHELL", "device", device_id, f"Name: {device.name}")
     token = create_webshell_token(user_id=int(user.id), device_id=int(device_id), ttl_seconds=60)
     return RedirectResponse(url=f"/devices/{device_id}/webshell?token={token}", status_code=303)
+
+
+@router.post("/devices/{device_id}/webshell/token")
+def device_webshell_token(
+    request: Request,
+    device_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+):
+    csrf_protect.validate_csrf(request)
+    _require_permission(request, "devices.view")
+    user = _require_permission(request, "devices.webshell")
+    allowed_ids = get_user_allowed_group_ids(user)
+    with session_scope() as session:
+        device = crud.get_device(session, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        if allowed_ids is not None:
+            gid = device.group_id if device.group_id else 0
+            allowed_set = set(allowed_ids)
+            is_allowed = (gid in allowed_set) or (gid == 0 and (-1 in allowed_set or 0 in allowed_set))
+            if not is_allowed:
+                raise HTTPException(status_code=403, detail="Permission denied")
+    token = create_webshell_token(user_id=int(user.id), device_id=int(device_id), ttl_seconds=60)
+    return JSONResponse({"token": token})
 
 
 @router.websocket("/ws/devices/{device_id}/shell")
@@ -192,13 +279,14 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 encoding="utf-8",
             )
         else:
-            conn = await asyncssh.connect(
+            conn, legacy_mode = await _connect_ssh_with_legacy_fallback(
                 host=context.get("host"),
                 port=int(context.get("port") or 22),
                 username=username,
                 password=context.get("password") or None,
-                known_hosts=None,
             )
+            if legacy_mode:
+                await send_status("已启用旧算法兼容模式")
             process = await conn.create_process(
                 term_type="xterm",
                 term_size=(120, 30),
@@ -277,6 +365,13 @@ async def device_webshell(websocket: WebSocket, device_id: int):
             output_tasks + [input_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
+        for task in done:
+            try:
+                await task
+            except WebSocketDisconnect:
+                pass
+            except asyncio.CancelledError:
+                pass
         for task in pending:
             task.cancel()
     except WebSocketDisconnect:

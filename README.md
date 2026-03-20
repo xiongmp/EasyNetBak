@@ -201,6 +201,8 @@ docker-compose up -d --build
 
 
 ## 📚 界面展示
+### 登录界面 (Login)
+![登录界面](image/login.png)
 
 ### 仪表盘 (Dashboard)
 ![仪表盘](image/dashboard.png)
@@ -230,11 +232,13 @@ docker-compose up -d --build
 ![登录日志](image/login_logs.png)
 
 ### 系统管理 (System Management)
-![用户管理](image/users.png)
-
 ![系统设置](image/settings.png)
 
 ![通知设置](image/notifications.png)
+
+### 用户管理 (User Management)
+![用户管理](image/users.png)
+![角色管理](image/roles.png)
 
 ## 🤝 贡献
 

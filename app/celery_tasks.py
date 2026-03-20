@@ -4,6 +4,7 @@ import json
 import time
 import contextlib
 import redis
+import logging
 from datetime import datetime
 from uuid import UUID
 
@@ -19,10 +20,14 @@ from app.db import session_scope
 from app.platforms import platforms_compatible
 from app.services.alert_service import check_and_alert, check_and_alert_batch
 from app.services.backup_service import backup_device
+from app.services.ftp_service import upload_backup_to_ftp
 from app.services.netmiko_client import NetmikoClientError
 from app.services.reachability import perform_single_reachability_check
 from app.services.s3_service import upload_backup_to_s3
+from app.core.logger import get_request_id
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def celery_enabled() -> bool:
@@ -252,6 +257,13 @@ def _execute_backup_logic(
                     config_text=config_text,
                     finished_at=record2.finished_at or record2.started_at,
                 )
+                upload_backup_to_ftp(
+                    session=session,
+                    device_name=device_name,
+                    host=device_host,
+                    config_text=config_text,
+                    finished_at=record2.finished_at or record2.started_at,
+                )
                 check_and_alert(session, record2, skip_email=skip_email)
         return {"ok": True, "record_id": str(rid)}
 
@@ -438,6 +450,8 @@ def bulk_reachability_task(
     device_ids: list[int],
     offset_minutes: int = 0,
 ) -> dict[str, Any]:
+    task_id = str(getattr(getattr(self, "request", None), "id", "") or "")
+    request_id = get_request_id() or ""
     total = len(device_ids)
     processed = 0
     success = 0
@@ -458,13 +472,25 @@ def bulk_reachability_task(
         try:
             val = crud.get_setting(session, key="max_concurrent_tasks")
             max_workers = int(val or "10")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception(
+                json.dumps(
+                    {
+                        "event": "bulk_reachability_config_error",
+                        "task_id": task_id,
+                        "request_id": request_id,
+                        "device_id": None,
+                        "error": str(exc),
+                    },
+                    ensure_ascii=False,
+                )
+            )
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(perform_single_reachability_check, did, offset_minutes=offset_minutes): did for did in device_ids}
         
         for future in as_completed(futures):
+            did = int(futures.get(future, 0) or 0)
             try:
                 result = future.result()
                 if result:
@@ -473,8 +499,32 @@ def bulk_reachability_task(
                         success += 1
                     else:
                         failed += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                failed += 1
+                items.append(
+                    {
+                        "id": did,
+                        "name": "",
+                        "host": "",
+                        "success": False,
+                        "error_message": str(exc),
+                        "duration_ms": 0,
+                        "last_checked": "",
+                        "login_method": "",
+                    }
+                )
+                logger.exception(
+                    json.dumps(
+                        {
+                            "event": "bulk_reachability_device_error",
+                            "task_id": task_id,
+                            "request_id": request_id,
+                            "device_id": did or None,
+                            "error": str(exc),
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             
             processed += 1
             self.update_state(state="PROGRESS", meta={

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, Response
+from sqlmodel import select
 
 from app import crud
 from app.db import session_scope
+from app.models import Device
 from app.routers.common import _current_user, _layout_context, _require_permission, templates
 
 
@@ -29,14 +31,15 @@ def dashboard_page(request: Request):
         trend_stats = crud.get_backup_trend_stats(session, days=30)
         change_heatmap = crud.get_config_change_heatmap_stats(session, days=90)
         health_stats = crud.get_group_health_stats(session)
-        recent_backups = crud.list_backups(session, limit=50)
+        recent_backups = crud.get_latest_backups_per_device(session)
 
         device_ids = {r.device_id for r in recent_backups}
         device_map = {}
-        for did in device_ids:
-            d = crud.get_device(session, did)
-            if d:
-                device_map[did] = d
+        if device_ids:
+            devices = session.exec(select(Device).where(Device.id.in_(list(device_ids)))).all()
+            for d in devices:
+                if d.id is not None:
+                    device_map[d.id] = d
 
     return templates.TemplateResponse(
         "dashboard.html",

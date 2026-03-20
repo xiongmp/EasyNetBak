@@ -694,15 +694,14 @@ def config_search_page(
         records = crud.search_config(session, q=q, latest_only=latest_only, limit=limit, offset=offset)
         total = crud.count_config_search_results(session, q=q, latest_only=latest_only)
 
+        device_ids = sorted({int(r.device_id) for r in records if r.device_id is not None})
         device_map = {}
+        if device_ids:
+            devices = session.exec(select(Device).where(Device.id.in_(device_ids))).all()
+            device_map = {int(d.id): d for d in devices if d.id is not None}
         grouped_records = {}
 
         for r in records:
-            if r.device_id not in device_map:
-                d = crud.get_device(session, r.device_id)
-                if d:
-                    device_map[r.device_id] = d
-
             if r.device_id in device_map:
                 if r.device_id not in grouped_records:
                     grouped_records[r.device_id] = []

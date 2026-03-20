@@ -3,127 +3,146 @@
 {% set body_class = "login-body" %}
 
 {% block content %}
-<div class="login-page">
-  <div class="login-top-brand" style="position: absolute; top: 2rem; left: 2.5rem; z-index: 100; display: flex; align-items: center; gap: 12px;">
-    <img src="/static/img/logo_abstract.svg" alt="Logo" style="width: 32px; height: 32px;">
-    <span style="font-size: 1.5rem; font-weight: 700; color: #000; letter-spacing: 0.5px; font-family: system-ui, -apple-system, sans-serif;">Netbak</span>
-  </div>
-  <!-- Background Visual -->
-  <div class="login-bg-visual">
-    <svg class="login-anim-svg" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-      <defs>
-        <radialGradient id="nb-core-grad" cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.95"/>
-          <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.8"/>
-          <stop offset="100%" stop-color="#2563eb" stop-opacity="0.55"/>
-        </radialGradient>
-        <filter id="nb-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="6" result="blur"/>
-          <feMerge>
-            <feMergeNode in="blur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-        <style>
-          .nb-rotate { animation: nb-rotate 18s linear infinite; transform-origin: 400px 300px; }
-          .nb-float { animation: nb-float 6s ease-in-out infinite; transform-origin: 400px 300px; }
-          .nb-pulse { animation: nb-pulse 2.8s ease-out infinite; transform-origin: 400px 300px; }
-          .nb-pulse.nb-delay { animation-delay: -1.4s; }
-          .nb-stream { stroke-dasharray: 10 18; animation: nb-stream 1.2s linear infinite; }
-          .nb-blink { animation: nb-blink 1.8s infinite; }
-          .nb-blink.nb-delay { animation-delay: 0.9s; }
-          @keyframes nb-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          @keyframes nb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-          @keyframes nb-pulse { 0% { transform: scale(0.82); opacity: 0.6; } 100% { transform: scale(1.38); opacity: 0; } }
-          @keyframes nb-stream { to { stroke-dashoffset: -28; } }
-          @keyframes nb-blink { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
-        </style>
-      </defs>
+<div class="container-fluid p-0 login-split-container">
+  <div class="row g-0 min-vh-100">
+    
+    <!-- Left Panel: Branding & Visual -->
+    <div class="col-lg-6 d-none d-lg-flex flex-column justify-content-between p-5 login-left-panel text-white">
+      <!-- Background SVG Animation -->
+      <div class="position-absolute top-50 start-50 translate-middle w-100 h-100 p-5 d-flex align-items-center justify-content-center" style="z-index: 0; pointer-events: none;">
+        <svg class="login-anim-svg" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <defs>
+            <radialGradient id="nb-core-grad" cx="50%" cy="45%" r="60%">
+              <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.95"/>
+              <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="#2563eb" stop-opacity="0.55"/>
+            </radialGradient>
+            <filter id="nb-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="6" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <style>
+              .nb-rotate { animation: nb-rotate 18s linear infinite; transform-origin: 400px 300px; }
+              .nb-float { animation: nb-float 6s ease-in-out infinite; transform-origin: 400px 300px; }
+              .nb-pulse { animation: nb-pulse 2.8s ease-out infinite; transform-origin: 400px 300px; }
+              .nb-pulse.nb-delay { animation-delay: -1.4s; }
+              .nb-stream { stroke-dasharray: 10 18; animation: nb-stream 1.2s linear infinite; }
+              .nb-blink { animation: nb-blink 1.8s infinite; }
+              .nb-blink.nb-delay { animation-delay: 0.9s; }
+              @keyframes nb-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+              @keyframes nb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+              @keyframes nb-pulse { 0% { transform: scale(0.82); opacity: 0.6; } 100% { transform: scale(1.38); opacity: 0; } }
+              @keyframes nb-stream { to { stroke-dashoffset: -28; } }
+              @keyframes nb-blink { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+            </style>
+          </defs>
+    
+          <g opacity="0.10" class="nb-rotate">
+            <circle cx="400" cy="300" r="210" fill="none" stroke="#3b82f6" stroke-width="3"/>
+            <circle cx="400" cy="300" r="300" fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="22 14"/>
+          </g>
+    
+          <g opacity="0.55">
+            <path d="M400 300 L170 380" fill="none" stroke="#60a5fa" stroke-width="3" class="nb-stream" opacity="0.55"/>
+            <path d="M400 300 L640 260" fill="none" stroke="#f59e0b" stroke-width="3" class="nb-stream" opacity="0.55"/>
+            <path d="M400 300 L420 115" fill="none" stroke="#3b82f6" stroke-width="3" class="nb-stream" opacity="0.45"/>
+          </g>
+    
+          <g class="nb-float">
+            <circle cx="400" cy="300" r="70" fill="url(#nb-core-grad)" filter="url(#nb-soft-glow)"/>
+            <circle cx="400" cy="300" r="82" fill="none" stroke="#93c5fd" stroke-width="3" opacity="0.35"/>
+          </g>
+    
+          <g class="nb-pulse">
+            <circle cx="400" cy="300" r="110" fill="none" stroke="#60a5fa" stroke-width="4" opacity="0.6"/>
+          </g>
+          <g class="nb-pulse nb-delay">
+            <circle cx="400" cy="300" r="160" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.5"/>
+          </g>
+    
+          <g filter="url(#nb-soft-glow)">
+            <circle cx="170" cy="380" r="18" fill="#22c55e" class="nb-blink"/>
+            <circle cx="640" cy="260" r="16" fill="#f59e0b" class="nb-blink nb-delay"/>
+            <circle cx="420" cy="115" r="14" fill="#ffffff" opacity="0.85" class="nb-blink"/>
+            <circle cx="560" cy="430" r="10" fill="#60a5fa" opacity="0.7" class="nb-blink nb-delay"/>
+            <circle cx="250" cy="180" r="8" fill="#60a5fa" opacity="0.6" class="nb-blink"/>
+          </g>
+        </svg>
+      </div>
 
-      <g opacity="0.10" class="nb-rotate">
-        <circle cx="400" cy="300" r="210" fill="none" stroke="#3b82f6" stroke-width="3"/>
-        <circle cx="400" cy="300" r="300" fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="22 14"/>
-      </g>
-
-      <g opacity="0.55">
-        <path d="M400 300 L170 380" fill="none" stroke="#60a5fa" stroke-width="3" class="nb-stream" opacity="0.55"/>
-        <path d="M400 300 L640 260" fill="none" stroke="#f59e0b" stroke-width="3" class="nb-stream" opacity="0.55"/>
-        <path d="M400 300 L420 115" fill="none" stroke="#3b82f6" stroke-width="3" class="nb-stream" opacity="0.45"/>
-      </g>
-
-      <g class="nb-float">
-        <circle cx="400" cy="300" r="70" fill="url(#nb-core-grad)" filter="url(#nb-soft-glow)"/>
-        <circle cx="400" cy="300" r="82" fill="none" stroke="#93c5fd" stroke-width="3" opacity="0.35"/>
-      </g>
-
-      <g class="nb-pulse">
-        <circle cx="400" cy="300" r="110" fill="none" stroke="#60a5fa" stroke-width="4" opacity="0.6"/>
-      </g>
-      <g class="nb-pulse nb-delay">
-        <circle cx="400" cy="300" r="160" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.5"/>
-      </g>
-
-      <g filter="url(#nb-soft-glow)">
-        <circle cx="170" cy="380" r="18" fill="#22c55e" class="nb-blink"/>
-        <circle cx="640" cy="260" r="16" fill="#f59e0b" class="nb-blink nb-delay"/>
-        <circle cx="420" cy="115" r="14" fill="#ffffff" opacity="0.85" class="nb-blink"/>
-        <circle cx="560" cy="430" r="10" fill="#60a5fa" opacity="0.7" class="nb-blink nb-delay"/>
-        <circle cx="250" cy="180" r="8" fill="#60a5fa" opacity="0.6" class="nb-blink"/>
-      </g>
-    </svg>
-  </div>
-
-  <div class="login-card-wrapper">
-    <div class="login-header">
-      <h1>绑定验证器</h1>
-      <p>扫描二维码并输入验证码完成 MFA 绑定</p>
+      <!-- Header Content -->
+      <div class="position-relative z-1">
+        <div class="d-flex align-items-center gap-3">
+          <img src="/static/img/logo_abstract.svg" alt="Logo" width="36" height="36">
+          <span class="h4 fw-bold mb-0 text-white" style="letter-spacing: 0.5px;">Netbak</span>
+        </div>
+      </div>
     </div>
 
-    {% if err %}
-      <div class="alert py-2 small border-0 mb-4 d-flex align-items-center rounded-3" style="background: rgba(239, 68, 68, 0.08); color: #ef4444;">
-        <i class="bi bi-exclamation-circle-fill me-2"></i>
-        <div>{{ err }}</div>
-      </div>
-    {% endif %}
-
-    <form method="post" action="/mfa-setup" class="row g-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <input type="hidden" name="mfa_secret" value="{{ mfa_secret }}" />
-      <input type="hidden" name="mfa_sig" value="{{ mfa_sig }}" />
-
-      <div class="col-12 text-center mb-2">
-        <img src="{{ mfa_qr }}" alt="MFA QR Code" class="img-fluid border rounded-3 p-2 bg-white shadow-sm" style="max-width: 180px;">
-      </div>
-      
-      <div class="col-12">
-        <label class="form-label small text-secondary fw-bold">密钥</label>
-        <div class="input-group">
-          <input type="text" class="form-control bg-light border-0 small px-3" value="{{ mfa_secret }}" readonly onclick="this.select()" style="font-family: monospace; border-radius: 12px !important;">
+    <!-- Right Panel: MFA Setup Form -->
+    <div class="col-lg-6 d-flex align-items-center justify-content-center bg-white position-relative">
+      <div class="login-form-wrapper">
+        <!-- Mobile Logo -->
+        <div class="d-lg-none text-center mb-4">
+          <div class="d-inline-flex align-items-center gap-2 p-2 rounded-3 bg-light">
+            <img src="/static/img/logo_abstract.svg" alt="Logo" width="32" height="32">
+            <span class="h5 fw-bold mb-0 text-dark">Netbak</span>
+          </div>
         </div>
-      </div>
-      
-      <div class="col-12 mt-4">
-        <div class="input-group">
-          <span class="input-group-text">
-            <i class="bi bi-key"></i>
-          </span>
-          <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required>
+
+        <div class="text-center mb-4">
+          <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">绑定验证器</h1>
+          <p class="text-secondary mb-0">扫描二维码并输入验证码完成 MFA 绑定</p>
         </div>
+
+        {% if err %}
+          <div class="alert alert-danger border-0 d-flex align-items-center rounded-pill py-2 px-3 mb-4" role="alert" style="background-color: rgba(239, 68, 68, 0.1); color: #ef4444;">
+            <i class="bi bi-exclamation-circle-fill me-2"></i>
+            <div class="small fw-medium">{{ err }}</div>
+          </div>
+        {% endif %}
+
+        <form method="post" action="/mfa-setup" class="login-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="mfa_secret" value="{{ mfa_secret }}" />
+          <input type="hidden" name="mfa_sig" value="{{ mfa_sig }}" />
+
+          <div class="text-center mb-4">
+             <img src="{{ mfa_qr }}" alt="MFA QR Code" class="img-fluid border rounded-3 p-2 bg-white shadow-sm" style="max-width: 160px;">
+          </div>
+
+          <div class="mb-3">
+             <label class="form-label small fw-bold text-secondary ms-1 mb-1">密钥 (点击复制)</label>
+             <input type="text" class="form-control form-control-pill text-center font-monospace bg-light" value="{{ mfa_secret }}" readonly onclick="this.select()" style="cursor: pointer;">
+          </div>
+          
+          <div class="mb-4">
+            <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
+            <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required>
+          </div>
+
+          <div class="mb-4">
+             <div class="alert alert-light border-0 d-flex align-items-start p-3 rounded-3 bg-light">
+               <i class="bi bi-info-circle-fill text-primary me-2 mt-1"></i>
+               <div class="small text-secondary lh-sm">
+                 支持离线部署，无需外网。若验证码频繁失败，请检查服务器时间是否已同步。
+               </div>
+             </div>
+          </div>
+          
+          <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">
+            完成绑定
+          </button>
+        </form>
       </div>
 
-      <div class="col-12">
-        <div class="form-text x-small text-warning-emphasis">
-          <i class="bi bi-exclamation-triangle-fill me-1"></i>支持离线部署，无需外网。若验证码频繁失败，请检查服务器时间是否已同步。
-        </div>
+      <!-- Footer Content -->
+      <div class="position-absolute bottom-0 start-50 translate-middle-x pb-4 text-muted small">
+        <p class="mb-0">© 2026 网络设备备份系统</p>
       </div>
-      
-      <div class="col-12 mt-3">
-        <button class="btn-login" type="submit">完成绑定</button>
-      </div>
-    </form>
-
-    <div class="login-footer">
-      <p class="mb-0">© 2026 网络设备备份系统</p>
     </div>
   </div>
 </div>

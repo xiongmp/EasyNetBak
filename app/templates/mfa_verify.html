@@ -3,186 +3,175 @@
 {% set body_class = "login-body" %}
 
 {% block content %}
-<div class="login-page">
-  <div class="login-top-brand" style="position: absolute; top: 2rem; left: 2.5rem; z-index: 100; display: flex; align-items: center; gap: 12px;">
-    <img src="/static/img/logo_abstract.svg" alt="Logo" style="width: 32px; height: 32px;">
-    <span style="font-size: 1.5rem; font-weight: 700; color: #000; letter-spacing: 0.5px; font-family: system-ui, -apple-system, sans-serif;">Netbak</span>
-  </div>
-  <!-- Background Visual -->
-  <div class="login-bg-visual">
-    <svg class="login-anim-svg" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-      <defs>
-        <radialGradient id="nb-core-grad" cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.95"/>
-          <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.8"/>
-          <stop offset="100%" stop-color="#2563eb" stop-opacity="0.55"/>
-        </radialGradient>
-        <filter id="nb-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="6" result="blur"/>
-          <feMerge>
-            <feMergeNode in="blur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-        <style>
-          .nb-rotate { animation: nb-rotate 18s linear infinite; transform-origin: 400px 300px; }
-          .nb-float { animation: nb-float 6s ease-in-out infinite; transform-origin: 400px 300px; }
-          .nb-pulse { animation: nb-pulse 2.8s ease-out infinite; transform-origin: 400px 300px; }
-          .nb-pulse.nb-delay { animation-delay: -1.4s; }
-          .nb-stream { stroke-dasharray: 10 18; animation: nb-stream 1.2s linear infinite; }
-          .nb-blink { animation: nb-blink 1.8s infinite; }
-          .nb-blink.nb-delay { animation-delay: 0.9s; }
-          @keyframes nb-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          @keyframes nb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-          @keyframes nb-pulse { 0% { transform: scale(0.82); opacity: 0.6; } 100% { transform: scale(1.38); opacity: 0; } }
-          @keyframes nb-stream { to { stroke-dashoffset: -28; } }
-          @keyframes nb-blink { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
-        </style>
-      </defs>
+<div class="container-fluid p-0 login-split-container">
+  <div class="row g-0 min-vh-100">
+    
+    <!-- Left Panel: Branding & Visual -->
+    <div class="col-lg-6 d-none d-lg-flex flex-column justify-content-between p-5 login-left-panel text-white">
+      <!-- Background SVG Animation -->
+      <div class="position-absolute top-50 start-50 translate-middle w-100 h-100 p-5 d-flex align-items-center justify-content-center" style="z-index: 0; pointer-events: none;">
+        <svg class="login-anim-svg" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <defs>
+            <radialGradient id="nb-core-grad" cx="50%" cy="45%" r="60%">
+              <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.95"/>
+              <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="#2563eb" stop-opacity="0.55"/>
+            </radialGradient>
+            <filter id="nb-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="6" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <style>
+              .nb-rotate { animation: nb-rotate 18s linear infinite; transform-origin: 400px 300px; }
+              .nb-float { animation: nb-float 6s ease-in-out infinite; transform-origin: 400px 300px; }
+              .nb-pulse { animation: nb-pulse 2.8s ease-out infinite; transform-origin: 400px 300px; }
+              .nb-pulse.nb-delay { animation-delay: -1.4s; }
+              .nb-stream { stroke-dasharray: 10 18; animation: nb-stream 1.2s linear infinite; }
+              .nb-blink { animation: nb-blink 1.8s infinite; }
+              .nb-blink.nb-delay { animation-delay: 0.9s; }
+              @keyframes nb-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+              @keyframes nb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+              @keyframes nb-pulse { 0% { transform: scale(0.82); opacity: 0.6; } 100% { transform: scale(1.38); opacity: 0; } }
+              @keyframes nb-stream { to { stroke-dashoffset: -28; } }
+              @keyframes nb-blink { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+            </style>
+          </defs>
+    
+          <g opacity="0.10" class="nb-rotate">
+            <circle cx="400" cy="300" r="210" fill="none" stroke="#3b82f6" stroke-width="3"/>
+            <circle cx="400" cy="300" r="300" fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="22 14"/>
+          </g>
+    
+          <g opacity="0.55">
+            <path d="M400 300 L170 380" fill="none" stroke="#60a5fa" stroke-width="3" class="nb-stream" opacity="0.55"/>
+            <path d="M400 300 L640 260" fill="none" stroke="#f59e0b" stroke-width="3" class="nb-stream" opacity="0.55"/>
+            <path d="M400 300 L420 115" fill="none" stroke="#3b82f6" stroke-width="3" class="nb-stream" opacity="0.45"/>
+          </g>
+    
+          <g class="nb-float">
+            <circle cx="400" cy="300" r="70" fill="url(#nb-core-grad)" filter="url(#nb-soft-glow)"/>
+            <circle cx="400" cy="300" r="82" fill="none" stroke="#93c5fd" stroke-width="3" opacity="0.35"/>
+          </g>
+    
+          <g class="nb-pulse">
+            <circle cx="400" cy="300" r="110" fill="none" stroke="#60a5fa" stroke-width="4" opacity="0.6"/>
+          </g>
+          <g class="nb-pulse nb-delay">
+            <circle cx="400" cy="300" r="160" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.5"/>
+          </g>
+    
+          <g filter="url(#nb-soft-glow)">
+            <circle cx="170" cy="380" r="18" fill="#22c55e" class="nb-blink"/>
+            <circle cx="640" cy="260" r="16" fill="#f59e0b" class="nb-blink nb-delay"/>
+            <circle cx="420" cy="115" r="14" fill="#ffffff" opacity="0.85" class="nb-blink"/>
+            <circle cx="560" cy="430" r="10" fill="#60a5fa" opacity="0.7" class="nb-blink nb-delay"/>
+            <circle cx="250" cy="180" r="8" fill="#60a5fa" opacity="0.6" class="nb-blink"/>
+          </g>
+        </svg>
+      </div>
 
-      <g opacity="0.10" class="nb-rotate">
-        <circle cx="400" cy="300" r="210" fill="none" stroke="#3b82f6" stroke-width="3"/>
-        <circle cx="400" cy="300" r="300" fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="22 14"/>
-      </g>
-
-      <g opacity="0.55">
-        <path d="M400 300 L170 380" fill="none" stroke="#60a5fa" stroke-width="3" class="nb-stream" opacity="0.55"/>
-        <path d="M400 300 L640 260" fill="none" stroke="#f59e0b" stroke-width="3" class="nb-stream" opacity="0.55"/>
-        <path d="M400 300 L420 115" fill="none" stroke="#3b82f6" stroke-width="3" class="nb-stream" opacity="0.45"/>
-      </g>
-
-      <g class="nb-float">
-        <circle cx="400" cy="300" r="70" fill="url(#nb-core-grad)" filter="url(#nb-soft-glow)"/>
-        <circle cx="400" cy="300" r="82" fill="none" stroke="#93c5fd" stroke-width="3" opacity="0.35"/>
-      </g>
-
-      <g class="nb-pulse">
-        <circle cx="400" cy="300" r="110" fill="none" stroke="#60a5fa" stroke-width="4" opacity="0.6"/>
-      </g>
-      <g class="nb-pulse nb-delay">
-        <circle cx="400" cy="300" r="160" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.5"/>
-      </g>
-
-      <g filter="url(#nb-soft-glow)">
-        <circle cx="170" cy="380" r="18" fill="#22c55e" class="nb-blink"/>
-        <circle cx="640" cy="260" r="16" fill="#f59e0b" class="nb-blink nb-delay"/>
-        <circle cx="420" cy="115" r="14" fill="#ffffff" opacity="0.85" class="nb-blink"/>
-        <circle cx="560" cy="430" r="10" fill="#60a5fa" opacity="0.7" class="nb-blink nb-delay"/>
-        <circle cx="250" cy="180" r="8" fill="#60a5fa" opacity="0.6" class="nb-blink"/>
-      </g>
-    </svg>
-  </div>
-
-  <div class="login-card-wrapper">
-    <div class="login-header">
-      {% if allow_recovery %}
-        <h1>安全验证</h1>
-        <p>请选择一种方式进行身份验证</p>
-      {% else %}
-        <h1>验证码确认</h1>
-        <p>请输入验证器中的 6 位验证码</p>
-      {% endif %}
+      <!-- Header Content -->
+      <div class="position-relative z-1">
+        <div class="d-flex align-items-center gap-3">
+          <img src="/static/img/logo_abstract.svg" alt="Logo" width="36" height="36">
+          <span class="h4 fw-bold mb-0 text-white" style="letter-spacing: 0.5px;">Netbak</span>
+        </div>
+      </div>
     </div>
 
-    {% if err %}
-      <div class="alert py-2 small border-0 mb-4 d-flex align-items-center rounded-3" style="background: rgba(239, 68, 68, 0.08); color: #ef4444;">
-        <i class="bi bi-exclamation-circle-fill me-2"></i>
-        <div>{{ err }}</div>
-      </div>
-    {% endif %}
+    <!-- Right Panel: MFA Verify Form -->
+    <div class="col-lg-6 d-flex align-items-center justify-content-center bg-white position-relative">
+      <div class="login-form-wrapper">
+        <!-- Mobile Logo -->
+        <div class="d-lg-none text-center mb-4">
+          <div class="d-inline-flex align-items-center gap-2 p-2 rounded-3 bg-light">
+            <img src="/static/img/logo_abstract.svg" alt="Logo" width="32" height="32">
+            <span class="h5 fw-bold mb-0 text-dark">Netbak</span>
+          </div>
+        </div>
 
-    {% if allow_recovery %}
-      <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-3" id="mfaTab" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active small fw-bold" id="app-tab" data-bs-toggle="pill" data-bs-target="#mfa-app" type="button" role="tab" aria-selected="true">
-            <i class="bi bi-shield-lock me-2"></i>验证码
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link small fw-bold" id="recovery-tab" data-bs-toggle="pill" data-bs-target="#mfa-recovery" type="button" role="tab" aria-selected="false">
-            <i class="bi bi-key-fill me-2"></i>恢复码
-          </button>
-        </li>
-      </ul>
+        <div class="text-center mb-5">
+          {% if allow_recovery %}
+            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">安全验证</h1>
+            <p class="text-secondary mb-0">请选择一种方式进行身份验证</p>
+          {% else %}
+            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">验证码确认</h1>
+            <p class="text-secondary mb-0">请输入验证器中的 6 位验证码</p>
+          {% endif %}
+        </div>
 
-      <div class="tab-content" id="mfaTabContent">
-        <div class="tab-pane fade show active" id="mfa-app" role="tabpanel" tabindex="0">
-          <form method="post" action="/mfa-verify" class="row g-3">
+        {% if err %}
+          <div class="alert alert-danger border-0 d-flex align-items-center rounded-pill py-2 px-3 mb-4" role="alert" style="background-color: rgba(239, 68, 68, 0.1); color: #ef4444;">
+            <i class="bi bi-exclamation-circle-fill me-2"></i>
+            <div class="small fw-medium">{{ err }}</div>
+          </div>
+        {% endif %}
+
+        {% if allow_recovery %}
+          <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-pill" id="mfaTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active small fw-bold rounded-pill" id="app-tab" data-bs-toggle="pill" data-bs-target="#mfa-app" type="button" role="tab" aria-selected="true">
+                <i class="bi bi-shield-lock me-2"></i>验证码
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link small fw-bold rounded-pill" id="recovery-tab" data-bs-toggle="pill" data-bs-target="#mfa-recovery" type="button" role="tab" aria-selected="false">
+                <i class="bi bi-key-fill me-2"></i>恢复码
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="mfaTabContent">
+            <div class="tab-pane fade show active" id="mfa-app" role="tabpanel" tabindex="0">
+              <form method="post" action="/mfa-verify" class="login-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="next" value="{{ next }}" />
+                
+                <div class="mb-4">
+                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
+                  <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
+                </div>
+                
+                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">继续登录</button>
+              </form>
+            </div>
+
+            <div class="tab-pane fade" id="mfa-recovery" role="tabpanel" tabindex="0">
+              <form method="post" action="/mfa-verify" class="login-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="next" value="{{ next }}" />
+
+                <div class="mb-4">
+                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">恢复码</label>
+                  <input name="recovery_code" class="form-control form-control-pill" placeholder="输入恢复码" required>
+                </div>
+
+                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">使用恢复码登录</button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <form method="post" action="/mfa-verify" class="login-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
             <input type="hidden" name="next" value="{{ next }}" />
             
-            <div class="col-12">
-              <label class="form-label small text-secondary fw-bold">验证码</label>
-              <div class="input-group">
-                <span class="input-group-text">
-                  <i class="bi bi-key"></i>
-                </span>
-                <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
-              </div>
+            <div class="mb-4">
+              <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
+              <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
             </div>
             
-            <div class="col-12">
-              <div class="form-text x-small text-warning-emphasis">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i>若验证码多次失败，请确认服务器时间已同步正确时间。
-              </div>
-            </div>
-            
-            <div class="col-12 mt-4">
-              <button class="btn-login" type="submit">继续登录</button>
-            </div>
+            <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">继续登录</button>
           </form>
-        </div>
-
-        <div class="tab-pane fade" id="mfa-recovery" role="tabpanel" tabindex="0">
-          <form method="post" action="/mfa-verify" class="row g-3">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-            <input type="hidden" name="next" value="{{ next }}" />
-
-            <div class="col-12">
-              <label class="form-label small text-secondary fw-bold">恢复码</label>
-              <div class="input-group">
-                <span class="input-group-text">
-                  <i class="bi bi-key-fill"></i>
-                </span>
-                <input name="recovery_code" class="form-control" placeholder="输入恢复码" required>
-              </div>
-            </div>
-
-            <div class="col-12 mt-4">
-              <button class="btn-login" type="submit">使用恢复码登录</button>
-            </div>
-          </form>
-        </div>
+        {% endif %}
       </div>
-    {% else %}
-      <form method="post" action="/mfa-verify" class="row g-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        <input type="hidden" name="next" value="{{ next }}" />
-        
-        <div class="col-12 mt-2">
-          <label class="form-label small text-secondary fw-bold">验证码</label>
-          <div class="input-group">
-            <span class="input-group-text">
-              <i class="bi bi-key"></i>
-            </span>
-            <input name="mfa_code" class="form-control" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
-          </div>
-        </div>
-        
-        <div class="col-12">
-          <div class="form-text x-small text-warning-emphasis">
-            <i class="bi bi-exclamation-triangle-fill me-1"></i>若验证码多次失败，请确认服务器时间已同步正确时间。
-          </div>
-        </div>
-        
-        <div class="col-12 mt-4">
-          <button class="btn-login" type="submit">继续登录</button>
-        </div>
-      </form>
-    {% endif %}
 
-    <div class="login-footer">
-      <p class="mb-0">© 2026 网络设备备份系统</p>
+      <!-- Footer Content -->
+      <div class="position-absolute bottom-0 start-50 translate-middle-x pb-4 text-muted small">
+        <p class="mb-0">© 2026 网络设备备份系统</p>
+      </div>
     </div>
   </div>
 </div>

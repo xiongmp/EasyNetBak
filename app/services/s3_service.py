@@ -45,7 +45,9 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
     try:
         s3_config = Config(
             region_name=region if region else None,
-            retries={'max_attempts': 3, 'mode': 'standard'}
+            retries={'max_attempts': 3, 'mode': 'standard'},
+            signature_version="s3v4",
+            s3={"addressing_style": "path", "payload_signing_enabled": False}
         )
         
         s3_client = boto3.client(
@@ -92,7 +94,9 @@ def test_s3_connection(endpoint: str, access_key: str, secret_key: str, bucket: 
     try:
         s3_config = Config(
             region_name=region if region else None,
-            retries={'max_attempts': 1, 'mode': 'standard'}
+            retries={'max_attempts': 1, 'mode': 'standard'},
+            signature_version="s3v4",
+            s3={"addressing_style": "path", "payload_signing_enabled": False}
         )
         
         s3_client = boto3.client(

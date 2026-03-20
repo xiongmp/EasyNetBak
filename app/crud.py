@@ -767,6 +767,28 @@ def list_backups(session: Session, *, limit: int = 50) -> list[BackupRecord]:
     return list(session.exec(stmt))
 
 
+def get_latest_backups_per_device(session: Session) -> list[BackupRecord]:
+    subq = (
+        select(
+            BackupRecord.device_id,
+            func.max(BackupRecord.started_at).label("max_time")
+        )
+        .group_by(BackupRecord.device_id)
+        .subquery()
+    )
+    
+    stmt = (
+        select(BackupRecord)
+        .join(
+            subq,
+            (BackupRecord.device_id == subq.c.device_id) &
+            (BackupRecord.started_at == subq.c.max_time)
+        )
+        .order_by(BackupRecord.started_at.desc())
+    )
+    return list(session.exec(stmt))
+
+
 def list_device_backups(session: Session, device_id: int, *, limit: int = 50, offset: int = 0) -> list[BackupRecord]:
     stmt = (
         select(BackupRecord)
@@ -795,6 +817,20 @@ def list_backups_by_ids(session: Session, backup_ids: Iterable[UUID]) -> list[Ba
     return list(session.exec(stmt))
 
 
+def _config_search_condition(session: Session, keyword: str):
+    q = (keyword or "").strip()
+    if not q:
+        return None
+    bind = session.get_bind()
+    dialect = bind.dialect.name if bind is not None else ""
+    if dialect == "postgresql":
+        text_expr = func.coalesce(BackupRecord.config_text, "")
+        ts_vector = func.to_tsvector("simple", text_expr)
+        ts_query = func.websearch_to_tsquery("simple", q)
+        return or_(ts_vector.op("@@")(ts_query), BackupRecord.config_text.ilike(f"%{q}%"))
+    return BackupRecord.config_text.like(f"%{q}%")
+
+
 def search_config(
     session: Session,
     *,
@@ -803,15 +839,12 @@ def search_config(
     limit: int = 100,
     offset: int = 0,
 ) -> list[BackupRecord]:
-    # Join with Device to ensure we only search for existing devices
     stmt = select(BackupRecord).join(Device, BackupRecord.device_id == Device.id).where(BackupRecord.success == True)
-
-    if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(BackupRecord.config_text.like(like))
+    condition = _config_search_condition(session, q)
+    if condition is not None:
+        stmt = stmt.where(condition)
 
     if latest_only:
-        # Subquery to get the latest successful backup for each device
         subq = (
             select(
                 BackupRecord.device_id,
@@ -837,17 +870,15 @@ def count_config_search_results(
     q: str,
     latest_only: bool = True,
 ) -> int:
-    # Join with Device to ensure we only count results for existing devices
     stmt = (
         select(func.count())
         .select_from(BackupRecord)
         .join(Device, BackupRecord.device_id == Device.id)
         .where(BackupRecord.success == True)
     )
-
-    if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(BackupRecord.config_text.like(like))
+    condition = _config_search_condition(session, q)
+    if condition is not None:
+        stmt = stmt.where(condition)
 
     if latest_only:
         subq = (

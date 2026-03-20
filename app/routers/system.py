@@ -17,6 +17,7 @@ from app.routers.common import _dt_local_str, _layout_context, _log_action, _req
 from app.scheduler import run_cleanup, sync_scheduler_from_db
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.s3_service import test_s3_connection
+from app.services.ftp_service import test_ftp_connection
 from app.services.notification_service import send_email
 
 
@@ -265,18 +266,6 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         backup_retry_backoff = crud.get_setting(session, key="backup_retry_backoff")
         task_time_limit = crud.get_setting(session, key="task_time_limit")
         retention_days = crud.get_setting(session, key="backup_retention_days")
-        s3_enabled = crud.get_setting(session, key="s3_enabled") or "0"
-        s3_endpoint = crud.get_setting(session, key="s3_endpoint") or ""
-        s3_access_key = decrypt_secret(crud.get_setting(session, key="s3_access_key")) or ""
-        s3_secret_key = decrypt_secret(crud.get_setting(session, key="s3_secret_key")) or ""
-        s3_bucket = crud.get_setting(session, key="s3_bucket") or ""
-        s3_region = crud.get_setting(session, key="s3_region") or ""
-        s3_prefix = crud.get_setting(session, key="s3_prefix") or "backups"
-
-    # 对敏感信息进行掩码处理，不返回真实值到前端
-    # 按照用户要求，生成与实际值长度一致的掩码
-    display_access_key = "*" * len(s3_access_key) if s3_access_key else ""
-    display_secret_key = "*" * len(s3_secret_key) if s3_secret_key else ""
 
     timezone_offset = normalize_timezone_offset(timezone_str, default=settings.timezone_offset)
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
@@ -291,17 +280,11 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
             "backup_retry_backoff": backup_retry_backoff if backup_retry_backoff is not None else str(settings.celery.backup_retry_backoff_seconds),
             "task_time_limit": task_time_limit if (task_time_limit and task_time_limit != "0") else str(settings.celery.task_time_limit_seconds),
             "backup_retention_days": retention_days or "90",
-            "s3_enabled": s3_enabled,
-            "s3_endpoint": s3_endpoint,
-            "s3_access_key": display_access_key,
-            "s3_secret_key": display_secret_key,
-            "s3_bucket": s3_bucket,
-            "s3_region": s3_region,
-            "s3_prefix": s3_prefix,
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
     return response
+
 
 
 @router.post("/settings")
@@ -315,13 +298,6 @@ def update_settings(
     backup_retry_backoff: str = Form("10"),
     task_time_limit: str = Form("300"),
     backup_retention_days: str = Form("90"),
-    s3_enabled: str = Form("0"),
-    s3_endpoint: str = Form(""),
-    s3_access_key: str = Form(""),
-    s3_secret_key: str = Form(""),
-    s3_bucket: str = Form(""),
-    s3_region: str = Form(""),
-    s3_prefix: str = Form("backups"),
 ):
     csrf_protect.validate_csrf(request)
     _require_permission(request, "settings.update")
@@ -375,19 +351,6 @@ def update_settings(
         crud.set_setting(session, key="backup_retry_backoff", value=backup_retry_backoff)
         crud.set_setting(session, key="task_time_limit", value=task_time_limit)
         crud.set_setting(session, key="backup_retention_days", value=backup_retention_days)
-        crud.set_setting(session, key="s3_enabled", value="1" if s3_enabled in {"1", "on"} else "0")
-        crud.set_setting(session, key="s3_endpoint", value=s3_endpoint.strip())
-        
-        # 只有当用户输入的值不是全星号（掩码）且不为空时，才更新
-        # 我们通过 set(s3_access_key) == {'*'} 来判断是否为纯星号掩码
-        if s3_access_key and not (set(s3_access_key) == {'*'}):
-            crud.set_setting(session, key="s3_access_key", value=encrypt_secret(s3_access_key.strip()))
-        if s3_secret_key and not (set(s3_secret_key) == {'*'}):
-            crud.set_setting(session, key="s3_secret_key", value=encrypt_secret(s3_secret_key.strip()))
-            
-        crud.set_setting(session, key="s3_bucket", value=s3_bucket.strip())
-        crud.set_setting(session, key="s3_region", value=s3_region.strip())
-        crud.set_setting(session, key="s3_prefix", value=s3_prefix.strip())
 
         _log_action(
             request,
@@ -395,12 +358,13 @@ def update_settings(
             "UPDATE_SETTINGS",
             "settings",
             None,
-            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Retention: {backup_retention_days}, S3Enabled: {s3_enabled}",
+            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Retention: {backup_retention_days}",
         )
 
     background.add_task(run_cleanup)
 
     return RedirectResponse(url="/settings?msg=已保存", status_code=303)
+
 
 
 @router.post("/settings/test-s3")
@@ -432,6 +396,36 @@ def api_test_s3(
         region=s3_region.strip()
     )
     
+    return {"success": success, "message": message}
+
+
+@router.post("/settings/test-ftp")
+def api_test_ftp(
+    request: Request,
+    ftp_host: str = Form(""),
+    ftp_port: str = Form("21"),
+    ftp_username: str = Form(""),
+    ftp_password: str = Form(""),
+    ftp_base_dir: str = Form(""),
+    ftp_passive: str = Form("1"),
+    ftp_timeout: str = Form("15"),
+):
+    _require_permission(request, "settings.update")
+
+    if not ftp_password or (set(ftp_password) == {'*'}):
+        with session_scope() as session:
+            ftp_password = decrypt_secret(crud.get_setting(session, key="ftp_password")) or ""
+
+    success, message = test_ftp_connection(
+        host=ftp_host.strip(),
+        port=ftp_port.strip(),
+        username=ftp_username.strip(),
+        password=ftp_password.strip(),
+        base_dir=ftp_base_dir.strip(),
+        passive=ftp_passive.strip(),
+        timeout=ftp_timeout.strip(),
+    )
+
     return {"success": success, "message": message}
 
 
@@ -541,6 +535,131 @@ def update_notifications(
         _log_action(request, session, "UPDATE_NOTIFICATIONS", "settings", None, "Updated notification settings")
 
     return RedirectResponse(url="/notifications?msg=已保存", status_code=303)
+
+
+@router.get("/storage-settings")
+def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
+    _require_permission(request, "settings.view")
+    with session_scope() as session:
+        s3_enabled = crud.get_setting(session, key="s3_enabled") or "0"
+        s3_endpoint = crud.get_setting(session, key="s3_endpoint") or ""
+        s3_access_key = decrypt_secret(crud.get_setting(session, key="s3_access_key")) or ""
+        s3_secret_key = decrypt_secret(crud.get_setting(session, key="s3_secret_key")) or ""
+        s3_bucket = crud.get_setting(session, key="s3_bucket") or ""
+        s3_region = crud.get_setting(session, key="s3_region") or ""
+        s3_prefix = crud.get_setting(session, key="s3_prefix") or "backups"
+        ftp_enabled = crud.get_setting(session, key="ftp_enabled") or "0"
+        ftp_host = crud.get_setting(session, key="ftp_host") or ""
+        ftp_port = crud.get_setting(session, key="ftp_port") or "21"
+        ftp_username = crud.get_setting(session, key="ftp_username") or ""
+        ftp_password = decrypt_secret(crud.get_setting(session, key="ftp_password")) or ""
+        ftp_base_dir = crud.get_setting(session, key="ftp_base_dir") or ""
+        ftp_passive = crud.get_setting(session, key="ftp_passive") or "1"
+        ftp_timeout = crud.get_setting(session, key="ftp_timeout") or "15"
+
+    display_access_key = "*" * len(s3_access_key) if s3_access_key else ""
+    display_secret_key = "*" * len(s3_secret_key) if s3_secret_key else ""
+    display_ftp_password = "*" * len(ftp_password) if ftp_password else ""
+
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    response = templates.TemplateResponse(
+        "storage_settings.html",
+        {
+            **_layout_context(request=request, active="storage_settings"),
+            "csrf_token": csrf_token,
+            "s3_enabled": s3_enabled,
+            "s3_endpoint": s3_endpoint,
+            "s3_access_key": display_access_key,
+            "s3_secret_key": display_secret_key,
+            "s3_bucket": s3_bucket,
+            "s3_region": s3_region,
+            "s3_prefix": s3_prefix,
+            "ftp_enabled": ftp_enabled,
+            "ftp_host": ftp_host,
+            "ftp_port": ftp_port,
+            "ftp_username": ftp_username,
+            "ftp_password": display_ftp_password,
+            "ftp_base_dir": ftp_base_dir,
+            "ftp_passive": ftp_passive,
+            "ftp_timeout": ftp_timeout,
+        },
+    )
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
+
+
+@router.post("/storage-settings")
+def update_storage_settings(
+    request: Request,
+    background: BackgroundTasks,
+    csrf_protect: CsrfProtect = Depends(),
+    s3_enabled: str = Form("0"),
+    s3_endpoint: str = Form(""),
+    s3_access_key: str = Form(""),
+    s3_secret_key: str = Form(""),
+    s3_bucket: str = Form(""),
+    s3_region: str = Form(""),
+    s3_prefix: str = Form("backups"),
+    ftp_enabled: str = Form("0"),
+    ftp_host: str = Form(""),
+    ftp_port: str = Form("21"),
+    ftp_username: str = Form(""),
+    ftp_password: str = Form(""),
+    ftp_base_dir: str = Form(""),
+    ftp_passive: str = Form("1"),
+    ftp_timeout: str = Form("15"),
+):
+    csrf_protect.validate_csrf(request)
+    _require_permission(request, "settings.update")
+
+    try:
+        val = int(ftp_port)
+        if val < 1: val = 1
+        if val > 65535: val = 65535
+        ftp_port = str(val)
+    except (ValueError, TypeError):
+        ftp_port = "21"
+
+    try:
+        val = int(ftp_timeout)
+        if val < 1: val = 1
+        if val > 300: val = 300
+        ftp_timeout = str(val)
+    except (ValueError, TypeError):
+        ftp_timeout = "15"
+
+    with session_scope() as session:
+        crud.set_setting(session, key="s3_enabled", value="1" if s3_enabled in {"1", "on"} else "0")
+        crud.set_setting(session, key="s3_endpoint", value=s3_endpoint.strip())
+        
+        if s3_access_key and not (set(s3_access_key) == {'*'}):
+            crud.set_setting(session, key="s3_access_key", value=encrypt_secret(s3_access_key.strip()))
+        if s3_secret_key and not (set(s3_secret_key) == {'*'}):
+            crud.set_setting(session, key="s3_secret_key", value=encrypt_secret(s3_secret_key.strip()))
+            
+        crud.set_setting(session, key="s3_bucket", value=s3_bucket.strip())
+        crud.set_setting(session, key="s3_region", value=s3_region.strip())
+        crud.set_setting(session, key="s3_prefix", value=s3_prefix.strip())
+        crud.set_setting(session, key="ftp_enabled", value="1" if ftp_enabled in {"1", "on"} else "0")
+        crud.set_setting(session, key="ftp_host", value=ftp_host.strip())
+        crud.set_setting(session, key="ftp_port", value=ftp_port.strip())
+        crud.set_setting(session, key="ftp_username", value=ftp_username.strip())
+        if ftp_password and not (set(ftp_password) == {'*'}):
+            crud.set_setting(session, key="ftp_password", value=encrypt_secret(ftp_password.strip()))
+        crud.set_setting(session, key="ftp_base_dir", value=ftp_base_dir.strip())
+        crud.set_setting(session, key="ftp_passive", value="1" if ftp_passive in {"1", "on"} else "0")
+        crud.set_setting(session, key="ftp_timeout", value=ftp_timeout.strip())
+
+        _log_action(
+            request,
+            session,
+            "UPDATE_SETTINGS",
+            "settings",
+            None,
+            f"Update Storage Settings: S3Enabled: {s3_enabled}, FTPEnabled: {ftp_enabled}",
+        )
+
+    return RedirectResponse(url="/storage-settings?msg=已保存", status_code=303)
 
 
 @router.post("/settings/schedule")

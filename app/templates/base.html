@@ -129,7 +129,7 @@
             <!-- 系统管理 -->
             {% set can_settings = has_permission('settings.view') or has_permission('settings.update') %}
             {% set can_notifications = has_permission('notifications.view') or has_permission('notifications.update') %}
-            {% set system_active = active in ['settings', 'notifications'] %}
+            {% set system_active = active in ['settings', 'notifications', 'storage_settings'] %}
             {% set system_visible = can_settings or can_notifications %}
             {% if system_visible %}
               <div class="sidebar-group">
@@ -140,6 +140,7 @@
                 <div class="collapse {% if system_active %}show{% endif %}" id="group-system">
                   {% if can_settings %}
                     <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="系统设置"><i class="bi bi-gear"></i><span class="nav-text">系统设置</span></a>
+                    <a class="nav-link {% if active == 'storage_settings' %}active{% endif %}" href="/storage-settings" data-title="存储设置"><i class="bi bi-hdd"></i><span class="nav-text">存储设置</span></a>
                   {% endif %}
                   {% if can_notifications %}
                     <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="通知设置"><i class="bi bi-bell"></i><span class="nav-text">通知设置</span></a>

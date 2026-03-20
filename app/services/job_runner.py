@@ -9,6 +9,7 @@ from app.services.backup_service import backup_device
 from app.platforms import platforms_compatible
 from app.services.alert_service import check_and_alert
 from app.services.s3_service import upload_backup_to_s3
+from app.services.ftp_service import upload_backup_to_ftp
 from app.services.netmiko_client import NetmikoClientError
 
 
@@ -69,6 +70,13 @@ def run_backup_record(record_id: UUID, device_id: int, template_id: int | None, 
             if record:
                 # 尝试上传到 S3 (如果启用)
                 upload_backup_to_s3(
+                    session=session,
+                    device_name=device.name,
+                    host=device.host,
+                    config_text=config_text,
+                    finished_at=record.finished_at or record.started_at
+                )
+                upload_backup_to_ftp(
                     session=session,
                     device_name=device.name,
                     host=device.host,

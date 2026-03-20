@@ -2,10 +2,11 @@
 {% set page_title = "WebShell - " + (device.name or device.host) %}
 {% set blank_layout = True %}
 {% set no_title_prefix = True %}
+{% set body_class = "page-webshell" %}
 
 {% block content %}
 <div class="d-flex flex-column vh-100 bg-black">
-  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-dark text-white border-bottom border-secondary" style="height: 50px;">
+  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-dark text-white border-bottom border-secondary webshell-topbar">
     <div class="d-flex align-items-center gap-2">
        <span class="fw-bold"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
        <span class="text-secondary small">|</span>
@@ -16,19 +17,30 @@
        <span class="text-secondary small">|</span>
        <span class="small text-light opacity-75"><i class="bi bi-person me-1"></i>{{ credential.username }}</span>
        {% endif %}
-       <span class="badge bg-secondary ms-2" style="font-size: 0.75em;">{{ (device.login_method or 'ssh')|upper }}</span>
+       <span class="badge bg-secondary ms-2 webshell-login-badge">{{ (device.login_method or 'ssh')|upper }}</span>
     </div>
     <div class="d-flex gap-2 align-items-center">
-      <div class="d-flex gap-1 me-2">
+      <div class="d-flex gap-1 me-2 border-end border-secondary pe-2" id="global-split-buttons">
+        <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-v" title="左右分栏 (Vertical Split)"><i class="bi bi-layout-split"></i></button>
+        <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-h" title="上下分栏 (Horizontal Split)"><i class="bi bi-hdd-stack"></i></button>
+      </div>
+      <div class="d-flex gap-1 me-2 border-end border-secondary pe-2">
         <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="缩小字体"><i class="bi bi-dash"></i></button>
         <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="放大字体"><i class="bi bi-plus"></i></button>
+      </div>
+      <div class="dropdown me-2">
+        <button class="btn btn-sm btn-dark-toolbar dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
+          <i class="bi bi-palette"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="themeDropdown" id="theme-list">
+        </ul>
       </div>
        <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="导出当前会话日志"><i class="bi bi-download"></i></button>
        <button class="btn btn-sm btn-outline-light" id="btn-reconnect">重连</button>
        <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">关闭</button>
     </div>
   </div>
-  <div class="flex-grow-1 position-relative overflow-hidden" id="terminal-container"></div>
+  <div class="flex-grow-1 position-relative overflow-hidden d-flex" id="terminal-container"></div>
 </div>
 
 <!-- Paste Confirmation Modal -->
@@ -58,33 +70,472 @@
 <script src="/static/js/xterm-addon-fit.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-      const container = document.getElementById('terminal-container');
+      const rootContainer = document.getElementById('terminal-container');
       const reconnectBtn = document.getElementById('btn-reconnect');
       const exportBtn = document.getElementById('btn-export-log');
       const zoomInBtn = document.getElementById('btn-zoom-in');
       const zoomOutBtn = document.getElementById('btn-zoom-out');
+      const globalSplitVBtn = document.getElementById('btn-global-split-v');
+      const globalSplitHBtn = document.getElementById('btn-global-split-h');
+      const globalSplitButtons = document.getElementById('global-split-buttons');
+      const themeList = document.getElementById('theme-list');
       const pasteModalEl = document.getElementById('pasteModal');
       const pasteContent = document.getElementById('paste-content');
       const confirmPasteBtn = document.getElementById('btn-confirm-paste');
+      
       const deviceId = {{ device.id }};
       const deviceName = "{{ device.name }}";
-      const webshellToken = {{ webshell_token | tojson }};
-      
-      let terminal = null;
-      let fitAddon = null;
-      let socket = null;
-      let resizeObserver = null;
-      let connectionStartTime = 0;
+      const deviceHost = "{{ device.host }}";
+      const csrfToken = "{{ csrf_token }}";
+      let webshellToken = {{ webshell_token | tojson }};
+      const inactivityLimitMs = 5 * 60 * 1000;
+
+      let currentTheme = 'Default';
+      let activeSession = null;
+      const sessions = new Set();
       let pasteModal = null;
+
+      const themes = {
+          'Default': { type: 'dark', background: '#000000', foreground: '#ffffff', cursor: '#ffffff', headerBg: '#1a1a1a', headerFg: '#cccccc', borderColor: '#333333' },
+          'Solarized Dark': { type: 'dark', background: '#002b36', foreground: '#839496', cursor: '#93a1a1', headerBg: '#073642', headerFg: '#93a1a1', borderColor: '#073642' },
+          'Solarized Light': { type: 'light', background: '#fdf6e3', foreground: '#657b83', cursor: '#586e75', selection: '#07364240', headerBg: '#eee8d5', headerFg: '#586e75', borderColor: '#d3cbb7' },
+          'Dracula': { type: 'dark', background: '#282a36', foreground: '#f8f8f2', cursor: '#f8f8f2', headerBg: '#44475a', headerFg: '#f8f8f2', borderColor: '#6272a4' },
+          'Monokai': { type: 'dark', background: '#272822', foreground: '#f8f8f2', cursor: '#f8f8f2', headerBg: '#3e3d32', headerFg: '#f8f8f2', borderColor: '#75715e' },
+          'GitHub Light': { type: 'light', background: '#ffffff', foreground: '#24292e', cursor: '#24292e', selection: '#0366d640', headerBg: '#f6f8fa', headerFg: '#24292e', borderColor: '#e1e4e8' },
+          'Campbell': { type: 'dark', background: '#0C0C0C', foreground: '#CCCCCC', cursor: '#FFFFFF', headerBg: '#1f1f1f', headerFg: '#CCCCCC', borderColor: '#333333'},
+          'Homebrew': { type: 'dark', background: '#000000', foreground: '#28fe14', cursor: '#28fe14', selection: '#003700', headerBg: '#1a1a1a', headerFg: '#28fe14', borderColor: '#333333' }
+      };
 
       if (typeof bootstrap !== 'undefined') {
           pasteModal = new bootstrap.Modal(pasteModalEl);
       }
 
-      function buildUrl() {
-          const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-          const tokenQuery = webshellToken ? `?token=${encodeURIComponent(webshellToken)}` : '';
-          return `${scheme}://${window.location.host}/ws/devices/${deviceId}/shell${tokenQuery}`;
+      async function refreshWebshellToken() {
+          try {
+              const body = new URLSearchParams();
+              body.set('csrf_token', csrfToken);
+              const resp = await fetch(`/devices/${deviceId}/webshell/token`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: body.toString(),
+                  credentials: 'same-origin'
+              });
+              if (resp.ok) {
+                  const data = await resp.json();
+                  if (data && data.token) {
+                      webshellToken = data.token;
+                      return true;
+                  }
+              }
+          } catch(e) {}
+          return false;
+      }
+
+      class TerminalSession {
+          constructor(container) {
+              this.container = container;
+              this.terminal = null;
+              this.fitAddon = null;
+              this.socket = null;
+              this.resizeObserver = null;
+              this.connectionStartTime = 0;
+              this.inactivityTimer = null;
+              this.autoDisconnected = false;
+              this.fontSize = 14;
+              this.authRetrying = false;
+
+              this.initUI();
+              this.initTerminal();
+              this.connect();
+              
+              sessions.add(this);
+              this.setActive();
+          }
+
+          initUI() {
+              this.container.classList.add('terminal-pane');
+              this.container.addEventListener('click', () => this.setActive());
+              
+              // Create Header
+              const header = document.createElement('div');
+              header.className = 'pane-header';
+              this.header = header; // Store reference
+              
+              const title = document.createElement('div');
+              title.className = 'pane-title';
+              // Placeholder spacer to center title perfectly (controls width on right vs spacer on left)
+              // Or just use flex-grow 1 and text-align center, but we have controls on right.
+              // To center perfectly, we can use absolute positioning or grid, but flex auto margins work ok.
+              // For now, simple text-align center with flex-grow on title is good enough.
+              
+              header.appendChild(title);
+              this.titleElement = title;
+              this.updateTitle();
+              
+              const controls = document.createElement('div');
+              controls.className = 'pane-controls';
+              
+              const splitVBtn = document.createElement('button');
+              splitVBtn.className = 'pane-btn';
+              splitVBtn.title = '左右分栏';
+              splitVBtn.innerHTML = '<i class="bi bi-layout-split"></i>';
+              splitVBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  splitSession(this, 'vertical');
+              };
+              
+              const splitHBtn = document.createElement('button');
+              splitHBtn.className = 'pane-btn';
+              splitHBtn.title = '上下分栏';
+              splitHBtn.innerHTML = '<i class="bi bi-hdd-stack"></i>';
+              splitHBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  splitSession(this, 'horizontal');
+              };
+              
+              const closeBtn = document.createElement('button');
+              closeBtn.className = 'pane-btn btn-close-pane';
+              closeBtn.title = '关闭此分栏';
+              closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+              closeBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  this.destroy();
+              };
+              
+              controls.appendChild(splitVBtn);
+              controls.appendChild(splitHBtn);
+              controls.appendChild(closeBtn);
+              header.appendChild(controls);
+              
+              this.container.appendChild(header);
+              
+              // Create Body
+              const body = document.createElement('div');
+              body.className = 'pane-body';
+              this.container.appendChild(body);
+              
+              this.termParent = body;
+          }
+
+          initTerminal() {
+              // Terminal is now appended to this.termParent (the body)
+              const termContainer = document.createElement('div');
+              termContainer.style.width = '100%';
+              termContainer.style.height = '100%';
+              this.termParent.appendChild(termContainer);
+
+              if (!window.Terminal) return;
+              
+              this.terminal = new Terminal({
+                  cursorBlink: true,
+                  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+                  fontSize: this.fontSize,
+                  theme: themes[currentTheme] || themes['Default']
+              });
+
+              if (window.FitAddon && window.FitAddon.FitAddon) {
+                  this.fitAddon = new window.FitAddon.FitAddon();
+                  this.terminal.loadAddon(this.fitAddon);
+              }
+
+              this.terminal.open(termContainer);
+              if (this.fitAddon) this.fitAddon.fit();
+
+              if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
+                  this.terminal.attachCustomKeyEventHandler((e) => {
+                      if (
+                          e.type === 'keydown' &&
+                          e.key === 'Delete' &&
+                          !e.ctrlKey &&
+                          !e.metaKey &&
+                          !e.altKey
+                      ) {
+                          if (this.socket && this.socket.readyState === 1) {
+                              this.socket.send(JSON.stringify({ type: 'input', data: '\x7f' }));
+                              this.markActivity();
+                          }
+                          return false;
+                      }
+                      return true;
+                  });
+              }
+
+              this.terminal.onData(data => {
+                  if (this.socket && this.socket.readyState === 1) {
+                      this.socket.send(JSON.stringify({ type: 'input', data: data }));
+                      this.markActivity();
+                  }
+              });
+
+              // Resize Observer for this specific pane body
+              if (window.ResizeObserver) {
+                  this.resizeObserver = new ResizeObserver(() => {
+                      if (this.fitAddon) {
+                          this.fitAddon.fit();
+                          this.sendResize();
+                      }
+                  });
+                  this.resizeObserver.observe(this.termParent);
+              }
+          }
+
+          updateTitle() {
+              if (this.titleElement) {
+                  // Get index from sessions set order
+                  const index = Array.from(sessions).indexOf(this) + 1;
+                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span>${deviceName}<span class="opacity-50 ms-2">${deviceHost}</span>`;
+              }
+          }
+
+          setActive() {
+               if (activeSession === this) {
+                   if (this.terminal) this.terminal.focus();
+                   return;
+               }
+               
+               if (activeSession) {
+                   activeSession.container.classList.remove('active');
+                   if (activeSession.header) {
+                       activeSession.header.classList.remove('active');
+                       // Re-apply theme colors when inactive
+                       const theme = themes[currentTheme];
+                       if (theme) {
+                           activeSession.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
+                           activeSession.header.style.color = theme.headerFg || '#ccc';
+                           activeSession.header.style.borderBottomColor = theme.borderColor || '#333';
+                       }
+                   }
+               }
+               activeSession = this;
+               this.container.classList.add('active');
+               if (this.header) {
+                   this.header.classList.add('active');
+                   // Remove inline styles to let CSS class take precedence (or override with !important in CSS)
+                   // But since we use !important in CSS .active, inline styles don't matter much, 
+                   // except for cleaner DOM.
+               }
+               if (this.terminal) this.terminal.focus();
+           }
+
+          buildUrl() {
+              const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+              const tokenQuery = webshellToken ? `?token=${encodeURIComponent(webshellToken)}` : '';
+              return `${scheme}://${window.location.host}/ws/devices/${deviceId}/shell${tokenQuery}`;
+          }
+
+          async connect(options = {}) {
+              const { refreshToken = true, resetAuthRetry = true } = options;
+              if (resetAuthRetry) {
+                  this.authRetrying = false;
+              }
+              if (this.socket) {
+                  this.socket.close();
+                  this.socket = null;
+              }
+
+              this.terminal.clear();
+              this.writeLine('正在连接...');
+
+              if (refreshToken) {
+                  await refreshWebshellToken();
+              }
+              this.connectionStartTime = Date.now();
+              this.socket = new WebSocket(this.buildUrl());
+              this.autoDisconnected = false;
+              this.resetInactivityTimer();
+
+              this.socket.onopen = () => {
+                  if (this.fitAddon) this.fitAddon.fit();
+                  this.sendResize();
+                  this.terminal.focus();
+                  this.markActivity();
+              };
+
+              this.socket.onmessage = (ev) => {
+                  try {
+                      const payload = JSON.parse(ev.data);
+                      if (payload.type === 'output') {
+                          this.terminal.write(payload.data || '');
+                      } else if (payload.type === 'status') {
+                          let msg = payload.message || '';
+                          if (msg.includes('连接成功') && this.connectionStartTime > 0) {
+                              const duration = Date.now() - this.connectionStartTime;
+                              msg += ` (耗时: ${formatDuration(duration)})`;
+                              this.connectionStartTime = 0;
+                          }
+                          this.writeLine(`\r\n[系统] ${msg}`);
+                      } else if (payload.type === 'error') {
+                          this.writeLine(`\r\n[错误] ${payload.message || ''}`);
+                      }
+                  } catch (e) {
+                      this.terminal.write(ev.data || '');
+                  }
+              };
+
+              this.socket.onclose = (ev) => {
+                  if (ev && ev.code === 4403 && !this.authRetrying) {
+                      this.authRetrying = true;
+                      refreshWebshellToken().then((ok) => {
+                          if (ok) {
+                              this.connect({ refreshToken: false, resetAuthRetry: false });
+                          } else {
+                              this.writeLine('\r\n连接已关闭');
+                          }
+                      });
+                      return;
+                  }
+                  this.writeLine('\r\n连接已关闭');
+                  this.clearInactivityTimer();
+              };
+
+              this.socket.onerror = () => {
+                  this.writeLine('\r\n连接异常');
+                  this.clearInactivityTimer();
+              };
+          }
+
+          async reconnect() {
+               // Logic to refresh token if needed, shared across sessions or per session? 
+               // For now, assume token is global. 
+               // If we need to refresh global token, we should do it once.
+               // But simple reconnect:
+               this.connect();
+          }
+
+          sendResize() {
+              if (!this.socket || this.socket.readyState !== 1 || !this.terminal) return;
+              this.socket.send(JSON.stringify({ type: 'resize', cols: this.terminal.cols, rows: this.terminal.rows }));
+          }
+
+          writeLine(text) {
+              if (!this.terminal) return;
+              this.terminal.writeln(text.replace(/\n/g, '\r\n'));
+          }
+
+          markActivity() {
+              if (this.autoDisconnected) return;
+              this.resetInactivityTimer();
+          }
+
+          resetInactivityTimer() {
+              this.clearInactivityTimer();
+              this.inactivityTimer = setTimeout(() => this.handleInactivity(), inactivityLimitMs);
+          }
+
+          clearInactivityTimer() {
+              if (this.inactivityTimer) {
+                  clearTimeout(this.inactivityTimer);
+                  this.inactivityTimer = null;
+              }
+          }
+
+          handleInactivity() {
+              if (this.autoDisconnected) return;
+              this.autoDisconnected = true;
+              this.writeLine('\r\n[系统] 由于 5 分钟无活动，连接已自动断开');
+              if (this.socket && this.socket.readyState === 1) {
+                  this.socket.close();
+              }
+          }
+
+          setTheme(themeName) {
+              if (!this.terminal) return;
+              const theme = themes[themeName];
+              if (theme) {
+                  this.terminal.options.theme = theme;
+                  // Pane background matches theme background
+                  this.container.style.backgroundColor = theme.background;
+                  this.container.style.borderColor = theme.borderColor || '#333';
+                  
+                  if (this.header) {
+                       // Only apply theme colors if not active
+                       if (!this.container.classList.contains('active')) {
+                           this.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
+                           this.header.style.color = theme.headerFg || '#ccc';
+                           this.header.style.borderBottomColor = theme.borderColor || '#333';
+                       } else {
+                           // Ensure active styles persist or are re-applied if needed
+                           // The CSS !important should handle it, but we can also set inline for safety
+                       }
+                       
+                       if (theme.type === 'light') {
+                           this.container.classList.add('theme-light');
+                       } else {
+                           this.container.classList.remove('theme-light');
+                       }
+                   }
+              }
+          }
+
+          setFontSize(size) {
+              if (this.terminal) {
+                  this.terminal.options.fontSize = size;
+                  this.fontSize = size;
+                  if (this.fitAddon) {
+                      this.fitAddon.fit();
+                      this.sendResize();
+                  }
+              }
+          }
+
+          getLogContent() {
+              if (!this.terminal) return '';
+              let logContent = '';
+              const buffer = this.terminal.buffer.active;
+              for (let i = 0; i < buffer.length; i++) {
+                  logContent += buffer.getLine(i).translateToString(true) + '\n';
+              }
+              return logContent;
+          }
+
+          destroy() {
+              // Cleanup
+              if (this.socket) this.socket.close();
+              if (this.resizeObserver) this.resizeObserver.disconnect();
+              if (this.terminal) this.terminal.dispose();
+              
+              sessions.delete(this);
+              if (activeSession === this) {
+                  activeSession = sessions.size > 0 ? sessions.values().next().value : null;
+                  if (activeSession) activeSession.setActive();
+              }
+
+              // Remove from DOM
+              const parent = this.container.parentElement;
+              this.container.remove();
+
+              // If parent is a split-container and has only one child left, unwrap it
+              if (parent.classList.contains('split-container') && parent.children.length === 1) {
+                  const survivor = parent.children[0];
+                  const grandParent = parent.parentElement;
+                  if (grandParent) {
+                      // Move survivor to grandparent
+                      grandParent.insertBefore(survivor, parent);
+                      parent.remove();
+                  } else {
+                      // If parent was root (shouldn't happen with structure, but check)
+                      // If parent is rootContainer, we just leave it.
+                  }
+              }
+              
+              // Special case: If this was the last session
+              if (sessions.size === 0) {
+                  const btn = document.createElement('button');
+                  btn.className = 'btn btn-primary';
+                  btn.textContent = '开启新会话';
+                  btn.onclick = () => createSession();
+                  
+                  const wrapper = document.createElement('div');
+                  wrapper.className = 'd-flex w-100 h-100 justify-content-center align-items-center text-white';
+                  wrapper.appendChild(btn);
+                  
+                  rootContainer.innerHTML = '';
+                  rootContainer.appendChild(wrapper);
+                  activeSession = null;
+              }
+              
+              updateLayoutMode();
+          }
       }
 
       function formatDuration(ms) {
@@ -92,128 +543,170 @@
           return (ms / 1000).toFixed(2) + 's';
       }
 
-      function initTerminal() {
-          if (!window.Terminal) {
-              container.innerHTML = '<div class="p-3 text-danger">xterm.js load failed</div>';
-              return;
-          }
-          terminal = new Terminal({
-              cursorBlink: true,
-              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
-              fontSize: 14,
-              theme: {
-                  background: '#000000',
-                  foreground: '#ffffff'
+      function applyTheme(name) {
+          if (!themes[name]) name = 'Default';
+          currentTheme = name;
+          
+          sessions.forEach(session => session.setTheme(name));
+          
+          localStorage.setItem('webshell_theme', name);
+          
+          // Update active state in dropdown
+          const items = themeList.querySelectorAll('.dropdown-item');
+          items.forEach(item => {
+              if (item.dataset.theme === name) {
+                  item.classList.add('active');
+              } else {
+                  item.classList.remove('active');
               }
           });
           
-          if (window.FitAddon && window.FitAddon.FitAddon) {
-              fitAddon = new window.FitAddon.FitAddon();
-              terminal.loadAddon(fitAddon);
+          // Update global background
+          if (rootContainer.parentElement.classList.contains('bg-black')) {
+              rootContainer.parentElement.classList.remove('bg-black');
           }
-          
-          terminal.open(container);
-          if (fitAddon) fitAddon.fit();
-          
-          terminal.onData(data => {
-              if (socket && socket.readyState === 1) {
-                  socket.send(JSON.stringify({ type: 'input', data: data }));
+          rootContainer.parentElement.style.backgroundColor = themes[name].background;
+      }
+
+      function updateLayoutMode() {
+          const sessionCount = sessions.size;
+          const isMulti = sessionCount > 1;
+
+          // Toggle Global Buttons
+          if (globalSplitButtons) {
+              if (isMulti) {
+                  // Multi-window: Hide global buttons
+                  globalSplitButtons.classList.remove('d-flex');
+                  globalSplitButtons.style.display = 'none';
+              } else {
+                  // Single-window: Show global buttons
+                  globalSplitButtons.style.display = ''; // Clear inline style
+                  globalSplitButtons.classList.add('d-flex');
+              }
+          }
+
+          // Toggle Headers and Update Titles
+          let index = 1;
+          sessions.forEach(session => {
+              if (session.header) {
+                  session.header.style.display = isMulti ? 'flex' : 'none';
+              }
+              if (session.updateTitle) {
+                  session.updateTitle();
+              }
+              // Resize terminal after layout change
+              if (session.fitAddon) {
+                  // Small delay to allow DOM update
+                  setTimeout(() => {
+                      session.fitAddon.fit();
+                      session.sendResize();
+                  }, 50);
               }
           });
+      }
+
+      function createSession(container = null) {
+          // Clear placeholder if exists
+          if (sessions.size === 0 && rootContainer.querySelector('button')) {
+             rootContainer.innerHTML = '';
+          }
+
+          if (!container) {
+              container = document.createElement('div');
+              rootContainer.appendChild(container);
+          }
+          const session = new TerminalSession(container);
+          session.setTheme(currentTheme);
           
-          terminal.focus();
+          updateLayoutMode();
+          
+          return session;
       }
 
-      function sendResize() {
-          if (!socket || socket.readyState !== 1 || !terminal) return;
-          socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }));
-      }
-
-      function writeLine(text) {
-          if (!terminal) return;
-          terminal.writeln(text.replace(/\n/g, '\r\n'));
-      }
-
-      function connect() {
-          if (socket) {
-              socket.close();
-              socket = null;
+      function splitSession(session, direction) {
+          if (!session) return;
+          
+          const oldPane = session.container;
+          const parent = oldPane.parentElement;
+          
+          // Create wrapper
+          const wrapper = document.createElement('div');
+          wrapper.className = 'split-container';
+          wrapper.style.flexDirection = direction === 'vertical' ? 'row' : 'column';
+          
+          // Insert wrapper where oldPane was
+          parent.insertBefore(wrapper, oldPane);
+          
+          // Move oldPane into wrapper
+          wrapper.appendChild(oldPane);
+          
+          // Create new pane
+          const newPane = document.createElement('div');
+          wrapper.appendChild(newPane);
+          
+          // Create new session
+          const newSession = createSession(newPane);
+          
+          // Re-fit old session as its container changed size
+          if (session.fitAddon) {
+              setTimeout(() => {
+                  session.fitAddon.fit();
+                  session.sendResize();
+              }, 10);
           }
           
-          if (!terminal) initTerminal();
-          
-          terminal.clear();
-          writeLine('正在连接...');
-          
-          connectionStartTime = Date.now();
-          socket = new WebSocket(buildUrl());
-          
-          socket.onopen = function() {
-              if (fitAddon) fitAddon.fit();
-              sendResize();
-              terminal.focus();
-          };
-          
-          socket.onmessage = function(ev) {
-              try {
-                  const payload = JSON.parse(ev.data);
-                  if (payload.type === 'output') {
-                      terminal.write(payload.data || '');
-                  } else if (payload.type === 'status') {
-                      let msg = payload.message || '';
-                      if (msg.includes('连接成功') && connectionStartTime > 0) {
-                          const duration = Date.now() - connectionStartTime;
-                          msg += ` (耗时: ${formatDuration(duration)})`;
-                          connectionStartTime = 0;
-                      }
-                      writeLine(`\r\n[系统] ${msg}`);
-                  } else if (payload.type === 'error') {
-                      writeLine(`\r\n[错误] ${payload.message || ''}`);
-                  }
-              } catch (e) {
-                  terminal.write(ev.data || '');
-              }
-          };
-          
-          socket.onclose = function() {
-              writeLine('\r\n连接已关闭');
-          };
-          
-          socket.onerror = function() {
-              writeLine('\r\n连接异常');
-          };
+          // Update layout mode for all sessions (to show headers)
+          updateLayoutMode();
       }
 
-      if (window.ResizeObserver) {
-          resizeObserver = new ResizeObserver(() => {
-              if (fitAddon) {
-                  fitAddon.fit();
-                  sendResize();
-              }
+      // Initial Session
+      createSession();
+
+      // Setup Themes
+      Object.keys(themes).forEach(name => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.classList.add('dropdown-item');
+          a.href = '#';
+          a.dataset.theme = name;
+          a.textContent = name;
+          a.addEventListener('click', (e) => {
+              e.preventDefault();
+              applyTheme(name);
           });
-          resizeObserver.observe(container);
-      }
-      
-      window.addEventListener('resize', () => {
-           if (fitAddon) {
-               fitAddon.fit();
-               sendResize();
-           }
+          li.appendChild(a);
+          themeList.appendChild(li);
       });
 
-      reconnectBtn.addEventListener('click', connect);
+      const savedTheme = localStorage.getItem('webshell_theme');
+      applyTheme(savedTheme && themes[savedTheme] ? savedTheme : 'Default');
+
+      // Global Events
       
-      // Export Log
-      exportBtn.addEventListener('click', () => {
-          if (!terminal) return;
-          
-          let logContent = '';
-          const buffer = terminal.buffer.active;
-          for (let i = 0; i < buffer.length; i++) {
-              logContent += buffer.getLine(i).translateToString(true) + '\n';
+      // Split Buttons
+      if (globalSplitVBtn) {
+        globalSplitVBtn.addEventListener('click', () => {
+            if (activeSession) splitSession(activeSession, 'vertical');
+        });
+      }
+      if (globalSplitHBtn) {
+        globalSplitHBtn.addEventListener('click', () => {
+            if (activeSession) splitSession(activeSession, 'horizontal');
+        });
+      }
+
+      // Reconnect Active
+      reconnectBtn.addEventListener('click', async () => {
+          if (activeSession) {
+              activeSession.connect();
           }
-          
-          const blob = new Blob([logContent], { type: 'text/plain' });
+      });
+
+      // Export Log Active
+      exportBtn.addEventListener('click', () => {
+          if (!activeSession) return;
+          const content = activeSession.getLogContent();
+          const blob = new Blob([content], { type: 'text/plain' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -225,30 +718,18 @@
           URL.revokeObjectURL(url);
       });
 
-      // Font Zoom
+      // Zoom
       zoomInBtn.addEventListener('click', () => {
-          if (terminal) {
-              terminal.options.fontSize = (terminal.options.fontSize || 14) + 1;
-              if (fitAddon) {
-                  fitAddon.fit();
-                  sendResize();
-              }
-          }
+          if (activeSession) activeSession.setFontSize((activeSession.fontSize || 14) + 1);
       });
 
       zoomOutBtn.addEventListener('click', () => {
-          if (terminal) {
-              const current = terminal.options.fontSize || 14;
-              if (current > 8) {
-                  terminal.options.fontSize = current - 1;
-                  if (fitAddon) {
-                      fitAddon.fit();
-                      sendResize();
-                  }
-              }
+          if (activeSession && activeSession.fontSize > 8) {
+              activeSession.setFontSize(activeSession.fontSize - 1);
           }
       });
 
+      // Paste
       function showPasteModal() {
           if (!pasteModal) return;
           pasteContent.value = '';
@@ -256,49 +737,39 @@
               pasteContent.value = text;
               pasteModal.show();
           }).catch(err => {
-              console.error('Read clipboard failed:', err);
-              // Still show modal so user can manually paste
               pasteModal.show();
           });
       }
 
       confirmPasteBtn.addEventListener('click', () => {
           const text = pasteContent.value;
-          if (text) {
-              if (socket && socket.readyState === 1) {
-                  socket.send(JSON.stringify({ type: 'input', data: text }));
-              }
+          if (text && activeSession && activeSession.socket && activeSession.socket.readyState === 1) {
+              activeSession.socket.send(JSON.stringify({ type: 'input', data: text }));
+              activeSession.markActivity();
           }
           if (pasteModal) pasteModal.hide();
-          if (terminal) terminal.focus();
+          if (activeSession && activeSession.terminal) activeSession.terminal.focus();
       });
 
-      // Intercept Paste (Ctrl+V) within terminal context
-      // Note: xterm.js handles paste via hidden textarea. We intercept it at capture phase or prevent default.
-      container.addEventListener('keydown', (e) => {
+      // Global Keyboard Events
+      document.addEventListener('keydown', (e) => {
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-               e.preventDefault();
-               e.stopPropagation();
-               showPasteModal();
+               // Only intercept if active element is not an input/textarea
+               const tag = document.activeElement.tagName.toLowerCase();
+               if (tag !== 'input' && tag !== 'textarea') {
+                   e.preventDefault();
+                   showPasteModal();
+               }
           }
-      }, true); // Use capture to intercept before xterm
-
-      // Also intercept context menu paste if possible, but 'paste' event is better for that
-      container.addEventListener('paste', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          // Get data from event if available, otherwise use clipboard API
-          let text = (e.clipboardData || window.clipboardData).getData('text');
-          if (text) {
-              pasteContent.value = text;
-              if (pasteModal) pasteModal.show();
-          } else {
-              showPasteModal();
-          }
-      }, true);
-
-      // Auto connect
-      connect();
+      });
+      
+      // Activity monitoring
+      const activityEvents = ['keydown', 'mousedown', 'mousemove', 'wheel', 'touchstart'];
+      activityEvents.forEach(eventName => {
+          document.addEventListener(eventName, () => {
+             if (activeSession) activeSession.markActivity();
+          }, { passive: true });
+      });
   });
 </script>
 {% endblock %}
