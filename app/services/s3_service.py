@@ -13,6 +13,22 @@ from app.services.crypto import decrypt_secret
 
 logger = logging.getLogger(__name__)
 
+def _build_s3_config(region: str, max_attempts: int) -> Config:
+    kwargs = {
+        "region_name": region if region else None,
+        "retries": {"max_attempts": max_attempts, "mode": "standard"},
+        "signature_version": "s3v4",
+        "s3": {"addressing_style": "path", "payload_signing_enabled": False},
+    }
+    try:
+        return Config(
+            **kwargs,
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        )
+    except TypeError:
+        return Config(**kwargs)
+
 def upload_backup_to_s3(session: Session, device_name: str, host: str, config_text: str, finished_at: datetime) -> bool:
     """
     将备份内容上传到 S3
@@ -43,12 +59,7 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
     bucket = bucket.strip().strip("/")
 
     try:
-        s3_config = Config(
-            region_name=region if region else None,
-            retries={'max_attempts': 3, 'mode': 'standard'},
-            signature_version="s3v4",
-            s3={"addressing_style": "path", "payload_signing_enabled": False}
-        )
+        s3_config = _build_s3_config(region, max_attempts=3)
         
         s3_client = boto3.client(
             's3',
@@ -71,11 +82,13 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
         else:
             file_key = f"{date_str}/{safe_device_name}_{host}_{time_str}.txt"
 
+        body = config_text.encode("utf-8")
         s3_client.put_object(
             Bucket=bucket,
             Key=file_key,
-            Body=config_text.encode('utf-8'),
-            ContentType='text/plain'
+            Body=body,
+            ContentType="text/plain",
+            ContentLength=len(body),
         )
         
         logger.info(f"Successfully uploaded backup to S3: {file_key}")
@@ -92,12 +105,7 @@ def test_s3_connection(endpoint: str, access_key: str, secret_key: str, bucket: 
     bucket = bucket.strip().strip("/")
 
     try:
-        s3_config = Config(
-            region_name=region if region else None,
-            retries={'max_attempts': 1, 'mode': 'standard'},
-            signature_version="s3v4",
-            s3={"addressing_style": "path", "payload_signing_enabled": False}
-        )
+        s3_config = _build_s3_config(region, max_attempts=1)
         
         s3_client = boto3.client(
             's3',
@@ -110,11 +118,13 @@ def test_s3_connection(endpoint: str, access_key: str, secret_key: str, bucket: 
 
         # 尝试上传一个极小的测试文件来验证写入权限，这比 head_bucket 更实用
         test_key = f"connection_test_{int(datetime.utcnow().timestamp())}.txt"
+        test_body = b"connection test"
         s3_client.put_object(
             Bucket=bucket,
             Key=test_key,
-            Body=b"connection test",
-            ContentType='text/plain'
+            Body=test_body,
+            ContentType="text/plain",
+            ContentLength=len(test_body),
         )
         # 测试成功后删除测试文件
         try:
