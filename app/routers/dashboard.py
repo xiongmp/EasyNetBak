@@ -42,8 +42,9 @@ def dashboard_page(request: Request):
                     device_map[d.id] = d
 
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
+        request=request,
+        name="dashboard.html",
+        context={
             **_layout_context(request=request, active="dashboard"),
             "page_title": "仪表盘",
             "page_subtitle": "系统运行概览与统计分析",

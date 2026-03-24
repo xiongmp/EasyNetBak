@@ -153,13 +153,17 @@ def device_webshell_page(
         credential = crud.get_credential(session, device.credential_id) if device.credential_id else None
 
         csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
-        response = templates.TemplateResponse("webshell.html", {
-            "request": request, 
-            "device": device,
-            "credential": credential,
-            "webshell_token": token,
-            "csrf_token": csrf_token,
-        })
+        response = templates.TemplateResponse(
+            request=request,
+            name="webshell.html",
+            context={
+                "request": request,
+                "device": device,
+                "credential": credential,
+                "webshell_token": token,
+                "csrf_token": csrf_token,
+            },
+        )
         csrf_protect.set_csrf_cookie(signed_token, response)
         return response
 
@@ -507,8 +511,9 @@ def devices_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     pagination_base = base + ("&" if "?" in base else "?") + "page="
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "devices.html",
-        {
+        request=request,
+        name="devices.html",
+        context={
             **_layout_context(request=request, active="devices"),
             "devices": devices,
             "templates": tmpl,
@@ -955,8 +960,9 @@ async def import_devices_csv(
         bulk_reachability_task.delay(device_ids=affected_device_ids, offset_minutes=0)
 
     return templates.TemplateResponse(
-        "import_result.html",
-        {
+        request=request,
+        name="import_result.html",
+        context={
             **_layout_context(request=request, active="devices"),
             "created": created,
             "updated": updated,
@@ -1101,8 +1107,9 @@ def device_detail(request: Request, device_id: int):
     pagination_base = base + ("&" if "?" in base else "?") + "page="
 
     return templates.TemplateResponse(
-        "device_detail.html",
-        {
+        request=request,
+        name="device_detail.html",
+        context={
             **_layout_context(request=request, active="devices"),
             "device": device,
             "backups": backups,

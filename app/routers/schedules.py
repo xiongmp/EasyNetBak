@@ -64,8 +64,9 @@ def schedules_page(request: Request):
              pagination_base = "/schedules?page="
 
     return templates.TemplateResponse(
-        "schedules.html",
-        {
+        request=request,
+        name="schedules.html",
+        context={
             **_layout_context(request=request, active="schedules"),
             "items": items,
             "current": current,
@@ -245,8 +246,9 @@ def schedule_stats_page(request: Request, schedule_id: int):
         group_map = {g.id: g.name for g in all_groups if g.id}
 
     return templates.TemplateResponse(
-        "schedule_stats.html",
-        {
+        request=request,
+        name="schedule_stats.html",
+        context={
             **_layout_context(request=request, active="schedules"),
             "schedule": schedule,
             "runs": runs,

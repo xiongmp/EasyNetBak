@@ -618,8 +618,9 @@ def diff_rules_page(request: Request):
         rules = _load_diff_rules(session)
         groups = [{"id": int(g.id), "name": g.name} for g in crud.list_groups(session) if g.id is not None]
     return templates.TemplateResponse(
-        "diff_rules.html",
-        {
+        request=request,
+        name="diff_rules.html",
+        context={
             **_layout_context(request=request, active="diff_rules"),
             "page_title": "Diff 忽略规则",
             "page_subtitle": "配置在对比配置差异时需要忽略的行 (支持正则表达式)",
@@ -667,8 +668,9 @@ def backups_page(request: Request):
             for d in devices
         ]
     return templates.TemplateResponse(
-        "backups.html",
-        {**_layout_context(request=request, active="backups"), "device_rows": device_rows},
+        request=request,
+        name="backups.html",
+        context={**_layout_context(request=request, active="backups"), "device_rows": device_rows},
     )
 
 
@@ -716,8 +718,9 @@ def config_search_page(
              pagination_base = f"/config-search?q={q}&scope={scope}&page="
 
     return templates.TemplateResponse(
-        "config_search.html",
-        {
+        request=request,
+        name="config_search.html",
+        context={
             **_layout_context(request=request, active="config_search"),
             "page_title": "配置搜索",
             "page_subtitle": "在备份配置中搜索关键词",

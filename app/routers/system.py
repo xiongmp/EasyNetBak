@@ -102,8 +102,9 @@ def list_audit_logs(
              pagination_base = f"/audit-logs?q={q or ''}&action={action or ''}&resource_type={resource_type or ''}&page="
 
     return templates.TemplateResponse(
-        "audit_logs.html",
-        {
+        request=request,
+        name="audit_logs.html",
+        context={
             **_layout_context(request=request, active="audit_logs"),
             "page_title": "操作日志",
             "logs": logs,
@@ -193,8 +194,9 @@ def list_login_logs(
              pagination_base = f"/login-logs?q={q or ''}&status={status or ''}&page="
 
     return templates.TemplateResponse(
-        "login_logs.html",
-        {
+        request=request,
+        name="login_logs.html",
+        context={
             **_layout_context(request=request, active="login_logs"),
             "page_title": "登录日志",
             "logs": logs,
@@ -270,8 +272,9 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     timezone_offset = normalize_timezone_offset(timezone_str, default=settings.timezone_offset)
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "settings.html",
-        {
+        request=request,
+        name="settings.html",
+        context={
             **_layout_context(request=request, active="settings"),
             "csrf_token": csrf_token,
             "timezone_offset": timezone_offset,
@@ -447,8 +450,9 @@ def notifications_page(request: Request):
     display_smtp_pass = "*" * len(smtp_pass) if smtp_pass else ""
 
     return templates.TemplateResponse(
-        "notifications.html",
-        {
+        request=request,
+        name="notifications.html",
+        context={
             **_layout_context(request=request, active="notifications"),
             "smtp_host": smtp_host,
             "smtp_port": smtp_port,
@@ -563,8 +567,9 @@ def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends(
 
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "storage_settings.html",
-        {
+        request=request,
+        name="storage_settings.html",
+        context={
             **_layout_context(request=request, active="storage_settings"),
             "csrf_token": csrf_token,
             "s3_enabled": s3_enabled,
@@ -733,8 +738,9 @@ def list_login_logs(
              pagination_base = f"/login-logs?q={q or ''}&status={status or ''}&page="
 
     return templates.TemplateResponse(
-        "login_logs.html",
-        {
+        request=request,
+        name="login_logs.html",
+        context={
             **_layout_context(request=request, active="login_logs"),
             "page_title": "登录日志",
             "logs": logs,

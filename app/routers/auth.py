@@ -135,8 +135,9 @@ def _users_page_response(
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
 
     response = templates.TemplateResponse(
-        "users.html",
-        {
+        request=request,
+        name="users.html",
+        context={
             **_layout_context(request=request, active="users"), 
             "csrf_token": csrf_token,
             "items": items, 
@@ -169,8 +170,9 @@ def login_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     next_raw = request.query_params.get("next") or "/dashboard"
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "login.html",
-        {
+        request=request,
+        name="login.html",
+        context={
             **_layout_context(request=request, active=""),
             "next": next_raw,
             "err": request.query_params.get("err") or "",
@@ -286,8 +288,9 @@ def mfa_setup_page(request: Request, csrf_protect: CsrfProtect = Depends()):
 
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "mfa_setup.html",
-        {
+        request=request,
+        name="mfa_setup.html",
+        context={
             **_layout_context(request=request, active=""),
             "csrf_token": csrf_token,
             "mfa_secret": secret,
@@ -351,8 +354,9 @@ def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     next_raw = request.query_params.get("next") or "/dashboard"
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "mfa_verify.html",
-        {
+        request=request,
+        name="mfa_verify.html",
+        context={
             **_layout_context(request=request, active=""),
             "csrf_token": csrf_token,
             "next": next_raw,
@@ -451,8 +455,9 @@ def change_password_page(request: Request, csrf_protect: CsrfProtect = Depends()
     
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "change_password.html",
-        {
+        request=request,
+        name="change_password.html",
+        context={
             **_layout_context(request=request, active=""),
             "err": request.query_params.get("err") or "",
             "csrf_token": csrf_token,
@@ -502,8 +507,9 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
-        "profile.html",
-        {
+        request=request,
+        name="profile.html",
+        context={
             **_layout_context(request=request, active="profile"),
             "page_title": "个人设置",
             "page_subtitle": "管理您的个人信息和安全选项",
@@ -779,8 +785,9 @@ def roles_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     }
 
     response = templates.TemplateResponse(
-        "roles.html",
-        {
+        request=request,
+        name="roles.html",
+        context={
             **_layout_context(request=request, active="roles"),
             "items": items,
             "usage": usage,

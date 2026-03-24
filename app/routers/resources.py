@@ -47,8 +47,9 @@ def credentials_page(request: Request):
              pagination_base = "/credentials?page="
 
     return templates.TemplateResponse(
-        "credentials.html",
-        {
+        request=request,
+        name="credentials.html",
+        context={
             **_layout_context(request=request, active="credentials"), 
             "items": items, 
             "usage": usage, 
@@ -248,8 +249,9 @@ def groups_page(request: Request):
              pagination_base = "/groups?page="
 
     return templates.TemplateResponse(
-        "groups.html",
-        {
+        request=request,
+        name="groups.html",
+        context={
             **_layout_context(request=request, active="groups"), 
             "items": items, 
             "usage": usage,
@@ -342,8 +344,9 @@ def templates_page(request: Request):
 
     default_platforms = PLATFORMS
     return templates.TemplateResponse(
-        "templates.html",
-        {
+        request=request,
+        name="templates.html",
+        context={
             **_layout_context(request=request, active="templates"),
             "items": items,
             "default_commands": DEFAULT_COMMANDS,
