@@ -236,10 +236,12 @@ docker-compose up -d --build
 
 ### 系统管理 (System Management)
 ![系统设置](image/settings.png)
-
+### 通知设置 (Notifications)
 ![通知设置](image/notifications.png)
+## 存储设置 (Storage Settings)
+![存储设置](image/storage.png)
 
-### 用户管理 (User Management)
+### 用户和权限 (User Management)
 ![用户管理](image/users.png)
 ![角色管理](image/roles.png)
 
