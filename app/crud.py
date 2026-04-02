@@ -378,7 +378,7 @@ def search_devices(
     stmt = select(Device)
     if q:
         like = f"%{q.strip()}%"
-        stmt = stmt.where(or_(Device.name.like(like), Device.host.like(like)))
+        stmt = stmt.where(or_(Device.name.ilike(like), Device.host.ilike(like)))
     if login_method:
         lm = (login_method or "").strip().lower()
         if lm in {"ssh", "telnet"}:
@@ -435,7 +435,7 @@ def count_devices(
     stmt = select(func.count()).select_from(Device)
     if q:
         like = f"%{q.strip()}%"
-        stmt = stmt.where(or_(Device.name.like(like), Device.host.like(like)))
+        stmt = stmt.where(or_(Device.name.ilike(like), Device.host.ilike(like)))
     if login_method:
         lm = (login_method or "").strip().lower()
         if lm in {"ssh", "telnet"}:

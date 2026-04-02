@@ -5,43 +5,136 @@
 {% set body_class = "page-webshell" %}
 
 {% block content %}
-<div class="d-flex flex-column vh-100 bg-black">
-  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-dark text-white border-bottom border-secondary webshell-topbar">
-    <div class="d-flex align-items-center gap-2">
-       <span class="fw-bold"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
-       <span class="text-secondary small">|</span>
-       <span class="small text-light opacity-75">{{ device.host }}:{{ device.port }}</span>
-       <span class="text-secondary small">|</span>
-       <span class="small text-light opacity-75">{{ device.platform }}</span>
-       {% if credential %}
-       <span class="text-secondary small">|</span>
-       <span class="small text-light opacity-75"><i class="bi bi-person me-1"></i>{{ credential.username }}</span>
-       {% endif %}
-       <span class="badge bg-secondary ms-2 webshell-login-badge">{{ (device.login_method or 'ssh')|upper }}</span>
+<div class="d-flex flex-column vh-100 bg-black webshell-root">
+  <div class="flex-grow-1 d-flex overflow-hidden">
+    <!-- Sidebar -->
+    <div class="bg-dark border-end border-secondary d-flex flex-column" id="webshell-sidebar">
+      <div class="p-2 border-bottom border-secondary webshell-sidebar-header">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-black text-secondary border-secondary"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control bg-black text-white border-secondary" id="sidebar-search" placeholder="搜索设备..." autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="flex-grow-1 overflow-auto" id="sidebar-tree">
+        <div class="accordion accordion-flush" id="deviceTreeAccordion">
+          {% set ungrouped_devices = all_devices | selectattr('group_id', 'none') | list %}
+          {% set ungrouped_devices = ungrouped_devices + all_devices | selectattr('group_id', 'equalto', 0) | list %}
+          
+          {% for group in groups %}
+          {% set group_devices = all_devices | selectattr('group_id', 'equalto', group.id) | list %}
+          {% if group_devices|length > 0 %}
+          <div class="accordion-item bg-transparent border-0 group-item">
+            <h2 class="accordion-header" id="heading-group-{{ group.id }}">
+              <button class="accordion-button collapsed bg-transparent text-white py-2 px-3 shadow-none border-0 tree-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-group-{{ group.id }}" aria-expanded="false" aria-controls="collapse-group-{{ group.id }}">
+                <span class="tree-arrow me-2"></span>
+                <i class="bi bi-folder me-2 text-warning"></i>
+                <span class="group-name fw-semibold">{{ group.name }}</span>
+                <span class="ms-2 text-secondary small">({{ group_devices|length }})</span>
+              </button>
+            </h2>
+            <div id="collapse-group-{{ group.id }}" class="accordion-collapse collapse" aria-labelledby="heading-group-{{ group.id }}">
+              <div class="accordion-body p-0">
+                <div class="list-group list-group-flush">
+                  {% for d in group_devices %}
+                  <a href="#" class="list-group-item list-group-item-action bg-transparent text-white border-0 py-2 px-4 device-item {% if d.id == device.id %}active{% endif %}" data-device-id="{{ d.id }}" data-device-name="{{ d.name }}" data-device-host="{{ d.host }}" data-device-port="{{ d.port }}" data-device-platform="{{ d.platform }}" data-device-login-method="{{ (d.login_method or 'ssh') }}" data-search="{{ d.name|lower }} {{ d.host|lower }}">
+                    <div class="d-flex align-items-center">
+                      <i class="bi bi-terminal me-2 {% if d.id == device.id %}text-white{% else %}text-secondary{% endif %}"></i>
+                      <div class="device-name text-truncate" title="{{ d.name }}（{{ d.host }}）">{{ d.name }}（{{ d.host }}）</div>
+                    </div>
+                  </a>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+
+          {% if ungrouped_devices|length > 0 %}
+          <div class="accordion-item bg-transparent border-0 group-item">
+            <h2 class="accordion-header" id="heading-group-0">
+              <button class="accordion-button collapsed bg-transparent text-white py-2 px-3 shadow-none border-0 tree-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-group-0" aria-expanded="false" aria-controls="collapse-group-0">
+                <span class="tree-arrow me-2"></span>
+                <i class="bi bi-folder me-2 text-warning"></i>
+                <span class="group-name fw-semibold">未分组</span>
+                <span class="ms-2 text-secondary small">({{ ungrouped_devices|length }})</span>
+              </button>
+            </h2>
+            <div id="collapse-group-0" class="accordion-collapse collapse" aria-labelledby="heading-group-0">
+              <div class="accordion-body p-0">
+                <div class="list-group list-group-flush">
+                  {% for d in ungrouped_devices %}
+                  <a href="#" class="list-group-item list-group-item-action bg-transparent text-white border-0 py-2 px-4 device-item {% if d.id == device.id %}active{% endif %}" data-device-id="{{ d.id }}" data-device-name="{{ d.name }}" data-device-host="{{ d.host }}" data-device-port="{{ d.port }}" data-device-platform="{{ d.platform }}" data-device-login-method="{{ (d.login_method or 'ssh') }}" data-search="{{ d.name|lower }} {{ d.host|lower }}">
+                    <div class="d-flex align-items-center">
+                      <i class="bi bi-terminal me-2 {% if d.id == device.id %}text-white{% else %}text-secondary{% endif %}"></i>
+                      <div class="device-name text-truncate" title="{{ d.name }}（{{ d.host }}）">{{ d.name }}（{{ d.host }}）</div>
+                    </div>
+                  </a>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-      <div class="d-flex gap-1 me-2 border-end border-secondary pe-2" id="global-split-buttons">
-        <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-v" title="左右分栏 (Vertical Split)"><i class="bi bi-layout-split"></i></button>
-        <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-h" title="上下分栏 (Horizontal Split)"><i class="bi bi-hdd-stack"></i></button>
+    
+    <!-- Terminal Container -->
+    <div class="flex-grow-1 position-relative overflow-hidden d-flex flex-column">
+      <div class="d-flex justify-content-between align-items-center flex-wrap px-3 py-2 bg-dark text-white border-bottom border-secondary webshell-topbar">
+        <div class="d-flex align-items-center gap-2 flex-wrap topbar-left">
+           <span class="fw-bold webshell-device-name" id="topbar-device-name" title="{{ device.name }}"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
+           <span class="text-secondary small webshell-meta-sep">|</span>
+           <span class="small text-light opacity-75 webshell-meta-host" id="topbar-device-host" title="{{ device.host }}:{{ device.port }}">{{ device.host }}:{{ device.port }}</span>
+           <span class="text-secondary small webshell-meta-sep">|</span>
+           <span class="small text-light opacity-75 webshell-meta-platform" id="topbar-device-platform" title="{{ device.platform }}">{{ device.platform }}</span>
+           {% if credential %}
+           <span class="text-secondary small webshell-meta-sep">|</span>
+           <span class="small text-light opacity-75 webshell-meta-user" title="{{ credential.username }}"><i class="bi bi-person me-1"></i><span id="topbar-username">{{ credential.username }}</span></span>
+           {% else %}
+           <span class="text-secondary small webshell-meta-sep" id="topbar-username-separator">|</span>
+           <span class="small text-light opacity-75 webshell-meta-user" id="topbar-username-container"><i class="bi bi-person me-1"></i><span id="topbar-username"></span></span>
+           {% endif %}
+           <span class="badge bg-secondary ms-2 webshell-login-badge" id="topbar-login-badge">{{ (device.login_method or 'ssh')|upper }}</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap topbar-right">
+          <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-toggle-sidebar" title="切换设备列表"><i class="bi bi-layout-sidebar"></i></button>
+          <div class="d-flex gap-1 me-2 border-end border-secondary pe-2" id="global-split-buttons">
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-v" title="左右分栏 (Vertical Split)"><i class="bi bi-layout-split"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-h" title="上下分栏 (Horizontal Split)"><i class="bi bi-hdd-stack"></i></button>
+          </div>
+          <div class="d-flex gap-1 me-2 border-end border-secondary pe-2">
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="缩小字体"><i class="bi bi-dash"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="放大字体"><i class="bi bi-plus"></i></button>
+          </div>
+          <div class="dropdown me-2">
+            <button class="btn btn-sm btn-dark-toolbar dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
+              <i class="bi bi-palette"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="themeDropdown" id="theme-list">
+            </ul>
+          </div>
+           <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="导出当前会话日志"><i class="bi bi-download"></i></button>
+           <button class="btn btn-sm btn-outline-light" id="btn-reconnect">重连</button>
+           <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">关闭</button>
+        </div>
       </div>
-      <div class="d-flex gap-1 me-2 border-end border-secondary pe-2">
-        <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="缩小字体"><i class="bi bi-dash"></i></button>
-        <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="放大字体"><i class="bi bi-plus"></i></button>
+      <div class="webshell-tabs border-bottom border-secondary">
+        <div class="webshell-tabbar" id="webshell-tabbar"></div>
       </div>
-      <div class="dropdown me-2">
-        <button class="btn btn-sm btn-dark-toolbar dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
-          <i class="bi bi-palette"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="themeDropdown" id="theme-list">
-        </ul>
+      <div class="flex-grow-1 position-relative overflow-hidden" id="webshell-tabpanes">
+        <div class="webshell-tabpane active" id="webshell-tabpane-initial" data-device-id="{{ device.id }}">
+          <div class="flex-grow-1 position-relative overflow-hidden d-flex terminal-container" id="terminal-container"></div>
+        </div>
       </div>
-       <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="导出当前会话日志"><i class="bi bi-download"></i></button>
-       <button class="btn btn-sm btn-outline-light" id="btn-reconnect">重连</button>
-       <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">关闭</button>
     </div>
   </div>
-  <div class="flex-grow-1 position-relative overflow-hidden d-flex" id="terminal-container"></div>
 </div>
+
+<form id="switch-device-form" method="post" action="">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+</form>
 
 <!-- Paste Confirmation Modal -->
 <div class="modal fade" id="pasteModal" tabindex="-1" aria-hidden="true">
@@ -62,6 +155,79 @@
     </div>
   </div>
 </div>
+
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary py-2">
+        <h6 class="modal-title fw-bold">登录设备</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 d-flex align-items-center">
+          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">设备</label>
+          <div class="flex-grow-1 p-2 bg-black border border-secondary rounded small">
+            <span id="login-device-name">{{ device.name }}</span> - IP: <span id="login-device-host">{{ device.host }}</span>
+          </div>
+        </div>
+        
+        <div class="mb-3 d-flex align-items-center">
+          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">连接方式</label>
+          <div class="flex-grow-1 d-flex gap-3">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="radio" name="loginType" id="loginTypeAuto" value="auto" checked>
+              <label class="form-check-label" for="loginTypeAuto">免密登录 (保存的凭据)</label>
+            </div>
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="radio" name="loginType" id="loginTypeManual" value="manual">
+              <label class="form-check-label" for="loginTypeManual">手动输入凭据</label>
+            </div>
+          </div>
+        </div>
+
+        <div id="manualLoginFields">
+          <div class="mb-3 d-flex align-items-center">
+            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">用户名</label>
+            <input type="text" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualUsername" placeholder="请输入用户名">
+          </div>
+          <div class="mb-3 d-flex align-items-center">
+            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">密码</label>
+            <input type="password" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualPassword" placeholder="请输入密码 (可选)">
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer border-secondary py-2">
+        <button type="button" class="btn btn-primary w-100" id="btn-login-connect">登录</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Switch Device Modal -->
+<div class="modal fade" id="switchDeviceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary py-2">
+        <h6 class="modal-title">切换设备</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-secondary mb-2">当前终端会话将断开。</p>
+        <div class="d-flex align-items-center">
+          <i class="bi bi-hdd-network me-2 text-primary"></i>
+          <div class="flex-grow-1 text-truncate">
+            <span id="switch-device-modal-name" class="text-white"></span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-switch-device">确定切换</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -70,7 +236,7 @@
 <script src="/static/js/xterm-addon-fit.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-      const rootContainer = document.getElementById('terminal-container');
+      const initialRootContainer = document.getElementById('terminal-container');
       const reconnectBtn = document.getElementById('btn-reconnect');
       const exportBtn = document.getElementById('btn-export-log');
       const zoomInBtn = document.getElementById('btn-zoom-in');
@@ -83,17 +249,55 @@
       const pasteContent = document.getElementById('paste-content');
       const confirmPasteBtn = document.getElementById('btn-confirm-paste');
       
-      const deviceId = {{ device.id }};
-      const deviceName = "{{ device.name }}";
-      const deviceHost = "{{ device.host }}";
+      const loginModalEl = document.getElementById('loginModal');
+      const switchDeviceModalEl = document.getElementById('switchDeviceModal');
+      const switchDeviceModalName = document.getElementById('switch-device-modal-name');
+      const btnConfirmSwitchDevice = document.getElementById('btn-confirm-switch-device');
+      const loginTypeRadios = document.getElementsByName('loginType');
+      const manualLoginFields = document.getElementById('manualLoginFields');
+      const btnLoginConnect = document.getElementById('btn-login-connect');
+      const manualUsernameInput = document.getElementById('manualUsername');
+      const manualPasswordInput = document.getElementById('manualPassword');
+      const topbarUsername = document.getElementById('topbar-username');
+      const topbarUsernameSeparator = document.getElementById('topbar-username-separator');
+      const topbarUsernameContainer = document.getElementById('topbar-username-container');
+
+      const sidebarToggleBtn = document.getElementById('btn-toggle-sidebar');
+      const sidebarEl = document.getElementById('webshell-sidebar');
+      const sidebarSearch = document.getElementById('sidebar-search');
+      const switchDeviceForm = document.getElementById('switch-device-form');
+      const tabbarEl = document.getElementById('webshell-tabbar');
+      const tabpanesEl = document.getElementById('webshell-tabpanes');
+      const initialTabPaneEl = document.getElementById('webshell-tabpane-initial');
+      const topbarDeviceNameEl = document.getElementById('topbar-device-name');
+      const topbarDeviceHostEl = document.getElementById('topbar-device-host');
+      const topbarDevicePlatformEl = document.getElementById('topbar-device-platform');
+      const topbarLoginBadgeEl = document.getElementById('topbar-login-badge');
+      const loginDeviceNameEl = document.getElementById('login-device-name');
+      const loginDeviceHostEl = document.getElementById('login-device-host');
+
+      const initialDevice = {
+          id: {{ device.id }},
+          name: {{ (device.name or '') | tojson }},
+          host: {{ (device.host or '') | tojson }},
+          port: {{ (device.port or '') | tojson }},
+          platform: {{ (device.platform or '') | tojson }},
+          loginMethod: {{ (device.login_method or 'ssh') | tojson }}
+      };
+      const initialCredentialUsername = {{ (credential.username if credential else none) | tojson }};
       const csrfToken = "{{ csrf_token }}";
-      let webshellToken = {{ webshell_token | tojson }};
       const inactivityLimitMs = 5 * 60 * 1000;
 
       let currentTheme = 'Default';
-      let activeSession = null;
-      const sessions = new Set();
       let pasteModal = null;
+      let loginModal = null;
+      let switchDeviceModal = null;
+      let pendingSwitchDeviceId = null;
+      
+      const tabs = new Map();
+      let activeTab = null;
+      let defaultLoginConfig = null;
+      let pendingLoginTab = null;
 
       const themes = {
           'Default': { type: 'dark', background: '#000000', foreground: '#ffffff', cursor: '#ffffff', headerBg: '#1a1a1a', headerFg: '#cccccc', borderColor: '#333333' },
@@ -108,13 +312,72 @@
 
       if (typeof bootstrap !== 'undefined') {
           pasteModal = new bootstrap.Modal(pasteModalEl);
+          loginModal = new bootstrap.Modal(loginModalEl);
+          switchDeviceModal = new bootstrap.Modal(switchDeviceModalEl);
+      }
+      
+      loginTypeRadios.forEach(radio => {
+          radio.addEventListener('change', (e) => {
+              if (e.target.value === 'manual') {
+                  manualLoginFields.style.display = 'block';
+                  manualUsernameInput.focus();
+              } else {
+                  manualLoginFields.style.display = 'none';
+              }
+          });
+      });
+
+      function handleLoginSubmit() {
+          const loginType = document.querySelector('input[name="loginType"]:checked').value;
+          const cfg = { loginType: loginType };
+          if (loginType === 'manual') {
+              cfg.username = manualUsernameInput.value.trim();
+              cfg.password = manualPasswordInput.value;
+              if (!cfg.username) {
+                  alert('请输入用户名');
+                  manualUsernameInput.focus();
+                  return;
+              }
+              // Update topbar username display for manual login
+              if (topbarUsername) {
+                  topbarUsername.textContent = cfg.username;
+              }
+              if (topbarUsernameSeparator && topbarUsernameContainer) {
+                  topbarUsernameSeparator.style.display = 'inline';
+                  topbarUsernameContainer.style.display = 'inline';
+              }
+          }
+          if (!defaultLoginConfig) defaultLoginConfig = cfg;
+          if (pendingLoginTab) {
+              pendingLoginTab.loginConfig = cfg;
+              pendingLoginTab.username = cfg.loginType === 'manual' ? (cfg.username || null) : pendingLoginTab.username;
+          }
+          loginModal.hide();
+          if (pendingLoginTab) {
+              if (pendingLoginTab.sessions.size === 0) {
+                  initFirstSession(pendingLoginTab);
+              } else if (pendingLoginTab.activeSession) {
+                  pendingLoginTab.activeSession.connect();
+              }
+          }
       }
 
-      async function refreshWebshellToken() {
+      btnLoginConnect.addEventListener('click', handleLoginSubmit);
+
+      [manualUsernameInput, manualPasswordInput].forEach(input => {
+          input.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleLoginSubmit();
+              }
+          });
+      });
+
+      async function refreshWebshellToken(tab) {
           try {
               const body = new URLSearchParams();
               body.set('csrf_token', csrfToken);
-              const resp = await fetch(`/devices/${deviceId}/webshell/token`, {
+              const resp = await fetch(`/devices/${tab.device.id}/webshell/token`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                   body: body.toString(),
@@ -123,7 +386,7 @@
               if (resp.ok) {
                   const data = await resp.json();
                   if (data && data.token) {
-                      webshellToken = data.token;
+                      tab.webshellToken = data.token;
                       return true;
                   }
               }
@@ -132,8 +395,9 @@
       }
 
       class TerminalSession {
-          constructor(container) {
+          constructor(container, tab) {
               this.container = container;
+              this.tab = tab;
               this.terminal = null;
               this.fitAddon = null;
               this.socket = null;
@@ -146,9 +410,12 @@
 
               this.initUI();
               this.initTerminal();
+              // Don't connect automatically in constructor if it's the very first time and we haven't selected login type yet.
+              // Wait, `TerminalSession` is now only created AFTER login modal finishes for the first time.
+              // Or if we split the terminal, we should use the same `initialLoginConfig`.
               this.connect();
               
-              sessions.add(this);
+              tab.sessions.add(this);
               this.setActive();
           }
 
@@ -282,31 +549,31 @@
           updateTitle() {
               if (this.titleElement) {
                   // Get index from sessions set order
-                  const index = Array.from(sessions).indexOf(this) + 1;
-                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span>${deviceName}<span class="opacity-50 ms-2">${deviceHost}</span>`;
+                  const index = Array.from(this.tab.sessions).indexOf(this) + 1;
+                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span>${this.tab.device.name}<span class="opacity-50 ms-2">${this.tab.device.host}</span>`;
               }
           }
 
           setActive() {
-               if (activeSession === this) {
+               if (this.tab.activeSession === this) {
                    if (this.terminal) this.terminal.focus();
                    return;
                }
                
-               if (activeSession) {
-                   activeSession.container.classList.remove('active');
-                   if (activeSession.header) {
-                       activeSession.header.classList.remove('active');
+               if (this.tab.activeSession) {
+                   this.tab.activeSession.container.classList.remove('active');
+                   if (this.tab.activeSession.header) {
+                       this.tab.activeSession.header.classList.remove('active');
                        // Re-apply theme colors when inactive
                        const theme = themes[currentTheme];
                        if (theme) {
-                           activeSession.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
-                           activeSession.header.style.color = theme.headerFg || '#ccc';
-                           activeSession.header.style.borderBottomColor = theme.borderColor || '#333';
+                           this.tab.activeSession.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
+                           this.tab.activeSession.header.style.color = theme.headerFg || '#ccc';
+                           this.tab.activeSession.header.style.borderBottomColor = theme.borderColor || '#333';
                        }
                    }
                }
-               activeSession = this;
+               this.tab.activeSession = this;
                this.container.classList.add('active');
                if (this.header) {
                    this.header.classList.add('active');
@@ -319,8 +586,8 @@
 
           buildUrl() {
               const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-              const tokenQuery = webshellToken ? `?token=${encodeURIComponent(webshellToken)}` : '';
-              return `${scheme}://${window.location.host}/ws/devices/${deviceId}/shell${tokenQuery}`;
+              const tokenQuery = this.tab.webshellToken ? `?token=${encodeURIComponent(this.tab.webshellToken)}` : '';
+              return `${scheme}://${window.location.host}/ws/devices/${this.tab.device.id}/shell${tokenQuery}`;
           }
 
           async connect(options = {}) {
@@ -337,7 +604,7 @@
               this.writeLine('正在连接...');
 
               if (refreshToken) {
-                  await refreshWebshellToken();
+                  await refreshWebshellToken(this.tab);
               }
               this.connectionStartTime = Date.now();
               this.socket = new WebSocket(this.buildUrl());
@@ -345,6 +612,11 @@
               this.resetInactivityTimer();
 
               this.socket.onopen = () => {
+                  // Send init config
+                  const initCfg = this.tab.loginConfig || { loginType: 'auto' };
+                  const initMsg = { type: 'init', ...initCfg };
+                  this.socket.send(JSON.stringify(initMsg));
+                  
                   if (this.fitAddon) this.fitAddon.fit();
                   this.sendResize();
                   this.terminal.focus();
@@ -364,8 +636,31 @@
                               this.connectionStartTime = 0;
                           }
                           this.writeLine(`\r\n[系统] ${msg}`);
+                          if (
+                              loginModal &&
+                              (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
+                              !this.tab.promptedLogin &&
+                              /凭据|认证|用户名|密码|auth|login/i.test(msg)
+                          ) {
+                              this.tab.promptedLogin = true;
+                              pendingLoginTab = this.tab;
+                              updateTopbarForTab(this.tab);
+                              loginModal.show();
+                          }
                       } else if (payload.type === 'error') {
-                          this.writeLine(`\r\n[错误] ${payload.message || ''}`);
+                          const msg = payload.message || '';
+                          this.writeLine(`\r\n[错误] ${msg}`);
+                          if (
+                              loginModal &&
+                              (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
+                              !this.tab.promptedLogin &&
+                              /凭据|认证|用户名|密码|auth|login/i.test(msg)
+                          ) {
+                              this.tab.promptedLogin = true;
+                              pendingLoginTab = this.tab;
+                              updateTopbarForTab(this.tab);
+                              loginModal.show();
+                          }
                       }
                   } catch (e) {
                       this.terminal.write(ev.data || '');
@@ -375,7 +670,7 @@
               this.socket.onclose = (ev) => {
                   if (ev && ev.code === 4403 && !this.authRetrying) {
                       this.authRetrying = true;
-                      refreshWebshellToken().then((ok) => {
+                      refreshWebshellToken(this.tab).then((ok) => {
                           if (ok) {
                               this.connect({ refreshToken: false, resetAuthRetry: false });
                           } else {
@@ -494,10 +789,10 @@
               if (this.resizeObserver) this.resizeObserver.disconnect();
               if (this.terminal) this.terminal.dispose();
               
-              sessions.delete(this);
-              if (activeSession === this) {
-                  activeSession = sessions.size > 0 ? sessions.values().next().value : null;
-                  if (activeSession) activeSession.setActive();
+              this.tab.sessions.delete(this);
+              if (this.tab.activeSession === this) {
+                  this.tab.activeSession = this.tab.sessions.size > 0 ? this.tab.sessions.values().next().value : null;
+                  if (this.tab.activeSession) this.tab.activeSession.setActive();
               }
 
               // Remove from DOM
@@ -519,22 +814,22 @@
               }
               
               // Special case: If this was the last session
-              if (sessions.size === 0) {
+              if (this.tab.sessions.size === 0) {
                   const btn = document.createElement('button');
                   btn.className = 'btn btn-primary';
                   btn.textContent = '开启新会话';
-                  btn.onclick = () => createSession();
+                  btn.onclick = () => createSession(this.tab);
                   
                   const wrapper = document.createElement('div');
                   wrapper.className = 'd-flex w-100 h-100 justify-content-center align-items-center text-white';
                   wrapper.appendChild(btn);
                   
-                  rootContainer.innerHTML = '';
-                  rootContainer.appendChild(wrapper);
-                  activeSession = null;
+                  this.tab.rootContainer.innerHTML = '';
+                  this.tab.rootContainer.appendChild(wrapper);
+                  this.tab.activeSession = null;
               }
               
-              updateLayoutMode();
+              updateLayoutMode(this.tab);
           }
       }
 
@@ -547,7 +842,9 @@
           if (!themes[name]) name = 'Default';
           currentTheme = name;
           
-          sessions.forEach(session => session.setTheme(name));
+          tabs.forEach(tab => {
+              tab.sessions.forEach(session => session.setTheme(name));
+          });
           
           localStorage.setItem('webshell_theme', name);
           
@@ -562,14 +859,14 @@
           });
           
           // Update global background
-          if (rootContainer.parentElement.classList.contains('bg-black')) {
-              rootContainer.parentElement.classList.remove('bg-black');
+          const shellRoot = document.querySelector('.webshell-root');
+          if (shellRoot) {
+              shellRoot.style.backgroundColor = themes[name].background;
           }
-          rootContainer.parentElement.style.backgroundColor = themes[name].background;
       }
 
-      function updateLayoutMode() {
-          const sessionCount = sessions.size;
+      function updateLayoutMode(tab) {
+          const sessionCount = tab.sessions.size;
           const isMulti = sessionCount > 1;
 
           // Toggle Global Buttons
@@ -587,7 +884,7 @@
 
           // Toggle Headers and Update Titles
           let index = 1;
-          sessions.forEach(session => {
+          tab.sessions.forEach(session => {
               if (session.header) {
                   session.header.style.display = isMulti ? 'flex' : 'none';
               }
@@ -605,62 +902,249 @@
           });
       }
 
-      function createSession(container = null) {
-          // Clear placeholder if exists
-          if (sessions.size === 0 && rootContainer.querySelector('button')) {
-             rootContainer.innerHTML = '';
+      function updateTopbarForTab(tab) {
+          if (!tab) return;
+          if (topbarDeviceNameEl) {
+              topbarDeviceNameEl.title = tab.device.name || '';
+              const iconHtml = '<i class="bi bi-terminal me-2"></i>';
+              topbarDeviceNameEl.innerHTML = `${iconHtml}${escapeHtml(tab.device.name || '')}`;
           }
+          if (topbarDeviceHostEl) {
+              const hostText = `${tab.device.host || ''}${tab.device.port ? ':' + tab.device.port : ''}`;
+              topbarDeviceHostEl.title = hostText;
+              topbarDeviceHostEl.textContent = hostText;
+          }
+          if (topbarDevicePlatformEl) {
+              topbarDevicePlatformEl.title = tab.device.platform || '';
+              topbarDevicePlatformEl.textContent = tab.device.platform || '';
+          }
+          if (topbarLoginBadgeEl) {
+              topbarLoginBadgeEl.textContent = (tab.device.loginMethod || 'ssh').toUpperCase();
+          }
+          if (topbarUsernameSeparator && topbarUsernameContainer && topbarUsername) {
+              if (tab.username) {
+                  topbarUsername.textContent = tab.username;
+                  topbarUsernameSeparator.style.display = 'inline';
+                  topbarUsernameContainer.style.display = 'inline';
+              } else {
+                  topbarUsername.textContent = '';
+                  topbarUsernameSeparator.style.display = 'none';
+                  topbarUsernameContainer.style.display = 'none';
+              }
+          }
+          if (loginDeviceNameEl) loginDeviceNameEl.textContent = tab.device.name || '';
+          if (loginDeviceHostEl) loginDeviceHostEl.textContent = tab.device.host || '';
+      }
 
+      function setSidebarActiveDevice(deviceId) {
+          const items = document.querySelectorAll('.device-item');
+          items.forEach(el => {
+              const isActive = String(deviceId) === String(el.getAttribute('data-device-id'));
+              el.classList.toggle('active', isActive);
+              const icon = el.querySelector('i.bi-terminal');
+              const hostLine = el.querySelector('.small');
+              if (icon) {
+                  icon.classList.toggle('text-white', isActive);
+                  icon.classList.toggle('text-secondary', !isActive);
+              }
+              if (hostLine) {
+                  hostLine.classList.toggle('text-light', isActive);
+                  hostLine.classList.toggle('text-secondary', !isActive);
+              }
+          });
+      }
+
+      function ensureActiveDeviceVisible(deviceId) {
+          const item = Array.from(document.querySelectorAll('.device-item')).find(el => String(el.getAttribute('data-device-id')) === String(deviceId));
+          if (!item) return;
+          const collapseEl = item.closest('.accordion-collapse');
+          if (collapseEl && !collapseEl.classList.contains('show')) {
+              if (typeof bootstrap !== 'undefined') {
+                  new bootstrap.Collapse(collapseEl, { toggle: false }).show();
+              } else {
+                  collapseEl.classList.add('show');
+              }
+              const btn = document.querySelector(`[aria-controls="${collapseEl.id}"]`);
+              if (btn) btn.classList.remove('collapsed');
+          }
+          setTimeout(() => {
+              item.scrollIntoView({ behavior: 'auto', block: 'center' });
+          }, 50);
+      }
+
+      function escapeHtml(value) {
+          const s = String(value ?? '');
+          return s.replace(/[&<>"']/g, (ch) => {
+              switch (ch) {
+                  case '&': return '&amp;';
+                  case '<': return '&lt;';
+                  case '>': return '&gt;';
+                  case '"': return '&quot;';
+                  case "'": return '&#39;';
+                  default: return ch;
+              }
+          });
+      }
+
+      function createSession(tab, container = null) {
+          if (!tab) return null;
+          if (tab.sessions.size === 0 && tab.rootContainer.querySelector('button')) {
+              tab.rootContainer.innerHTML = '';
+          }
           if (!container) {
               container = document.createElement('div');
-              rootContainer.appendChild(container);
+              tab.rootContainer.appendChild(container);
           }
-          const session = new TerminalSession(container);
+          const session = new TerminalSession(container, tab);
           session.setTheme(currentTheme);
-          
-          updateLayoutMode();
-          
+          updateLayoutMode(tab);
           return session;
       }
 
       function splitSession(session, direction) {
           if (!session) return;
-          
+          const tab = session.tab;
           const oldPane = session.container;
           const parent = oldPane.parentElement;
-          
-          // Create wrapper
           const wrapper = document.createElement('div');
           wrapper.className = 'split-container';
           wrapper.style.flexDirection = direction === 'vertical' ? 'row' : 'column';
-          
-          // Insert wrapper where oldPane was
           parent.insertBefore(wrapper, oldPane);
-          
-          // Move oldPane into wrapper
           wrapper.appendChild(oldPane);
-          
-          // Create new pane
           const newPane = document.createElement('div');
           wrapper.appendChild(newPane);
-          
-          // Create new session
-          const newSession = createSession(newPane);
-          
-          // Re-fit old session as its container changed size
+          createSession(tab, newPane);
           if (session.fitAddon) {
               setTimeout(() => {
                   session.fitAddon.fit();
                   session.sendResize();
               }, 10);
           }
-          
-          // Update layout mode for all sessions (to show headers)
-          updateLayoutMode();
+          updateLayoutMode(tab);
       }
 
-      // Initial Session
-      createSession();
+      function initFirstSession(tab) {
+          createSession(tab);
+      }
+
+      function createTabContext(device, options = {}) {
+          const tab = {
+              id: `dev-${device.id}`,
+              device: device,
+              sessions: new Set(),
+              activeSession: null,
+              rootContainer: options.rootContainer,
+              paneEl: options.paneEl,
+              tabEl: null,
+              webshellToken: null,
+              loginConfig: options.loginConfig ?? null,
+              username: options.username || null
+          };
+          tabs.set(String(device.id), tab);
+          return tab;
+      }
+
+      function renderTabButton(tab) {
+          const el = document.createElement('div');
+          el.className = 'webshell-tab';
+          el.dataset.deviceId = String(tab.device.id);
+          el.innerHTML = `<span class="webshell-tab-title">${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="关闭"><i class="bi bi-x"></i></span>`;
+          el.addEventListener('click', () => activateTab(tab));
+          const closeEl = el.querySelector('.webshell-tab-close');
+          if (closeEl) {
+              closeEl.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  closeTab(tab);
+              });
+          }
+          tab.tabEl = el;
+          tabbarEl.appendChild(el);
+      }
+
+      function activateTab(tab) {
+          if (!tab) return;
+          if (activeTab && activeTab.paneEl) {
+              activeTab.paneEl.classList.remove('active');
+          }
+          if (activeTab && activeTab.tabEl) {
+              activeTab.tabEl.classList.remove('active');
+          }
+          activeTab = tab;
+          if (tab.paneEl) tab.paneEl.classList.add('active');
+          if (tab.tabEl) tab.tabEl.classList.add('active');
+          pendingLoginTab = tab;
+          updateTopbarForTab(tab);
+          setSidebarActiveDevice(tab.device.id);
+          ensureActiveDeviceVisible(tab.device.id);
+          updateLayoutMode(tab);
+          if (tab.activeSession && tab.activeSession.terminal) tab.activeSession.terminal.focus();
+      }
+
+      function closeTab(tab) {
+          if (!tab) return;
+          Array.from(tab.sessions).forEach(s => s.destroy());
+          tab.sessions.clear();
+          if (tab.paneEl) tab.paneEl.remove();
+          if (tab.tabEl) tab.tabEl.remove();
+          tabs.delete(String(tab.device.id));
+          if (activeTab && String(activeTab.device.id) === String(tab.device.id)) {
+              const remaining = Array.from(tabs.values());
+              if (remaining.length > 0) {
+                  activateTab(remaining[remaining.length - 1]);
+              } else {
+                  activeTab = null;
+              }
+          }
+      }
+
+      function promptLoginForTab(tab) {
+          pendingLoginTab = tab;
+          updateTopbarForTab(tab);
+          if (!loginModal) {
+              if (tab.sessions.size === 0) initFirstSession(tab);
+              return;
+          }
+          const autoRadio = document.getElementById('loginTypeAuto');
+          const manualRadio = document.getElementById('loginTypeManual');
+          if (autoRadio) autoRadio.checked = true;
+          if (manualRadio) manualRadio.checked = false;
+          if (manualLoginFields) manualLoginFields.style.display = 'none';
+          if (manualUsernameInput) manualUsernameInput.value = '';
+          if (manualPasswordInput) manualPasswordInput.value = '';
+          loginModal.show();
+      }
+
+      function openDeviceTab(device) {
+          const existing = tabs.get(String(device.id));
+          if (existing) {
+              activateTab(existing);
+              if (existing.sessions.size === 0) {
+                  promptLoginForTab(existing);
+              }
+              return existing;
+          }
+          const paneEl = document.createElement('div');
+          paneEl.className = 'webshell-tabpane';
+          paneEl.dataset.deviceId = String(device.id);
+          const rootEl = document.createElement('div');
+          rootEl.className = 'flex-grow-1 position-relative overflow-hidden d-flex terminal-container';
+          paneEl.appendChild(rootEl);
+          tabpanesEl.appendChild(paneEl);
+          const tab = createTabContext(device, { paneEl: paneEl, rootContainer: rootEl, loginConfig: null });
+          renderTabButton(tab);
+          activateTab(tab);
+          promptLoginForTab(tab);
+          return tab;
+      }
+
+      const initialTab = createTabContext(initialDevice, { paneEl: initialTabPaneEl, rootContainer: initialRootContainer, username: initialCredentialUsername });
+      renderTabButton(initialTab);
+      activateTab(initialTab);
+      if (loginModal) {
+          promptLoginForTab(initialTab);
+      } else {
+          initFirstSession(initialTab);
+      }
 
       // Setup Themes
       Object.keys(themes).forEach(name => {
@@ -686,32 +1170,41 @@
       // Split Buttons
       if (globalSplitVBtn) {
         globalSplitVBtn.addEventListener('click', () => {
-            if (activeSession) splitSession(activeSession, 'vertical');
+            if (activeTab && activeTab.activeSession) splitSession(activeTab.activeSession, 'vertical');
         });
       }
       if (globalSplitHBtn) {
         globalSplitHBtn.addEventListener('click', () => {
-            if (activeSession) splitSession(activeSession, 'horizontal');
+            if (activeTab && activeTab.activeSession) splitSession(activeTab.activeSession, 'horizontal');
         });
       }
 
       // Reconnect Active
       reconnectBtn.addEventListener('click', async () => {
-          if (activeSession) {
-              activeSession.connect();
+          if (!activeTab) return;
+          pendingLoginTab = activeTab;
+          if (activeTab.loginConfig && (activeTab.loginConfig.loginType !== 'manual' || activeTab.loginConfig.username)) {
+              if (activeTab.activeSession) activeTab.activeSession.connect();
+              return;
+          }
+          if (loginModal) {
+              updateTopbarForTab(activeTab);
+              loginModal.show();
+          } else {
+              if (activeTab.activeSession) activeTab.activeSession.connect();
           }
       });
 
       // Export Log Active
       exportBtn.addEventListener('click', () => {
-          if (!activeSession) return;
-          const content = activeSession.getLogContent();
+          if (!activeTab || !activeTab.activeSession) return;
+          const content = activeTab.activeSession.getLogContent();
           const blob = new Blob([content], { type: 'text/plain' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          a.download = `webshell-${deviceName}-${timestamp}.log`;
+          a.download = `webshell-${activeTab.device.name || activeTab.device.host || activeTab.device.id}-${timestamp}.log`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -720,12 +1213,12 @@
 
       // Zoom
       zoomInBtn.addEventListener('click', () => {
-          if (activeSession) activeSession.setFontSize((activeSession.fontSize || 14) + 1);
+          if (activeTab && activeTab.activeSession) activeTab.activeSession.setFontSize((activeTab.activeSession.fontSize || 14) + 1);
       });
 
       zoomOutBtn.addEventListener('click', () => {
-          if (activeSession && activeSession.fontSize > 8) {
-              activeSession.setFontSize(activeSession.fontSize - 1);
+          if (activeTab && activeTab.activeSession && activeTab.activeSession.fontSize > 8) {
+              activeTab.activeSession.setFontSize(activeTab.activeSession.fontSize - 1);
           }
       });
 
@@ -743,12 +1236,12 @@
 
       confirmPasteBtn.addEventListener('click', () => {
           const text = pasteContent.value;
-          if (text && activeSession && activeSession.socket && activeSession.socket.readyState === 1) {
-              activeSession.socket.send(JSON.stringify({ type: 'input', data: text }));
-              activeSession.markActivity();
+          if (text && activeTab && activeTab.activeSession && activeTab.activeSession.socket && activeTab.activeSession.socket.readyState === 1) {
+              activeTab.activeSession.socket.send(JSON.stringify({ type: 'input', data: text }));
+              activeTab.activeSession.markActivity();
           }
           if (pasteModal) pasteModal.hide();
-          if (activeSession && activeSession.terminal) activeSession.terminal.focus();
+          if (activeTab && activeTab.activeSession && activeTab.activeSession.terminal) activeTab.activeSession.terminal.focus();
       });
 
       // Global Keyboard Events
@@ -763,11 +1256,94 @@
           }
       });
       
+      // Sidebar toggle
+      if (sidebarToggleBtn && sidebarEl) {
+          sidebarToggleBtn.addEventListener('click', () => {
+              if (sidebarEl.style.width === '0px') {
+                  sidebarEl.style.width = '260px';
+                  sidebarEl.style.borderRightWidth = '1px';
+              } else {
+                  sidebarEl.style.width = '0px';
+                  sidebarEl.style.borderRightWidth = '0px';
+              }
+              // Resize terminals after animation
+              setTimeout(() => {
+                  if (activeTab) {
+                      activeTab.sessions.forEach(session => {
+                          if (session.fitAddon) {
+                              session.fitAddon.fit();
+                              session.sendResize();
+                          }
+                      });
+                  }
+              }, 350);
+          });
+      }
+
+      // Sidebar search
+      if (sidebarSearch) {
+          sidebarSearch.addEventListener('input', (e) => {
+              const term = e.target.value.toLowerCase().trim();
+              const groupItems = document.querySelectorAll('.group-item');
+              
+              groupItems.forEach(group => {
+                  const devices = group.querySelectorAll('.device-item');
+                  let hasVisibleDevice = false;
+                  
+                  devices.forEach(device => {
+                      const searchData = device.getAttribute('data-search') || '';
+                      if (term === '' || searchData.includes(term)) {
+                          device.style.display = 'block';
+                          hasVisibleDevice = true;
+                      } else {
+                          device.style.display = 'none';
+                      }
+                  });
+                  
+                  if (hasVisibleDevice) {
+                      group.style.display = 'block';
+                      if (term !== '') {
+                          // Expand if searching
+                          const collapseEl = group.querySelector('.accordion-collapse');
+                          if (collapseEl && !collapseEl.classList.contains('show')) {
+                              if (typeof bootstrap !== 'undefined') {
+                                  new bootstrap.Collapse(collapseEl, { toggle: false }).show();
+                              } else {
+                                  collapseEl.classList.add('show');
+                              }
+                          }
+                      }
+                  } else {
+                      group.style.display = 'none';
+                  }
+              });
+          });
+      }
+
+      // Switch device
+      const deviceItems = document.querySelectorAll('.device-item');
+      deviceItems.forEach(item => {
+          item.addEventListener('click', (e) => {
+              e.preventDefault();
+              const newDeviceId = item.getAttribute('data-device-id');
+              if (!newDeviceId) return;
+              const device = {
+                  id: Number(newDeviceId),
+                  name: item.getAttribute('data-device-name') || item.querySelector('.device-name')?.textContent || '',
+                  host: item.getAttribute('data-device-host') || '',
+                  port: item.getAttribute('data-device-port') || '',
+                  platform: item.getAttribute('data-device-platform') || '',
+                  loginMethod: item.getAttribute('data-device-login-method') || 'ssh'
+              };
+              openDeviceTab(device);
+          });
+      });
+
       // Activity monitoring
       const activityEvents = ['keydown', 'mousedown', 'mousemove', 'wheel', 'touchstart'];
       activityEvents.forEach(eventName => {
           document.addEventListener(eventName, () => {
-             if (activeSession) activeSession.markActivity();
+             if (activeTab && activeTab.activeSession) activeTab.activeSession.markActivity();
           }, { passive: true });
       });
   });

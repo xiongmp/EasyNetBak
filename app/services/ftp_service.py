@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_device_name(name: str) -> str:
-    return "".join([c if c.isalnum() else "_" for c in (name or "")]) or "device"
+    return "".join([c if c.isascii() and (c.isalnum() or c in "-_.") else "_" for c in (name or "")]).strip("_") or "device"
+
+
+def _safe_host(host: str) -> str:
+    return "".join([c if c.isascii() and (c.isalnum() or c in "-_.") else "_" for c in (host or "")]).strip("_") or "host"
 
 
 def _parse_int(value: str | None, default: int, min_val: int, max_val: int) -> int:
@@ -101,7 +105,8 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
     date_str = local_dt.strftime("%Y-%m-%d")
     time_str = local_dt.strftime("%H%M%S")
     safe_name = _safe_device_name(device_name)
-    filename = f"{safe_name}_{host}_{time_str}.txt"
+    safe_host = _safe_host(host)
+    filename = f"{safe_name}_{safe_host}_{time_str}.txt"
 
     base_clean = ftp_base_dir.strip().strip("/")
     segments: list[str] = []
@@ -113,7 +118,9 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
     try:
         ftp = _ftp_connect(ftp_host, port, username, password, timeout, passive)
         _ensure_dir(ftp, segments)
-        data = io.BytesIO(config_text.encode("utf-8"))
+        header_line = f"Device-Name: {device_name or ''}\n"
+        payload_text = f"{header_line}{config_text or ''}"
+        data = io.BytesIO(payload_text.encode("utf-8"))
         ftp.storbinary(f"STOR {filename}", data)
         return True
     except Exception as exc:

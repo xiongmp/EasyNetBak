@@ -4429,8 +4429,274 @@ mark {
 
 .page-webshell .webshell-topbar {
     height: 50px;
+    position: sticky;
+    top: 0;
+    z-index: 1035;
+    background-color: rgba(33, 37, 41, 0.92) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .page-webshell .webshell-login-badge {
     font-size: 0.75em;
+}
+
+.page-webshell #topbar-username-separator,
+.page-webshell #topbar-username-container {
+    display: none;
+}
+
+.page-webshell #switch-device-form {
+    display: none;
+}
+
+.page-webshell #manualLoginFields {
+    display: none;
+}
+
+.page-webshell .webshell-field-label {
+    width: 80px;
+}
+
+.page-webshell .webshell-tabs {
+    background-color: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    flex-shrink: 0;
+}
+
+.page-webshell .webshell-tabbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.page-webshell .webshell-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.page-webshell .webshell-tab.active {
+    border-color: rgba(102, 163, 255, 0.6);
+    background: rgba(102, 163, 255, 0.18);
+    color: #ffffff;
+}
+
+.page-webshell .webshell-tab-title {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.page-webshell .webshell-tab-close {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+}
+
+.page-webshell .webshell-tab:hover .webshell-tab-close {
+    opacity: 1;
+}
+
+.page-webshell .webshell-tab-close:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.page-webshell .webshell-tabpane {
+    height: 100%;
+    display: none;
+    min-height: 0;
+}
+
+.page-webshell .webshell-tabpane.active {
+    display: flex;
+}
+
+.page-webshell #webshell-tabpanes {
+    min-height: 0;
+}
+
+.page-webshell .terminal-container {
+    width: 100%;
+    min-height: 0;
+}
+
+.page-webshell .topbar-left {
+    min-width: 0;
+    gap: 0.5rem !important;
+}
+
+.page-webshell .topbar-right {
+    gap: 0.5rem !important;
+}
+
+.page-webshell .webshell-device-name {
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-webshell .webshell-meta-host,
+.page-webshell .webshell-meta-platform,
+.page-webshell .webshell-meta-user {
+    white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+    .page-webshell .webshell-device-name {
+        max-width: 260px;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-webshell .webshell-meta-platform,
+    .page-webshell .webshell-meta-sep {
+        display: none !important;
+    }
+
+    .page-webshell .webshell-device-name {
+        max-width: 65vw;
+    }
+
+    .page-webshell .topbar-right .border-end {
+        border-right: 0 !important;
+        padding-right: 0 !important;
+        margin-right: 0 !important;
+    }
+}
+
+.page-webshell #webshell-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    transition: width 0.3s;
+    overflow: hidden;
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.35);
+}
+
+.page-webshell #webshell-sidebar ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.page-webshell #webshell-sidebar ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.page-webshell #webshell-sidebar ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.page-webshell #webshell-sidebar ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.page-webshell .webshell-sidebar-header .input-group-text {
+    border-right: 0;
+}
+
+.page-webshell .webshell-sidebar-header .form-control:focus {
+    box-shadow: 0 0 0 0.15rem rgba(102, 163, 255, 0.25);
+}
+
+.page-webshell #webshell-sidebar .accordion-button {
+    letter-spacing: 0.2px;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.page-webshell #webshell-sidebar .accordion-button::after {
+    display: none !important;
+}
+
+.page-webshell #webshell-sidebar .tree-button {
+    gap: 6px;
+    font-size: 0.9rem;
+}
+
+.page-webshell #webshell-sidebar .group-name {
+    font-size: 0.95em;
+}
+
+.page-webshell #webshell-sidebar .tree-arrow::before {
+    content: '▸';
+    display: inline-block;
+    width: 1em;
+    color: #b0b0b0;
+    font-size: 0.9em;
+    transform: translateY(-1px);
+}
+
+.page-webshell #webshell-sidebar .tree-button:not(.collapsed) .tree-arrow::before {
+    content: '▾';
+    color: #ffffff;
+}
+
+.page-webshell #webshell-sidebar .accordion-button:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.page-webshell #webshell-sidebar .device-item {
+    border-radius: 8px;
+    margin: 2px 12px;
+    padding-left: 32px;
+}
+
+.page-webshell #webshell-sidebar .device-item:hover {
+    background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.page-webshell #webshell-sidebar .device-item.active {
+    background-image: linear-gradient(90deg, rgba(102, 163, 255, 0.30), rgba(102, 163, 255, 0.10)) !important;
+    background-color: transparent !important;
+    box-shadow: inset 3px 0 0 rgba(102, 163, 255, 0.95);
+}
+
+.page-webshell #webshell-sidebar .accordion-collapse {
+    overflow: hidden;
+}
+
+.page-webshell #webshell-sidebar .accordion-collapse:not(.show) .device-item.active {
+    background: none !important;
+    box-shadow: none !important;
+}
+
+.page-webshell #webshell-sidebar .device-item.active .device-name {
+    font-weight: 700;
+}
+
+.page-webshell #webshell-sidebar .list-group-item.active {
+    background-color: transparent !important;
+    color: inherit;
+}
+
+.page-webshell #webshell-sidebar .device-item .device-name {
+    font-size: 0.85rem;
+}
+
+.page-webshell #webshell-sidebar .device-item .small {
+    font-size: 0.75rem !important;
+}
+
+.page-webshell #webshell-sidebar .device-item i.bi-terminal {
+    font-size: 0.90rem;
 }

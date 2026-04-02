@@ -152,6 +152,18 @@ def device_webshell_page(
         # Fetch credential
         credential = crud.get_credential(session, device.credential_id) if device.credential_id else None
 
+        # Fetch devices and groups for sidebar tree
+        all_devices = crud.search_devices(
+            session,
+            q=None,
+            platform=None,
+            group_id=None,
+            limit=100000,
+            offset=0,
+            allowed_group_ids=allowed_ids,
+        )
+        groups = crud.list_groups(session)
+
         csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
         response = templates.TemplateResponse(
             request=request,
@@ -162,6 +174,8 @@ def device_webshell_page(
                 "credential": credential,
                 "webshell_token": token,
                 "csrf_token": csrf_token,
+                "all_devices": all_devices,
+                "groups": groups,
             },
         )
         csrf_protect.set_csrf_cookie(signed_token, response)
@@ -262,6 +276,27 @@ async def device_webshell(websocket: WebSocket, device_id: int):
     async def send_error(message: str):
         await websocket.send_text(json.dumps({"type": "error", "message": message}))
 
+    try:
+        init_msg_raw = await websocket.receive_text()
+        init_payload = json.loads(init_msg_raw)
+        if init_payload.get("type") != "init":
+            await send_error("无效的初始化请求")
+            await websocket.close()
+            return
+        
+        login_type = init_payload.get("loginType", "auto")
+        if login_type == "manual":
+            context["username"] = init_payload.get("username")
+            context["password"] = init_payload.get("password")
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+        return
+
     username = context.get("username")
     if not username:
         await send_error("未配置凭据")
@@ -295,6 +330,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 term_type="xterm",
                 term_size=(120, 30),
                 encoding="utf-8",
+                errors="replace",
             )
             reader = process.stdout
             writer = process.stdin
@@ -903,6 +939,29 @@ async def import_devices_csv(
                         group_by_name[group_name] = gid
                 group_id_val = gid
 
+            if mode == "insert":
+                duplicated_name = session.exec(select(Device).where(Device.name == name)).first()
+                duplicated_host = session.exec(select(Device).where(Device.host == host)).first()
+                if duplicated_name or duplicated_host:
+                    skipped += 1
+                    duplicate_message = "重复：设备名称或管理地址已存在"
+                    if duplicated_name and duplicated_host:
+                        duplicate_message = "重复：设备名称和管理地址已存在"
+                    elif duplicated_name:
+                        duplicate_message = "重复：设备名称已存在"
+                    elif duplicated_host:
+                        duplicate_message = "重复：管理地址已存在"
+                    report.append(
+                        {
+                            "row": str(idx),
+                            "action": "skip",
+                            "name": name,
+                            "host": host,
+                            "message": duplicate_message,
+                        }
+                    )
+                    continue
+
             existing = None
             if mode == "upsert":
                 if match_by == "host":
@@ -989,6 +1048,20 @@ def create_device(
 ):
     _require_permission(request, "devices.create")
     with session_scope() as session:
+        normalized_name = (name or "").strip()
+        normalized_host = (host or "").strip()
+        existing_name = session.exec(select(Device).where(Device.name == normalized_name)).first()
+        if existing_name:
+            return RedirectResponse(
+                url=_get_redirect_url(request, "/devices", err=f"设备名称已存在：{normalized_name}"),
+                status_code=303,
+            )
+        existing_host = session.exec(select(Device).where(Device.host == normalized_host)).first()
+        if existing_host:
+            return RedirectResponse(
+                url=_get_redirect_url(request, "/devices", err=f"管理地址已存在：{normalized_host}"),
+                status_code=303,
+            )
         cred = crud.get_credential(session, int(credential_id))
         if cred is None:
             raise HTTPException(status_code=400, detail="Credential not found")
@@ -1011,8 +1084,8 @@ def create_device(
             if not platforms_compatible(tpl.platform, platform):
                 raise HTTPException(status_code=400, detail="Template platform mismatch")
         device = Device(
-            name=name.strip(),
-            host=host.strip(),
+            name=normalized_name,
+            host=normalized_host,
             port=int(port),
             login_method=login_method,
             platform=platform,
@@ -1185,11 +1258,29 @@ def update_device(
                 raise HTTPException(status_code=400, detail="Template not found")
             if not platforms_compatible(tpl.platform, platform):
                 raise HTTPException(status_code=400, detail="Template platform mismatch")
+        normalized_name = (name or "").strip()
+        normalized_host = (host or "").strip()
+        duplicated_name = session.exec(
+            select(Device).where(Device.name == normalized_name, Device.id != device_id)
+        ).first()
+        if duplicated_name:
+            return RedirectResponse(
+                url=_get_redirect_url(request, f"/devices/{device_id}", err=f"设备名称已存在：{normalized_name}"),
+                status_code=303,
+            )
+        duplicated_host = session.exec(
+            select(Device).where(Device.host == normalized_host, Device.id != device_id)
+        ).first()
+        if duplicated_host:
+            return RedirectResponse(
+                url=_get_redirect_url(request, f"/devices/{device_id}", err=f"管理地址已存在：{normalized_host}"),
+                status_code=303,
+            )
         updated = crud.update_device(
             session,
             device_id,
-            name=name,
-            host=host,
+            name=normalized_name,
+            host=normalized_host,
             port=port,
             login_method=login_method,
             platform=platform,
