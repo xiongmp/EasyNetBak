@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_device_name(name: str) -> str:
-    return "".join([c if c.isascii() and (c.isalnum() or c in "-_.") else "_" for c in (name or "")]).strip("_") or "device"
+    return "".join([c if c.isalnum() or c in "-_." else "_" for c in (name or "")]).strip("_") or "device"
 
 
 def _safe_host(host: str) -> str:
-    return "".join([c if c.isascii() and (c.isalnum() or c in "-_.") else "_" for c in (host or "")]).strip("_") or "host"
+    return "".join([c if c.isalnum() or c in "-_." else "_" for c in (host or "")]).strip("_") or "host"
 
 
 def _parse_int(value: str | None, default: int, min_val: int, max_val: int) -> int:

@@ -73,14 +73,15 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
         # 构建文件名: {prefix}/YYYY-MM-DD/device_name_host_timestamp.txt
         date_str = local_dt.strftime("%Y-%m-%d")
         time_str = local_dt.strftime("%H%M%S")
-        safe_device_name = "".join([c if c.isalnum() else "_" for c in device_name])
+        safe_device_name = "".join([c if c.isalnum() or c in "-_." else "_" for c in device_name]).strip("_") or "device"
+        safe_host = "".join([c if c.isalnum() or c in "-_." else "_" for c in host]).strip("_") or "host"
         
         # 处理前缀，确保末尾没有斜杠
         clean_prefix = prefix.strip().strip("/")
         if clean_prefix:
-            file_key = f"{clean_prefix}/{date_str}/{safe_device_name}_{host}_{time_str}.txt"
+            file_key = f"{clean_prefix}/{date_str}/{safe_device_name}_{safe_host}_{time_str}.txt"
         else:
-            file_key = f"{date_str}/{safe_device_name}_{host}_{time_str}.txt"
+            file_key = f"{date_str}/{safe_device_name}_{safe_host}_{time_str}.txt"
 
         body = config_text.encode("utf-8")
         s3_client.put_object(
