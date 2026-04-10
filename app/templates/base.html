@@ -106,9 +106,10 @@
 
             <!-- 日志管理 -->
             {% set can_audit_logs = has_permission('audit_logs.view') %}
+            {% set can_webshell_records = has_permission('webshell_records.view') %}
             {% set can_login_logs = has_permission('login_logs.view') %}
-            {% set logs_active = active in ['audit_logs', 'login_logs'] %}
-            {% set logs_visible = can_audit_logs or can_login_logs %}
+            {% set logs_active = active in ['audit_logs', 'login_logs', 'webshell_records'] %}
+            {% set logs_visible = can_audit_logs or can_webshell_records or can_login_logs %}
             {% if logs_visible %}
               <div class="sidebar-group">
                 <div class="sidebar-group-label {% if logs_active %}active{% endif %} {% if not logs_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-logs" data-title="日志管理">
@@ -121,6 +122,9 @@
                   {% endif %}
                   {% if can_login_logs %}
                     <a class="nav-link {% if active == 'login_logs' %}active{% endif %}" href="/login-logs" data-title="登录日志"><i class="bi bi-door-open"></i><span class="nav-text">登录日志</span></a>
+                  {% endif %}
+                  {% if can_audit_logs and can_webshell_records %}
+                    <a class="nav-link {% if active == 'webshell_records' %}active{% endif %}" href="/webshell-records" data-title="Webshell 回放"><i class="bi bi-play-circle"></i><span class="nav-text">Webshell 回放</span></a>
                   {% endif %}
                 </div>
               </div>
@@ -331,7 +335,7 @@
                     <div class="breadcrumb-item"><span class="breadcrumb-link">资源管理</span></div>
                   {% elif active in ['backups', 'diff_rules', 'config_search', 'schedules'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">备份管理</span></div>
-                  {% elif active in ['audit_logs'] %}
+                  {% elif active in ['audit_logs', 'login_logs', 'webshell_records'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">日志管理</span></div>
                   {% elif active in ['settings', 'notifications'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">系统管理</span></div>

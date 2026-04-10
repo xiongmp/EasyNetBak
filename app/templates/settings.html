@@ -21,6 +21,11 @@
                 <i class="bi bi-shield-check me-1"></i>备份设置
               </button>
             </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="webshell-tab" data-bs-toggle="tab" data-bs-target="#webshell" type="button" role="tab" aria-controls="webshell" aria-selected="false">
+                <i class="bi bi-terminal me-1"></i>Webshell 设置
+              </button>
+            </li>
           </ul>
 
           <div class="tab-content" id="settingsTabContent">
@@ -90,6 +95,25 @@
               </div>
             </div>
 
+            <!-- 标签页：Webshell 设置 -->
+            <div class="tab-pane fade" id="webshell" role="tabpanel" aria-labelledby="webshell-tab">
+              <div class="row g-4">
+                <div class="col-12 col-md-8 col-lg-6">
+                  <h6 class="fw-bold text-secondary mb-3">
+                    <i class="bi bi-camera-video me-2"></i>录像与回放管理
+                  </h6>
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">Webshell 录像保留天数</label>
+                    <input name="webshell_record_retention_days" type="number" class="form-control" value="{{ webshell_record_retention_days }}" min="1" />
+                    <div class="form-text x-small text-muted">
+                      超过此天数的 Webshell 操作录像将被自动清理，默认 30。
+                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>保存设置时将立即执行一次清理策略</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <!-- 全局保存按钮 -->
@@ -137,8 +161,20 @@
                   <div class="fw-bold">{{ max_concurrent_tasks }}</div>
                 </div>
                 <div>
-                  <div class="small text-secondary mb-1">保留天数</div>
+                  <div class="small text-secondary mb-1">备份保留天数</div>
                   <div class="fw-bold">{{ backup_retention_days }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="card h-100 bg-body-tertiary border-0">
+              <div class="card-body">
+                <h6 class="fw-bold text-secondary mb-3">Webshell 设置</h6>
+                <div>
+                  <div class="small text-secondary mb-1">Webshell 录像保留天数</div>
+                  <div class="fw-bold">{{ webshell_record_retention_days }}</div>
                 </div>
               </div>
             </div>

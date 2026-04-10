@@ -159,8 +159,9 @@ def execute_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
 
 
 def run_cleanup() -> None:
-    """运行过期的备份清理任务"""
+    """运行过期的备份清理任务和 Webshell 录像清理任务"""
     with session_scope() as session:
+        # 清理备份
         retention_days_str = crud.get_setting(session, key="backup_retention_days")
         try:
             days = int(retention_days_str or "90")
@@ -169,6 +170,17 @@ def run_cleanup() -> None:
         
         if days > 0:
             count = crud.cleanup_old_backups(session, days)
+            # 这里可以根据需要添加日志或告警
+
+        # 清理 Webshell 录像
+        webshell_retention_days_str = crud.get_setting(session, key="webshell_record_retention_days")
+        try:
+            webshell_days = int(webshell_retention_days_str or "30")
+        except (ValueError, TypeError):
+            webshell_days = 30
+        
+        if webshell_days > 0:
+            webshell_count = crud.cleanup_old_webshell_records(session, webshell_days)
             # 这里可以根据需要添加日志或告警
 
 

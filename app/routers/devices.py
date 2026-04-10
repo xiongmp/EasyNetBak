@@ -4,6 +4,8 @@ import asyncio
 import csv
 import io
 import json
+import os
+import time
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
@@ -21,7 +23,7 @@ from sqlmodel import select
 from app import crud
 from app.core.settings import settings
 from app.db import session_scope
-from app.models import Device
+from app.models import Device, WebshellRecord
 from app.platforms import TELNET_DEVICE_TYPE_MAP, normalize_platform_id, platforms_compatible
 from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_permission, _current_user, get_user_allowed_group_ids, templates
 from app.scheduler import plan_bulk_backup_run
@@ -31,6 +33,16 @@ from app.services.auth import create_webshell_token, decode_session_token, decod
 
 
 router = APIRouter()
+
+
+_SUPPORTED_DEVICE_ENCODINGS = {"utf-8", "gb18030", "gbk", "gb2312"}
+
+
+def _normalize_device_encoding(value: str | None) -> str:
+    encoding = (value or "utf-8").strip().lower()
+    if not encoding:
+        return "utf-8"
+    return encoding if encoding in _SUPPORTED_DEVICE_ENCODINGS else "utf-8"
 
 
 _SSH_ALGO_ERROR_MARKERS = (
@@ -252,21 +264,20 @@ async def device_webshell(websocket: WebSocket, device_id: int):
         await websocket.close(code=4403)
         return
     await websocket.accept()
-    started_at = datetime.utcnow()
-    with session_scope() as session:
+
+    started_at = None
+    start_ts = None
+    record_filepath = None
+    record_id = None
+
+    def _append_record(data: str, is_output: bool = True):
+        if not start_ts or not record_filepath:
+            return
         try:
-            user = crud.get_user(session, user_id)
-            ip = getattr(websocket.client, "host", None)
-            crud.create_audit_log(
-                session,
-                user_id=int(user.id) if user and user.id else None,
-                username=user.username if user else None,
-                action="OPEN_WEBSHELL",
-                resource_type="device",
-                resource_id=str(device_id),
-                details=f"Host: {context.get('host')}:{context.get('port')} ({context.get('login_method')})",
-                ip_address=ip,
-            )
+            offset = round(time.time() - start_ts, 4)
+            event = [offset, "o" if is_output else "i", data]
+            with open(record_filepath, "a", encoding="utf-8") as f:
+                f.write(json.dumps(event) + "\n")
         except Exception:
             pass
 
@@ -335,6 +346,56 @@ async def device_webshell(websocket: WebSocket, device_id: int):
             reader = process.stdout
             writer = process.stdin
         await send_status("连接成功")
+
+        started_at = datetime.utcnow()
+        start_ts = time.time()
+        os.makedirs("data/recordings", exist_ok=True)
+        record_filename = f"{uuid4().hex}.cast"
+        record_filepath = os.path.join("data/recordings", record_filename)
+        header = {
+            "version": 2,
+            "width": 120,
+            "height": 30,
+            "timestamp": int(start_ts),
+            "env": {"TERM": "xterm-256color"}
+        }
+        try:
+            with open(record_filepath, "w", encoding="utf-8") as f:
+                f.write(json.dumps(header) + "\n")
+        except Exception:
+            pass
+
+        with session_scope() as session:
+            try:
+                user = crud.get_user(session, user_id)
+                ip = getattr(websocket.client, "host", None)
+                record = WebshellRecord(
+                    user_id=int(user.id) if user and user.id else None,
+                    username=user.username if user else "unknown",
+                    device_id=int(device_id),
+                    device_name=context.get("name") or "unknown",
+                    device_host=context.get("host") or "unknown",
+                    device_login_name=context.get("username"),
+                    started_at=started_at,
+                    file_path=record_filepath
+                )
+                session.add(record)
+                session.commit()
+                record_id = record.id
+
+                crud.create_audit_log(
+                    session,
+                    user_id=int(user.id) if user and user.id else None,
+                    username=user.username if user else None,
+                    action="OPEN_WEBSHELL",
+                    resource_type="device",
+                    resource_id=str(device_id),
+                    details=f"Host: {context.get('host')}:{context.get('port')} ({context.get('login_method')}), Record ID: {record_id}",
+                    ip_address=ip,
+                )
+            except Exception:
+                pass
+
     except Exception as exc:
         await send_error(f"连接失败: {str(exc)}")
         await websocket.close()
@@ -347,6 +408,10 @@ async def device_webshell(websocket: WebSocket, device_id: int):
             data = await stream.read(1024)
             if not data:
                 break
+            try:
+                _append_record(data if isinstance(data, str) else data.decode("utf-8", "ignore"), True)
+            except Exception:
+                pass
             await websocket.send_text(json.dumps({"type": "output", "data": data}))
 
             # Auto-login for Telnet
@@ -431,12 +496,22 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 pass
         try:
             duration = ""
+            total_sec = 0
             if started_at:
                 delta = datetime.utcnow() - started_at
-                duration = f"{int(delta.total_seconds())}s"
+                total_sec = int(delta.total_seconds())
+                duration = f"{total_sec}s"
             with session_scope() as session:
                 user = crud.get_user(session, user_id)
                 ip = getattr(websocket.client, "host", None)
+                
+                if record_id:
+                    rec = session.get(WebshellRecord, record_id)
+                    if rec:
+                        rec.duration = total_sec
+                        session.add(rec)
+                        session.commit()
+
                 crud.create_audit_log(
                     session,
                     user_id=int(user.id) if user and user.id else None,
@@ -444,7 +519,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                     action="CLOSE_WEBSHELL",
                     resource_type="device",
                     resource_id=str(device_id),
-                    details=f"Duration: {duration}",
+                    details=f"Duration: {duration}, Record ID: {record_id}",
                     ip_address=ip,
                 )
         except Exception:
@@ -644,7 +719,7 @@ def bulk_update_devices(
     if not ids:
         return RedirectResponse(url=_get_redirect_url(request, "/devices", err="未选择设备"), status_code=303)
 
-    valid_fields = {"group_id", "platform", "login_method", "credential_id"}
+    valid_fields = {"group_id", "platform", "login_method", "credential_id", "encoding"}
     if field not in valid_fields:
         return RedirectResponse(url=_get_redirect_url(request, "/devices", err="无效的修改字段"), status_code=303)
 
@@ -668,6 +743,8 @@ def bulk_update_devices(
     elif field == "platform":
         if not value:
              return RedirectResponse(url=_get_redirect_url(request, "/devices", err="平台类型不能为空"), status_code=303)
+    elif field == "encoding":
+        new_value = _normalize_device_encoding(value)
 
     count = 0
     updated_ids = []
@@ -726,6 +803,11 @@ def bulk_update_devices(
                     d.credential_id = target_val
                     _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}")
                     updated = True
+            elif field == "encoding":
+                if old_val != target_val:
+                    d.encoding = target_val
+                    _log_action(request, session, "UPDATE_DEVICE", "device", did, f"Bulk Update {field}: {old_val} -> {new_value}")
+                    updated = True
             
             if updated:
                 count += 1
@@ -744,8 +826,8 @@ def download_import_template(request: Request):
     _require_permission(request, "devices.create")
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["name", "host", "port", "login_method", "platform", "group_name", "credential_name"])
-    w.writerow(["Example-Switch", "192.168.1.1", "22", "ssh", "cisco_ios", "Core", "default_cred"])
+    w.writerow(["name", "host", "port", "login_method", "platform", "encoding", "group_name", "credential_name"])
+    w.writerow(["Example-Switch", "192.168.1.1", "22", "ssh", "cisco_ios", "utf-8", "Core", "default_cred"])
     
     content = "\ufeff" + buf.getvalue()
     return Response(
@@ -799,7 +881,7 @@ def export_devices_csv(request: Request):
     buf = io.StringIO()
     w = csv.DictWriter(
         buf,
-        fieldnames=["name", "host", "port", "login_method", "platform", "group_name", "credential_name"],
+        fieldnames=["name", "host", "port", "login_method", "platform", "encoding", "group_name", "credential_name"],
         lineterminator="\n",
     )
     w.writeheader()
@@ -813,6 +895,7 @@ def export_devices_csv(request: Request):
                 "port": d.port,
                 "login_method": getattr(d, "login_method", "ssh") or "ssh",
                 "platform": d.platform,
+                "encoding": getattr(d, "encoding", "utf-8") or "utf-8",
                 "group_name": group_name,
                 "credential_name": cred_name,
             }
@@ -882,6 +965,7 @@ async def import_devices_csv(
             port_raw = (row.get("port") or "").strip()
             platform = (row.get("platform") or "").strip()
             login_method = (row.get("login_method") or "").strip().lower()
+            encoding = _normalize_device_encoding(row.get("encoding"))
             group_name = (row.get("group_name") or "").strip()
             credential_name = (row.get("credential_name") or "").strip()
 
@@ -974,6 +1058,7 @@ async def import_devices_csv(
                 existing.port = int(port_raw)
                 existing.platform = platform
                 existing.login_method = login_method
+                existing.encoding = encoding
                 existing.group_id = group_id_val
                 existing.credential_id = credential_id
                 session.add(existing)
@@ -995,6 +1080,7 @@ async def import_devices_csv(
                     host=host,
                     port=int(port_raw),
                     login_method=login_method,
+                    encoding=encoding,
                     platform=platform,
                     group_id=group_id_val,
                     credential_id=credential_id,
@@ -1041,6 +1127,7 @@ def create_device(
     host: str = Form(...),
     port: int = Form(22),
     login_method: str = Form("ssh"),
+    encoding: str = Form("utf-8"),
     platform: str = Form(...),
     group_id: int = Form(0),
     credential_id: int = Form(...),
@@ -1068,6 +1155,7 @@ def create_device(
         login_method = (login_method or "ssh").strip().lower()
         if login_method not in {"ssh", "telnet"}:
             login_method = "ssh"
+        encoding = _normalize_device_encoding(encoding)
         platform = (platform or "").strip()
         base_platform = normalize_platform_id(platform)
         if login_method == "telnet":
@@ -1088,6 +1176,7 @@ def create_device(
             host=normalized_host,
             port=int(port),
             login_method=login_method,
+            encoding=encoding,
             platform=platform,
             group_id=int(group_id) or None,
             credential_id=int(credential_id),
@@ -1209,6 +1298,7 @@ def update_device(
     host: str = Form(...),
     port: int = Form(22),
     login_method: str = Form("ssh"),
+    encoding: str = Form("utf-8"),
     platform: str = Form(...),
     group_id: int = Form(0),
     credential_id: int = Form(...),
@@ -1243,6 +1333,7 @@ def update_device(
         login_method = (login_method or "ssh").strip().lower()
         if login_method not in {"ssh", "telnet"}:
             login_method = "ssh"
+        encoding = _normalize_device_encoding(encoding)
         platform = (platform or "").strip()
         base_platform = normalize_platform_id(platform)
         if login_method == "telnet":
@@ -1283,6 +1374,7 @@ def update_device(
             host=normalized_host,
             port=port,
             login_method=login_method,
+            encoding=encoding,
             platform=platform,
             group_id=int(group_id) or None,
             credential_id=int(credential_id),
@@ -1325,6 +1417,17 @@ def trigger_backup(request: Request, device_id: int, template_id: int = Form(0))
         skip_email=False,
     )
     if not enqueued:
+        with session_scope() as session:
+            record = crud.get_backup(session, record_id)
+            if record is not None and record.finished_at is None:
+                crud.finish_backup_record(
+                    session,
+                    record_id=record_id,
+                    success=False,
+                    config_text=None,
+                    error_message="Celery 未启用或不可用",
+                    failure_type="ENQUEUE_FAILED",
+                )
         return RedirectResponse(url=f"/devices/{device_id}?err=Celery 未启用或不可用", status_code=303)
     return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
 
@@ -1361,6 +1464,17 @@ def api_trigger_backup(request: Request, device_id: int, template_id: int = Form
         skip_email=False,
     )
     if not enqueued:
+        with session_scope() as session:
+            record = crud.get_backup(session, record_id)
+            if record is not None and record.finished_at is None:
+                crud.finish_backup_record(
+                    session,
+                    record_id=record_id,
+                    success=False,
+                    config_text=None,
+                    error_message="Celery 未启用或不可用",
+                    failure_type="ENQUEUE_FAILED",
+                )
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {
         "record": {
@@ -1400,6 +1514,28 @@ def api_bulk_backup(
 
     enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
     if not enqueued:
+        with session_scope() as session:
+            for _, backup_id, __ in jobs:
+                record = crud.get_backup(session, backup_id)
+                if record is None or record.finished_at is not None:
+                    continue
+                crud.finish_backup_record(
+                    session,
+                    record_id=backup_id,
+                    success=False,
+                    config_text=None,
+                    error_message="Celery 未启用或不可用",
+                    failure_type="ENQUEUE_FAILED",
+                )
+            run = crud.get_schedule_run(session, run_id)
+            if run is not None and run.finished_at is None:
+                crud.finish_schedule_run(
+                    session,
+                    run_id=run_id,
+                    success_count=0,
+                    fail_count=len(jobs),
+                    error_message='{"enqueue_error":"CELERY_UNAVAILABLE"}',
+                )
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {"records": [str(rid) for _, rid, __ in jobs]}
 

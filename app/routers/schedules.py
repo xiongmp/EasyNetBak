@@ -272,6 +272,28 @@ def api_run_schedule(request: Request, schedule_id: int):
 
     enqueued = enqueue_schedule_run(run_id=run_id, jobs=jobs)
     if not enqueued:
+        with session_scope() as session:
+            for _, backup_id, __ in jobs:
+                record = crud.get_backup(session, backup_id)
+                if record is None or record.finished_at is not None:
+                    continue
+                crud.finish_backup_record(
+                    session,
+                    record_id=backup_id,
+                    success=False,
+                    config_text=None,
+                    error_message="Celery 未启用或不可用",
+                    failure_type="ENQUEUE_FAILED",
+                )
+            run = crud.get_schedule_run(session, run_id)
+            if run is not None and run.finished_at is None:
+                crud.finish_schedule_run(
+                    session,
+                    run_id=run_id,
+                    success_count=0,
+                    fail_count=len(jobs),
+                    error_message='{"enqueue_error":"CELERY_UNAVAILABLE"}',
+                )
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {"run_id": str(run_id), "records": [str(rid) for _, rid, __ in jobs]}
 

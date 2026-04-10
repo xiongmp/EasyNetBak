@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
+from celery.signals import task_failure, task_revoked
 
 from app import crud
 from app.celery_app import celery_app
@@ -96,6 +97,32 @@ def _is_retryable_failure(exc: Exception, failure_type: str) -> bool:
             "REFUSED",
         }
     return isinstance(exc, (TimeoutError, ConnectionError, OSError))
+
+
+def _mark_backup_record_failed_if_unfinished(
+    record_id: UUID | str,
+    *,
+    error_message: str,
+    failure_type: str,
+) -> bool:
+    try:
+        rid = _parse_uuid(record_id)
+    except Exception:
+        return False
+    with session_scope() as session:
+        record = crud.get_backup(session, rid)
+        if record is None or record.finished_at is not None:
+            return False
+        crud.finish_backup_record(
+            session,
+            record_id=rid,
+            success=False,
+            config_text=None,
+            error_message=(error_message or "").strip() or "Task failed",
+            duration_seconds=None,
+            failure_type=(failure_type or "").strip() or "UNKNOWN",
+        )
+    return True
 
 
 class BaseTask(Task):
@@ -189,6 +216,7 @@ def _execute_backup_logic(
         device_host = str(device.host or "")
         device_port = int(getattr(device, "port", 22) or 22)
         device_login_method = str(getattr(device, "login_method", "ssh") or "ssh")
+        device_encoding = str(getattr(device, "encoding", "utf-8") or "utf-8")
         device_platform = str(getattr(device, "platform", "") or "")
 
         effective_tpl_id = tpl_id or getattr(device, "default_template_id", None)
@@ -231,6 +259,7 @@ def _execute_backup_logic(
             host=device_host,
             port=device_port,
             login_method=device_login_method,
+            encoding=device_encoding,
             platform=device_platform,
             username=secrets["username"],
             password=secrets["password"],
@@ -383,6 +412,11 @@ def enqueue_backup_record(
     skip_email: bool,
 ) -> bool:
     if not celery_enabled():
+        _mark_backup_record_failed_if_unfinished(
+            record_id,
+            error_message="Celery 未启用或不可用",
+            failure_type="ENQUEUE_FAILED",
+        )
         return False
     
     # 获取任务超时设置
@@ -404,12 +438,33 @@ def enqueue_backup_record(
             soft_time_limit=max(1, time_limit - 10) if time_limit > 10 else None,
         )
         return True
-    except Exception:
+    except Exception as exc:
+        _mark_backup_record_failed_if_unfinished(
+            record_id,
+            error_message=f"任务入队失败: {str(exc)}",
+            failure_type="ENQUEUE_FAILED",
+        )
         return False
 
 
 def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None]]) -> bool:
     if not celery_enabled():
+        for _, bid, __ in jobs:
+            _mark_backup_record_failed_if_unfinished(
+                bid,
+                error_message="Celery 未启用或不可用",
+                failure_type="ENQUEUE_FAILED",
+            )
+        with session_scope() as session:
+            run = crud.get_schedule_run(session, run_id)
+            if run is not None and run.finished_at is None:
+                crud.finish_schedule_run(
+                    session,
+                    run_id=run_id,
+                    success_count=0,
+                    fail_count=len(jobs),
+                    error_message=json.dumps({"enqueue_error": "CELERY_UNAVAILABLE"}, ensure_ascii=False),
+                )
         return False
     
     # 获取任务超时设置
@@ -424,6 +479,7 @@ def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
 
     try:
         backup_ids: list[str] = []
+        enqueued_backup_ids: set[str] = set()
         for did, bid, tpl_id in jobs:
             backup_ids.append(str(bid))
             backup_record_task.apply_async(
@@ -433,6 +489,7 @@ def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
                 time_limit=time_limit if time_limit > 0 else None,
                 soft_time_limit=max(1, time_limit - 10) if time_limit > 10 else None,
             )
+            enqueued_backup_ids.add(str(bid))
         poll = max(1, int(settings.celery.schedule_finalize_poll_seconds or 5))
         finalize_schedule_run_task.apply_async(
             args=[str(run_id), backup_ids],
@@ -440,7 +497,25 @@ def enqueue_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None
             task_id=f"finalize-{str(run_id)}",
         )
         return True
-    except Exception:
+    except Exception as exc:
+        for _, bid, __ in jobs:
+            if str(bid) in enqueued_backup_ids:
+                continue
+            _mark_backup_record_failed_if_unfinished(
+                bid,
+                error_message=f"任务入队失败: {str(exc)}",
+                failure_type="ENQUEUE_FAILED",
+            )
+        with session_scope() as session:
+            run = crud.get_schedule_run(session, run_id)
+            if run is not None and run.finished_at is None and len(enqueued_backup_ids) == 0:
+                crud.finish_schedule_run(
+                    session,
+                    run_id=run_id,
+                    success_count=0,
+                    fail_count=len(jobs),
+                    error_message=json.dumps({"enqueue_error": str(exc)}, ensure_ascii=False),
+                )
         return False
 
 
@@ -542,3 +617,43 @@ def bulk_reachability_task(
         "failed": failed,
         "items": items,
     }
+
+
+@task_failure.connect(sender=backup_record_task)
+def _on_backup_record_task_failure(
+    sender=None,
+    task_id: str | None = None,
+    exception: Exception | None = None,
+    **kwargs,
+):
+    message = str(exception) if exception else "Task failed"
+    failure_type = "TASK_FAILURE"
+    if isinstance(exception, SoftTimeLimitExceeded):
+        failure_type = "TIME_LIMIT"
+    _mark_backup_record_failed_if_unfinished(
+        task_id or "",
+        error_message=message,
+        failure_type=failure_type,
+    )
+
+
+@task_revoked.connect(sender=backup_record_task)
+def _on_backup_record_task_revoked(
+    sender=None,
+    request=None,
+    terminated: bool = False,
+    signum=None,
+    expired: bool = False,
+    **kwargs,
+):
+    task_id = str(getattr(request, "id", "") or "")
+    reason = "Task revoked"
+    if expired:
+        reason = "Task expired"
+    elif terminated:
+        reason = f"Task terminated (signal={signum})"
+    _mark_backup_record_failed_if_unfinished(
+        task_id,
+        error_message=reason,
+        failure_type="TASK_REVOKED",
+    )

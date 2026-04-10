@@ -776,6 +776,7 @@ def roles_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         "config_search": "配置搜索",
         "schedules": "定时任务",
         "audit_logs": "操作日志",
+        "webshell_records": "Webshell回放",
         "login_logs": "登录日志",
         "diff_rules": "Diff 规则",
         "notifications": "通知设置",

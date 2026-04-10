@@ -395,6 +395,7 @@
               <th style="width: 120px;">状态</th>
               <th style="width: 120px;">登录方式</th>
               <th style="width: 140px;">平台类型</th>
+              <th style="width: 120px;">设备编码</th>
               <th style="width: 140px;">所属分组</th>
               <th style="width: 200px;">登录凭据</th>
               <th style="width: 180px;">创建时间</th>
@@ -440,6 +441,9 @@
                 <td class="text-start">
                   <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">{{ d.platform }}</div>
                 </td>
+                <td class="text-start">
+                  <div class="backup-status" style="background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-color: var(--bs-warning-border-subtle); font-size: 10px;">{{ d.encoding or 'utf-8' }}</div>
+                </td>
                 <td class="text-secondary small text-start">
                   {% if d.group_id and group_map.get(d.group_id) %}
                     <span class="text-body">{{ group_map.get(d.group_id).name }}</span>
@@ -480,7 +484,7 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="{{ 11 if can_device_bulk else 10 }}" class="text-center text-secondary py-4">暂无设备记录</td>
+                <td colspan="{{ 12 if can_device_bulk else 11 }}" class="text-center text-secondary py-4">暂无设备记录</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -1144,13 +1148,14 @@
       const bulkPlatformSelect = document.getElementById('bulk-update-platform-select');
       const bulkLoginSelect = document.getElementById('bulk-update-login-select');
       const bulkCredentialSelect = document.getElementById('bulk-update-credential-select');
+      const bulkEncodingSelect = document.getElementById('bulk-update-encoding-select');
 
       function updateBulkInputVisibility() {
         if (!bulkUpdateField) return;
         const field = bulkUpdateField.value;
         
         // Hide all first
-        [bulkGroupSelect, bulkPlatformSelect, bulkLoginSelect, bulkCredentialSelect].forEach(el => {
+        [bulkGroupSelect, bulkPlatformSelect, bulkLoginSelect, bulkCredentialSelect, bulkEncodingSelect].forEach(el => {
           if (el) {
             el.classList.add('d-none');
             el.disabled = true;
@@ -1163,6 +1168,7 @@
         else if (field === 'platform') activeEl = bulkPlatformSelect;
         else if (field === 'login_method') activeEl = bulkLoginSelect;
         else if (field === 'credential_id') activeEl = bulkCredentialSelect;
+        else if (field === 'encoding') activeEl = bulkEncodingSelect;
 
         if (activeEl) {
           activeEl.classList.remove('d-none');
@@ -1252,6 +1258,17 @@
                     {% for p in telnet_platforms %}
                       <option value="{{ p.id }}" data-kind="telnet">{{ p.label }}</option>
                     {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label small fw-bold text-secondary">
+                    <i class="bi bi-translate me-1"></i>设备编码
+                  </label>
+                  <select name="encoding" class="form-select form-select-lg fs-6">
+                    <option value="utf-8" selected>utf-8</option>
+                    <option value="gb18030">gb18030</option>
+                    <option value="gbk">gbk</option>
+                    <option value="gb2312">gb2312</option>
                   </select>
                 </div>
                 <div class="col-12 col-lg-4">
@@ -1372,6 +1389,7 @@
                   <code class="text-dark bg-light px-1 rounded">port</code>, 
                   <code class="text-dark bg-light px-1 rounded">login_method</code>(可选), 
                   <code class="text-dark bg-light px-1 rounded">platform</code>, 
+                  <code class="text-dark bg-light px-1 rounded">encoding</code>(可选), 
                   <code class="text-dark bg-light px-1 rounded">group_name</code>(可选), 
                   <code class="text-dark bg-light px-1 rounded">credential_name</code>
                 </div>
@@ -1439,6 +1457,7 @@
                     <option value="platform">平台类型</option>
                     <option value="login_method">登录方式</option>
                     <option value="credential_id">登录凭据</option>
+                    <option value="encoding">设备编码</option>
                   </select>
                 </div>
 
@@ -1473,6 +1492,13 @@
                   <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-login-select" disabled>
                     <option value="ssh">SSH</option>
                     <option value="telnet">Telnet</option>
+                  </select>
+
+                  <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-encoding-select" disabled>
+                    <option value="utf-8" selected>utf-8</option>
+                    <option value="gb18030">gb18030</option>
+                    <option value="gbk">gbk</option>
+                    <option value="gb2312">gb2312</option>
                   </select>
                 </div>
               </div>

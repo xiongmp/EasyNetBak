@@ -168,6 +168,7 @@ class Device(SQLModel, table=True):
     host: str = Field(index=True)
     port: int = 22
     login_method: str = "ssh"
+    encoding: str = "utf-8"
     platform: str
     group_id: Optional[int] = Field(default=None, index=True)
     credential_id: Optional[int] = Field(default=None, index=True)
@@ -204,4 +205,18 @@ class AuditLog(SQLModel, table=True):
     resource_id: Optional[str] = Field(default=None, index=True)
     details: Optional[str] = None
     ip_address: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class WebshellRecord(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True)
+    username: str = Field(index=True)
+    device_id: Optional[int] = Field(default=None, index=True)
+    device_name: str
+    device_host: str
+    device_login_name: Optional[str] = None
+    started_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    duration: Optional[int] = None  # in seconds
+    file_path: str
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

@@ -17,6 +17,7 @@
             <div class="text-secondary small d-flex flex-wrap gap-3">
               <span><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
               <span><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
+              <span><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
               {% if device.group_id and groups.get(device.group_id) %}
                 <span><i class="bi bi-grid me-1"></i>{{ groups.get(device.group_id).name }}</span>
               {% endif %}
@@ -68,6 +69,15 @@
                 {% for p in telnet_platforms %}
                   <option value="{{ p.id }}" data-kind="telnet" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
                 {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-lg-3">
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-translate me-1"></i>设备编码</label>
+              <select name="encoding" class="form-select form-select-sm">
+                <option value="utf-8" {% if (device.encoding or 'utf-8')|lower == 'utf-8' %}selected{% endif %}>utf-8</option>
+                <option value="gb18030" {% if (device.encoding or 'utf-8')|lower == 'gb18030' %}selected{% endif %}>gb18030</option>
+                <option value="gbk" {% if (device.encoding or 'utf-8')|lower == 'gbk' %}selected{% endif %}>gbk</option>
+                <option value="gb2312" {% if (device.encoding or 'utf-8')|lower == 'gb2312' %}selected{% endif %}>gb2312</option>
               </select>
             </div>
             <div class="col-12 col-lg-3">

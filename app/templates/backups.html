@@ -105,11 +105,14 @@
                       <th style="width: 180px;">备份时间</th>
                       <th style="width: 110px;">状态</th>
                       <th>详细信息 / 错误原因</th>
+                      {% if has_permission('backups.delete') %}
+                      <th style="width: 80px;">操作</th>
+                      {% endif %}
                     </tr>
                   </thead>
                   <tbody id="backup-tbody-1">
                     <tr>
-                      <td colspan="4" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
+                      <td colspan="{{ 5 if has_permission('backups.delete') else 4 }}" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
                     </tr>
                   </tbody>
                 </table>
@@ -127,6 +130,9 @@
                       <th style="width: 180px;">备份时间</th>
                       <th style="width: 110px;">状态</th>
                       <th>详细信息 / 错误原因</th>
+                      {% if has_permission('backups.delete') %}
+                      <th style="width: 80px;">操作</th>
+                      {% endif %}
                     </tr>
                   </thead>
                   <tbody id="backup-tbody-2"></tbody>
@@ -188,6 +194,7 @@
 
   <script>
     const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('backups.trigger') else "false" }};
+    const CAN_DELETE_BACKUP = {{ "true" if has_permission('backups.delete') else "false" }};
     const DEVICE_ROWS = {{ device_rows | tojson }};
 
     const els = {
@@ -220,11 +227,15 @@
       diffIgnoreNoise: document.getElementById("diff-ignore-noise"),
     };
 
+    const BACKUP_PAGE_LIMIT = 20;
+    const SCROLL_LOAD_THRESHOLD = 64;
+    const BACKUP_TABLE_COLSPAN = CAN_DELETE_BACKUP ? 5 : 4;
     let selectedDeviceIds = []; // Array of strings
     let isMultiDeviceMode = false;
     let selectedBackups = [];
     let deviceBackupsMap = {}; // { deviceId: { id, name, host, platform, backups: [], pagination: {} } }
     let polling = { timer: null, targetBackupId: null, tries: 0 };
+    let loadingMoreByDevice = {};
 
     function setDisabled(el, disabled) {
       if (!el) return;
@@ -289,6 +300,7 @@
       const attachListeners = (tbody) => {
         tbody.querySelectorAll(".backup-row").forEach((tr) => {
           tr.addEventListener("click", (ev) => {
+            if (ev.target && ev.target.closest && ev.target.closest(".backup-delete-row")) return;
             const cb = tr.querySelector(".backup-select");
             if (!cb) return;
             if (ev.target === cb) return;
@@ -321,10 +333,20 @@
             }
           });
         });
+        tbody.querySelectorAll(".backup-delete-row").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (!CAN_DELETE_BACKUP) return;
+            const bid = btn.getAttribute("data-backup-id");
+            if (!bid) return;
+            deleteBackupRecord(bid);
+          });
+        });
       };
 
       if (!selectedDeviceIds.length) {
-        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">请选择左侧设备</td></tr>';
+        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
         els.paneHeader1.classList.add("d-none");
@@ -340,7 +362,7 @@
       const renderDevice = (did, tbody, headerEl) => {
         const info = deviceBackupsMap[did];
         if (!info) {
-          tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>';
+          tbody.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>`;
           return;
         }
         const device = info || {};
@@ -362,18 +384,22 @@
 
         let html = "";
         if (!backups.length) {
-          html += '<tr><td colspan="4" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>';
+          html += `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>`;
         } else {
           backups.forEach(b => {
             const checked = selectedBackups.includes(b.id) ? "checked" : "";
             const status = getStatusBadge(b);
             const err = b.error_message ? escapeText(b.error_message) : "";
+            const opCell = CAN_DELETE_BACKUP
+              ? `<td><button class="btn btn-outline-danger btn-sm py-0 px-2 backup-delete-row" title="删除" data-backup-id="${escapeText(b.id)}"><i class="bi bi-trash"></i></button></td>`
+              : "";
             html += `
               <tr class="backup-row" data-backup-id="${escapeText(b.id)}">
                 <td><input class="form-check-input backup-select" type="checkbox" ${checked} /></td>
                 <td class="text-secondary small">${escapeText(b.started_at)}</td>
                 <td>${status}</td>
                 <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}">${err}</td>
+                ${opCell}
               </tr>
             `;
           });
@@ -399,26 +425,58 @@
       polling = { timer: null, targetBackupId: null, tries: 0 };
     }
 
-    async function fetchDeviceBackups(deviceId) {
-       const resp = await fetch(`/api/devices/${deviceId}/backups`);
+    async function fetchDeviceBackups(deviceId, page = 1, limit = BACKUP_PAGE_LIMIT) {
+       const resp = await fetch(`/api/devices/${deviceId}/backups?page=${page}&limit=${limit}`);
        if (!resp.ok) return null;
        return await resp.json();
     }
 
+    function normalizeDeviceBackupsData(data) {
+      const backups = Array.isArray(data && data.backups) ? data.backups : [];
+      const pagination = data && data.pagination ? data.pagination : {};
+      const page = Number(pagination.page || 1);
+      const totalPages = Number(pagination.total_pages || 1);
+      return {
+        ...(data || {}),
+        backups,
+        pagination: {
+          ...pagination,
+          page,
+          limit: Number(pagination.limit || BACKUP_PAGE_LIMIT),
+          total: Number(pagination.total || backups.length),
+          total_pages: totalPages,
+        },
+        has_more: page < totalPages,
+        next_page: page + 1,
+      };
+    }
+
+    function mergeBackupRows(oldRows, newRows) {
+      const out = [];
+      const seen = new Set();
+      [...(oldRows || []), ...(newRows || [])].forEach((row) => {
+        if (!row || !row.id) return;
+        if (seen.has(row.id)) return;
+        seen.add(row.id);
+        out.push(row);
+      });
+      return out;
+    }
+
     async function loadSelectedDevicesBackups() {
       if (selectedDeviceIds.length === 0) {
-        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">请选择左侧设备</td></tr>';
+        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
         els.selectedDeviceMeta.textContent = "未选择设备";
         return;
       }
       
-      els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">加载中...</td></tr>';
+      els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
       
       const isDualPane = isMultiDeviceMode && selectedDeviceIds.length === 2;
       if (isDualPane) {
-        els.backupTbody2.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">加载中...</td></tr>';
+        els.backupTbody2.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
         els.pane2.classList.remove("d-none");
       } else {
         els.pane2.classList.add("d-none");
@@ -437,20 +495,21 @@
       }
 
       // Fetch all
-      const promises = selectedDeviceIds.map(did => fetchDeviceBackups(did));
+      const promises = selectedDeviceIds.map(did => fetchDeviceBackups(did, 1, BACKUP_PAGE_LIMIT));
       const results = await Promise.all(promises);
       
       let successCount = 0;
       results.forEach((data, idx) => {
          const did = selectedDeviceIds[idx];
          if (data) {
-           deviceBackupsMap[did] = data;
+           deviceBackupsMap[did] = normalizeDeviceBackupsData(data);
+           loadingMoreByDevice[did] = false;
            successCount++;
          }
       });
       
       if (successCount === 0) {
-        els.backupTbody1.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">加载失败</td></tr>';
+        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-danger py-4">加载失败</td></tr>`;
         return;
       }
       
@@ -521,6 +580,74 @@
       loadSelectedDevicesBackups();
     }
 
+    async function loadMoreBackupsForDevice(deviceId) {
+      const did = String(deviceId || "");
+      if (!did || loadingMoreByDevice[did]) return;
+      const info = deviceBackupsMap[did];
+      if (!info || !info.has_more) return;
+      loadingMoreByDevice[did] = true;
+      try {
+        const data = await fetchDeviceBackups(did, info.next_page || 2, BACKUP_PAGE_LIMIT);
+        if (!data) return;
+        const normalized = normalizeDeviceBackupsData(data);
+        deviceBackupsMap[did] = {
+          ...info,
+          ...normalized,
+          backups: mergeBackupRows(info.backups || [], normalized.backups || []),
+        };
+        renderBackupsTable();
+      } finally {
+        loadingMoreByDevice[did] = false;
+      }
+    }
+
+    function onBackupPaneScroll(paneIndex) {
+      const isSecondPane = paneIndex === 2;
+      const scrollEl = isSecondPane ? els.backupScroll2 : els.backupScroll1;
+      if (!scrollEl) return;
+      const did = isSecondPane
+        ? (isMultiDeviceMode && selectedDeviceIds.length === 2 ? selectedDeviceIds[1] : null)
+        : selectedDeviceIds[0];
+      if (!did) return;
+      const remain = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+      if (remain <= SCROLL_LOAD_THRESHOLD) {
+        loadMoreBackupsForDevice(did);
+      }
+    }
+
+    async function deleteBackupRecord(backupId) {
+      const doDelete = async () => {
+        try {
+          const resp = await fetch(`/api/backups/${backupId}/delete`, { method: "POST" });
+          if (!resp.ok) {
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast("删除失败，请稍后重试", "error");
+            }
+            updateActionButtons();
+            return;
+          }
+          selectedBackups = selectedBackups.filter((id) => id !== backupId);
+          clearDiffPanel();
+          await loadSelectedDevicesBackups();
+          updateActionButtons();
+          if (window.NB && typeof window.NB.showToast === "function") {
+            window.NB.showToast("备份记录已删除", "success");
+          }
+        } catch (e) {
+          if (window.NB && typeof window.NB.showToast === "function") {
+            window.NB.showToast("删除请求失败: " + e.message, "error");
+          }
+          updateActionButtons();
+        }
+      };
+
+      if (window.NB && typeof window.NB.confirmDelete === "function") {
+        window.NB.confirmDelete("确定要删除此备份记录吗？此操作不可恢复。", doDelete);
+      } else if (confirm("确定要删除此备份记录吗？此操作不可恢复。")) {
+        doDelete();
+      }
+    }
+
     function startPolling(deviceId, targetBackupId) {
       stopPolling();
       polling.targetBackupId = targetBackupId;
@@ -528,9 +655,15 @@
       polling.timer = setInterval(async () => {
         polling.tries += 1;
         // Reload for this device
-        const data = await fetchDeviceBackups(deviceId);
+        const data = await fetchDeviceBackups(deviceId, 1, BACKUP_PAGE_LIMIT);
         if (data) {
-           deviceBackupsMap[deviceId] = data;
+           const current = deviceBackupsMap[deviceId];
+           const normalized = normalizeDeviceBackupsData(data);
+           deviceBackupsMap[deviceId] = {
+             ...(current || {}),
+             ...normalized,
+             backups: mergeBackupRows(normalized.backups || [], (current && current.backups) || []),
+           };
            renderBackupsTable(); // Re-render
            
            const target = (data.backups || []).find((b) => b.id === targetBackupId);
@@ -726,8 +859,6 @@
        window.location.href = `/backups/${selectedBackups[0]}/download`;
      });
 
-
-
     els.diffBtn.addEventListener("click", (ev) => {
       ev.preventDefault();
       if (selectedBackups.length !== 2) return;
@@ -814,9 +945,9 @@
               }
 
               // Refresh
-              const updated = await fetchDeviceBackups(selectedDeviceId);
+              const updated = await fetchDeviceBackups(selectedDeviceId, 1, BACKUP_PAGE_LIMIT);
               if (updated) {
-                 deviceBackupsMap[selectedDeviceId] = updated;
+                 deviceBackupsMap[selectedDeviceId] = normalizeDeviceBackupsData(updated);
                  renderBackupsTable();
               }
     
@@ -860,6 +991,13 @@
       
       // Removed individual row listeners in favor of delegation on deviceTbody above
       // But need to remove the old loop that adds them
+
+    if (els.backupScroll1) {
+      els.backupScroll1.addEventListener("scroll", () => onBackupPaneScroll(1));
+    }
+    if (els.backupScroll2) {
+      els.backupScroll2.addEventListener("scroll", () => onBackupPaneScroll(2));
+    }
 
 
     setDisabled(els.backupNowBtn, true);

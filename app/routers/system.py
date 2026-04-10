@@ -3,8 +3,8 @@ from __future__ import annotations
 import csv
 import io
 
-from fastapi import APIRouter, BackgroundTasks, Form, Query, Request, Depends
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Form, Query, Request, Depends, HTTPException
+from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
 from fastapi_csrf_protect import CsrfProtect
 from sqlmodel import select
 
@@ -12,7 +12,7 @@ from app import crud
 from app.core.settings import settings
 from app.core.time import normalize_timezone_offset
 from app.db import session_scope
-from app.models import AuditLog, BackupSchedule
+from app.models import AuditLog, BackupSchedule, WebshellRecord
 from app.routers.common import _dt_local_str, _layout_context, _log_action, _require_permission, templates
 from app.scheduler import run_cleanup, sync_scheduler_from_db
 from app.services.crypto import decrypt_secret, encrypt_secret
@@ -32,6 +32,7 @@ AUDIT_ACTION_MAP = {
     "TRIGGER_BACKUP": "触发备份",
     "TRIGGER_BACKUP_API": "API 触发备份",
     "BULK_BACKUP_API": "API 批量备份",
+    "DELETE_BACKUP": "删除备份",
     "CREATE_CREDENTIAL": "创建凭据",
     "UPDATE_CREDENTIAL": "更新凭据",
     "DELETE_CREDENTIAL": "删除凭据",
@@ -68,6 +69,7 @@ AUDIT_RESOURCE_MAP = {
     "credential": "凭据",
     "group": "分组",
     "template": "模板",
+    "backup": "备份",
     "schedule": "定时任务",
     "settings": "系统设置",
     "notifications": "通知设置",
@@ -268,6 +270,7 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         backup_retry_backoff = crud.get_setting(session, key="backup_retry_backoff")
         task_time_limit = crud.get_setting(session, key="task_time_limit")
         retention_days = crud.get_setting(session, key="backup_retention_days")
+        webshell_retention_days = crud.get_setting(session, key="webshell_record_retention_days")
 
     timezone_offset = normalize_timezone_offset(timezone_str, default=settings.timezone_offset)
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
@@ -283,6 +286,7 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
             "backup_retry_backoff": backup_retry_backoff if backup_retry_backoff is not None else str(settings.celery.backup_retry_backoff_seconds),
             "task_time_limit": task_time_limit if (task_time_limit and task_time_limit != "0") else str(settings.celery.task_time_limit_seconds),
             "backup_retention_days": retention_days or "90",
+            "webshell_record_retention_days": webshell_retention_days or "30",
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
@@ -301,6 +305,7 @@ def update_settings(
     backup_retry_backoff: str = Form("10"),
     task_time_limit: str = Form("300"),
     backup_retention_days: str = Form("90"),
+    webshell_record_retention_days: str = Form("30"),
 ):
     csrf_protect.validate_csrf(request)
     _require_permission(request, "settings.update")
@@ -347,6 +352,14 @@ def update_settings(
     except (ValueError, TypeError):
         backup_retention_days = "90"
 
+    try:
+        val = int(webshell_record_retention_days)
+        if val < 1:
+            val = 1
+        webshell_record_retention_days = str(val)
+    except (ValueError, TypeError):
+        webshell_record_retention_days = "30"
+
     with session_scope() as session:
         crud.set_setting(session, key="timezone_offset", value=tz)
         crud.set_setting(session, key="max_concurrent_tasks", value=max_concurrent_tasks)
@@ -354,6 +367,7 @@ def update_settings(
         crud.set_setting(session, key="backup_retry_backoff", value=backup_retry_backoff)
         crud.set_setting(session, key="task_time_limit", value=task_time_limit)
         crud.set_setting(session, key="backup_retention_days", value=backup_retention_days)
+        crud.set_setting(session, key="webshell_record_retention_days", value=webshell_record_retention_days)
 
         _log_action(
             request,
@@ -361,7 +375,7 @@ def update_settings(
             "UPDATE_SETTINGS",
             "settings",
             None,
-            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Retention: {backup_retention_days}",
+            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Backup Retention: {backup_retention_days}, Webshell Retention: {webshell_record_retention_days}",
         )
 
     background.add_task(run_cleanup)
@@ -802,3 +816,55 @@ def export_login_logs_csv(
             media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=login_logs.csv"}
         )
+
+import os
+
+@router.get("/webshell-records")
+def list_webshell_records(
+    request: Request,
+    q: str = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+):
+    _require_permission(request, "audit_logs.view")
+    _require_permission(request, "webshell_records.view")
+    offset = (page - 1) * limit
+    with session_scope() as session:
+        records = crud.list_webshell_records(session, q=q, limit=limit, offset=offset)
+        total = crud.count_webshell_records(session, q=q)
+
+    total_pages = max(1, (total + limit - 1) // limit)
+    pagination_base = f"/webshell-records?q={q or ''}&page="
+    if not request.query_params.get("limit"):
+         if limit != 10:
+             pagination_base = f"/webshell-records?q={q or ''}&limit={limit}&page="
+         else:
+             pagination_base = f"/webshell-records?q={q or ''}&page="
+
+    return templates.TemplateResponse(
+        request=request,
+        name="webshell_records.html",
+        context={
+            **_layout_context(request=request, active="webshell_records"),
+            "page_title": "Webshell 回放",
+            "records": records,
+            "q": q or "",
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": total_pages,
+            },
+            "pagination_base": pagination_base,
+        },
+    )
+
+@router.get("/webshell-records/{record_id}/cast")
+def get_webshell_cast(request: Request, record_id: int):
+    _require_permission(request, "audit_logs.view")
+    _require_permission(request, "webshell_records.view")
+    with session_scope() as session:
+        record = session.get(WebshellRecord, record_id)
+        if not record or not os.path.exists(record.file_path):
+            raise HTTPException(status_code=404, detail="Recording not found")
+        return FileResponse(record.file_path, media_type="application/json")

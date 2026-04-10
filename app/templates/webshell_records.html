@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
+{% set page_title = "Webshell 回放" %}
+{% set page_subtitle = "查看和回放 WebShell 的操作录像" %}
+{% set can_webshell_records = has_permission('webshell_records.view') %}
+
+{% block content %}
+<link rel="stylesheet" type="text/css" href="/static/css/asciinema-player.css" />
+<style>
+    /* Force Asciinema control bar to always be visible */
+    .ap-control-bar {
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: translateY(0) !important;
+    }
+</style>
+
+<div class="card border">
+    <div class="card-body p-3">
+        <div class="mb-3">
+            <form method="get" action="/webshell-records" class="row g-2 align-items-center">
+                <div class="col-md-4 col-sm-6">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-secondary"></i></span>
+                        <input name="q" class="form-control border-start-0 ps-0" style="height: 31px;" placeholder="搜索用户名或设备信息..." value="{{ q }}" />
+                    </div>
+                </div>
+                <div class="col-md-auto col-sm-6 d-flex gap-2">
+                    <button class="btn btn-sm btn-primary d-flex align-items-center justify-content-center px-3" type="submit" style="height: 31px;">
+                        <i class="bi bi-funnel-fill me-1"></i>筛选
+                    </button>
+                    <a href="/webshell-records" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center px-3" style="height: 31px;">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                <thead class="bg-light text-secondary">
+                    <tr>
+                        <th style="width: 60px;" class="fw-medium border-bottom-0">序号</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">操作用户名</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备名</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备IP</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备登录名</th>
+                        <th style="width: 180px;" class="fw-medium border-bottom-0">开始时间</th>
+                        <th style="width: 120px;" class="fw-medium border-bottom-0">录像时长</th>
+                        <th style="width: 100px;" class="fw-medium border-bottom-0">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td class="text-secondary">{{ (pagination.page - 1) * pagination.limit + loop.index }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px;">
+                                    <i class="bi bi-person-fill small"></i>
+                                </div>
+                                <span class="fw-medium">{{ record.username }}</span>
+                            </div>
+                        </td>
+                        <td class="fw-medium">{{ record.device_name }}</td>
+                        <td><span class="text-secondary font-monospace" style="font-size: 0.85rem;">{{ record.device_host }}</span></td>
+                        <td>
+                            {% if record.device_login_name %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border fw-normal">{{ record.device_login_name }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center text-secondary">
+                                <i class="bi bi-clock me-1 small opacity-75"></i>
+                                {{ record.started_at | dt_local }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if record.duration is not none %}
+                                {% set d = record.duration | int %}
+                                {% set h = d // 3600 %}
+                                {% set m = (d % 3600) // 60 %}
+                                {% set s = d % 60 %}
+                                {% set h_str = h ~ 'h' if h > 0 else '' %}
+                                {% set m_str = m ~ 'm' if (h > 0 or m > 0) else '' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle rounded-pill px-2 py-1 fw-medium">
+                                    <i class="bi bi-stopwatch me-1"></i>{{ h_str }}{{ m_str }}{{ s }}s
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if can_webshell_records %}
+                            <button class="btn btn-sm btn-success d-flex align-items-center justify-content-center rounded-pill px-3" style="height: 28px; font-size: 12px; background-color: #20c997; border-color: #20c997;" onclick="playRecord({{ record.id }}, '{{ record.device_name | replace('\'', '\\\'') }}', '{{ record.device_host | replace('\'', '\\\'') }}', '{{ record.started_at | dt_local }}', {{ record.duration or 0 }}, '{{ record.username | replace('\'', '\\\'') }}', '{{ record.device_login_name or '' | replace('\'', '\\\'') }}')">
+                                <i class="bi bi-play-fill me-1"></i>回放
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">无权限</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="text-muted my-4">
+                                <i class="bi bi-film fs-1 d-block mb-3 text-secondary opacity-50"></i>
+                                <h6 class="fw-medium text-secondary mb-1">暂无录像记录</h6>
+                                <p class="small mb-0 opacity-75">未找到符合条件的 Webshell 操作录像</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {{ render_pagination(pagination, pagination_base, "条录像记录") }}
+    </div>
+</div>
+
+<!-- Playback Modal -->
+<div class="modal fade" id="playbackModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" id="playbackModalDialog" style="transition: max-width 0.3s ease;">
+    <div class="modal-content bg-dark text-white border-secondary shadow-lg overflow-hidden modal-content-rounded-16">
+      <div class="modal-header border-bottom border-secondary bg-dark py-3 px-4 d-flex justify-content-between align-items-start">
+        <div class="d-flex flex-column gap-2">
+            <h5 class="modal-title fw-semibold d-flex align-items-center mb-0 text-white" id="playbackModalTitle">
+                <i class="bi bi-terminal me-2 text-info"></i>Webshell 回放
+            </h5>
+            <div class="d-flex flex-wrap gap-4 text-secondary" style="font-size: 0.85rem;">
+                <div class="d-flex align-items-center"><i class="bi bi-pc-display me-1 text-primary opacity-75"></i><span id="metaDevice"></span></div>
+                <div class="d-flex align-items-center"><i class="bi bi-person-badge me-1 text-success opacity-75"></i><span id="metaUser"></span></div>
+                <div class="d-flex align-items-center"><i class="bi bi-clock-history me-1 text-warning opacity-75"></i><span id="metaTime"></span></div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center mt-1">
+                <div class="d-flex align-items-center me-3 bg-secondary bg-opacity-25 rounded-pill px-3 py-1">
+                    <label for="playbackSpeed" class="form-label mb-0 me-2 small text-light fw-medium"><i class="bi bi-speedometer2 me-1"></i>倍速</label>
+                    <select class="form-select form-select-sm bg-transparent text-white border-0 shadow-none p-0 pe-4 fw-bold" id="playbackSpeed" style="width: auto; background-image: url('data:image/svg+xml,%3csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3e%3cpath fill=%22none%22 stroke=%22%23ffffff%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22m2 5 6 6 6-6%22/%3e%3c/svg%3e'); cursor: pointer; font-size: 0.85rem; background-position: right 0.2rem center; background-size: 12px 12px;">
+                        <option value="0.5" class="text-dark">0.5x</option>
+                        <option value="1" selected class="text-dark">1.0x</option>
+                        <option value="1.5" class="text-dark">1.5x</option>
+                        <option value="2" class="text-dark">2.0x</option>
+                        <option value="4" class="text-dark">4.0x</option>
+                    </select>
+                </div>
+                <button type="button" class="btn-close btn-close-white opacity-75" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+      </div>
+      <div class="modal-body p-0 position-relative" style="background-color: #121314; min-height: 400px; display: flex; flex-direction: column; justify-content: center;">
+        <div id="player-container" class="w-100 h-100"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/asciinema-player.min.js"></script>
+<script>
+function formatDuration(seconds) {
+    if (seconds == null || isNaN(seconds)) return '0s';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    let res = '';
+    if (h > 0) res += h + 'h';
+    if (h > 0 || m > 0) res += m + 'm';
+    res += s + 's';
+    return res;
+}
+
+let player = null;
+let playbackModal = null;
+let currentRecordId = null;
+let isMaximized = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modalEl = document.getElementById('playbackModal');
+    playbackModal = new bootstrap.Modal(modalEl);
+    
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        if (player) {
+            player.dispose();
+            player = null;
+        }
+        document.getElementById('player-container').innerHTML = '';
+        currentRecordId = null;
+    });
+
+    document.getElementById('playbackSpeed').addEventListener('change', (e) => {
+        if (player && currentRecordId) {
+            const currentTime = player.getCurrentTime();
+            const newSpeed = parseFloat(e.target.value);
+            initPlayer(currentRecordId, newSpeed, currentTime, true);
+        }
+    });
+});
+
+function initPlayer(id, speed, startAt = 0, immediate = false) {
+    if (player) {
+        player.dispose();
+        player = null;
+    }
+    document.getElementById('player-container').innerHTML = '';
+    
+    const setup = () => {
+        player = AsciinemaPlayer.create(`/webshell-records/${id}/cast`, document.getElementById('player-container'), {
+            autoPlay: true,
+            theme: 'monokai',
+            fit: 'width',
+            speed: speed,
+            startAt: startAt
+        });
+    };
+
+    if (immediate) {
+        setup();
+    } else {
+        setTimeout(setup, 300);
+    }
+}
+
+function playRecord(id, deviceName, deviceHost, startedAt, duration, username, loginName) {
+    currentRecordId = id;
+    
+    // Calculate end time
+    let endTimeStr = "";
+    if (startedAt && duration) {
+        // Parse "YYYY-MM-DD HH:mm:ss"
+        let startDate = new Date(startedAt.replace(/-/g, '/')); 
+        if (!isNaN(startDate.getTime())) {
+            let endDate = new Date(startDate.getTime() + duration * 1000);
+            let pad = (n) => n.toString().padStart(2, '0');
+            endTimeStr = ` - ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
+        }
+    }
+    
+    document.getElementById('metaDevice').innerHTML = `设备: <span class="text-light fw-medium">${deviceName}</span> <span class="text-info opacity-75 font-monospace ms-1">[${deviceHost}]</span>`;
+    document.getElementById('metaUser').innerHTML = `操作用户: <span class="text-light fw-medium">${username}</span> <span class="mx-1 opacity-50">/</span> 登录名: <span class="text-light fw-medium">${loginName || '-'}</span>`;
+    document.getElementById('metaTime').innerHTML = `时间: <span class="text-light fw-medium">${startedAt}${endTimeStr}</span> <span class="mx-1 opacity-50">|</span> 历时: <span class="text-light fw-medium">${formatDuration(duration)}</span>`;
+    
+    document.getElementById('playbackSpeed').value = "1";
+    
+    initPlayer(id, 1, 0, false);
+    
+    if (!playbackModal) {
+        playbackModal = new bootstrap.Modal(document.getElementById('playbackModal'));
+    }
+    playbackModal.show();
+}
+</script>
+{% endblock %}

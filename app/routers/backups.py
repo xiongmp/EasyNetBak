@@ -674,6 +674,22 @@ def backups_page(request: Request):
     )
 
 
+@router.post("/api/backups/{backup_id}/delete")
+def api_delete_backup(request: Request, backup_id: UUID):
+    _require_permission(request, "backups.delete")
+    with session_scope() as session:
+        record = crud.get_backup(session, backup_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="备份记录不存在")
+        device = crud.get_device(session, record.device_id)
+        deleted = crud.bulk_delete_backups(session, [backup_id])
+        if deleted <= 0:
+            raise HTTPException(status_code=404, detail="备份记录不存在")
+        device_name = device.name if device and device.name else f"device-{record.device_id}"
+        _log_action(request, session, "DELETE_BACKUP", "backup", str(backup_id), f"Device: {device_name}")
+    return {"success": True, "deleted": int(deleted), "id": str(backup_id)}
+
+
 @router.get("/config-search")
 def config_search_page(
     request: Request,

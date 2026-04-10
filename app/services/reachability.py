@@ -71,6 +71,7 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
                 host=device.host,
                 port=device.port,
                 login_method=device.login_method,
+                encoding=getattr(device, "encoding", "utf-8") or "utf-8",
                 platform=device.platform,
                 username=secrets["username"],
                 password=secrets["password"],

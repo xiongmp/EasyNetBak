@@ -21,6 +21,7 @@ from app.models import (
     LoginLog,
     Role,
     User,
+    WebshellRecord,
 )
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.auth import hash_password, verify_password
@@ -49,12 +50,14 @@ PERMISSION_CATALOG = [
     {"code": "templates.delete", "name": "模板删除", "group": "templates"},
     {"code": "backups.view", "name": "备份历史查看", "group": "backups"},
     {"code": "backups.trigger", "name": "立即备份", "group": "backups"},
+    {"code": "backups.delete", "name": "备份历史删除", "group": "backups"},
     {"code": "config_search.view", "name": "配置搜索查看", "group": "config_search"},
     {"code": "schedules.view", "name": "定时任务查看", "group": "schedules"},
     {"code": "schedules.create", "name": "定时任务新增", "group": "schedules"},
     {"code": "schedules.update", "name": "定时任务修改", "group": "schedules"},
     {"code": "schedules.delete", "name": "定时任务删除", "group": "schedules"},
     {"code": "audit_logs.view", "name": "操作日志查看", "group": "audit_logs"},
+    {"code": "webshell_records.view", "name": "录像查看", "group": "webshell_records"},
     {"code": "login_logs.view", "name": "登录日志查看", "group": "login_logs"},
     {"code": "diff_rules.view", "name": "Diff规则查看", "group": "diff_rules"},
     {"code": "diff_rules.update", "name": "Diff规则修改", "group": "diff_rules"},
@@ -77,6 +80,7 @@ LEGACY_PERMISSION_EXPANSIONS = {
     "groups.manage": {"groups.view", "groups.create", "groups.update", "groups.delete"},
     "credentials.manage": {"credentials.view", "credentials.create", "credentials.update", "credentials.delete"},
     "templates.manage": {"templates.view", "templates.create", "templates.update", "templates.delete"},
+    "backups.manage": {"backups.view", "backups.trigger", "backups.delete"},
     "schedules.manage": {"schedules.view", "schedules.create", "schedules.update", "schedules.delete"},
     "diff_rules.manage": {"diff_rules.view", "diff_rules.update"},
     "notifications.manage": {"notifications.view", "notifications.update"},
@@ -108,12 +112,14 @@ BUILTIN_ROLE_DEFAULTS = {
         "templates.delete",
         "backups.view",
         "backups.trigger",
+        "backups.delete",
         "config_search.view",
         "schedules.view",
         "schedules.create",
         "schedules.update",
         "schedules.delete",
         "audit_logs.view",
+        "webshell_records.view",
         "login_logs.view",
     },
     "readonly": {
@@ -126,6 +132,7 @@ BUILTIN_ROLE_DEFAULTS = {
         "config_search.view",
         "schedules.view",
         "audit_logs.view",
+        "webshell_records.view",
         "login_logs.view",
     },
 }
@@ -539,6 +546,7 @@ def update_device(
     host: str,
     port: int,
     login_method: str,
+    encoding: str,
     platform: str,
     group_id: int | None,
     credential_id: int | None,
@@ -551,6 +559,7 @@ def update_device(
     device.host = host.strip()
     device.port = int(port)
     device.login_method = (login_method or "ssh").strip().lower()
+    device.encoding = (encoding or "utf-8").strip() or "utf-8"
     device.platform = platform
     device.group_id = group_id
     device.credential_id = credential_id
@@ -1172,6 +1181,38 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     return len(record_ids_to_delete)
 
 
+import os
+
+def cleanup_old_webshell_records(session: Session, days: int) -> int:
+    """清理指定天数之前的 Webshell 录像记录及对应文件"""
+    if days <= 0:
+        return 0
+
+    threshold = datetime.utcnow() - timedelta(days=days)
+    
+    # 查找过期的录像记录
+    stmt_records = select(WebshellRecord).where(WebshellRecord.started_at < threshold)
+    records_to_delete = session.exec(stmt_records).all()
+
+    if not records_to_delete:
+        return 0
+
+    count = 0
+    for record in records_to_delete:
+        # 删除本地文件
+        if record.file_path and os.path.exists(record.file_path):
+            try:
+                os.remove(record.file_path)
+            except Exception as e:
+                pass # 可选地添加日志： logger.warning(f"Failed to delete webshell record file {record.file_path}: {e}")
+        
+        session.delete(record)
+        count += 1
+    
+    session.commit()
+    return count
+
+
 def count_users(session: Session) -> int:
     return int(session.exec(select(func.count()).select_from(User)).one())
 
@@ -1609,4 +1650,41 @@ def count_login_logs(
     if status:
         stmt = stmt.where(LoginLog.status == status)
     
+    return int(session.exec(stmt).one())
+
+def list_webshell_records(
+    session: Session,
+    *,
+    q: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[WebshellRecord]:
+    stmt = select(WebshellRecord)
+    if q:
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                WebshellRecord.username.like(like),
+                WebshellRecord.device_name.like(like),
+                WebshellRecord.device_host.like(like),
+            )
+        )
+    stmt = stmt.order_by(WebshellRecord.started_at.desc()).offset(offset).limit(limit)
+    return list(session.exec(stmt))
+
+def count_webshell_records(
+    session: Session,
+    *,
+    q: str | None = None,
+) -> int:
+    stmt = select(func.count()).select_from(WebshellRecord)
+    if q:
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                WebshellRecord.username.like(like),
+                WebshellRecord.device_name.like(like),
+                WebshellRecord.device_host.like(like),
+            )
+        )
     return int(session.exec(stmt).one())
