@@ -25,7 +25,11 @@ def upgrade() -> None:
     if "encoding" not in columns:
         op.add_column("device", sa.Column("encoding", sa.String(), nullable=False, server_default="utf-8"))
     op.execute("UPDATE device SET encoding = 'utf-8' WHERE encoding IS NULL OR TRIM(encoding) = ''")
-    op.alter_column("device", "encoding", server_default=None)
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("device", schema=None) as batch_op:
+            batch_op.alter_column("encoding", existing_type=sa.String(), server_default=None)
+    else:
+        op.alter_column("device", "encoding", server_default=None)
 
 
 def downgrade() -> None:
