@@ -133,6 +133,8 @@ def _default_command_for(pid: str) -> str:
         return "show configuration"
     if any(k in p for k in ("dell", "os6", "os9", "os10", "force10", "powerconnect")):
         return "show running-configuration"
+    if "hillstone_stoneos" in p:
+        return "show configuration running"
     if any(k in p for k in ("arista", "eos", "ruijie", "brocade_fastiron", "icx", "netiron", "lenovo_cnos", "cnos", "quanta", "qnos", "hpe_procurve", "procurve", "aruba", "hp_procurve")):
         return "show running-config"
     if any(k in p for k in ("extremexos", "aos", "omniswitch")):

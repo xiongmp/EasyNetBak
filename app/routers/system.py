@@ -21,7 +21,7 @@ from app.services.ftp_service import test_ftp_connection
 from app.services.notification_service import send_email
 
 
-router = APIRouter()
+router = APIRouter(tags=["系统设置 (System)"])
 
 AUDIT_ACTION_MAP = {
     "LOGIN": "登录",
@@ -78,7 +78,7 @@ AUDIT_RESOURCE_MAP = {
 }
 
 
-@router.get("/audit-logs")
+@router.get("/audit-logs", summary="操作日志页面", description="查看系统操作审计日志")
 def list_audit_logs(
     request: Request,
     q: str = Query(None),
@@ -128,7 +128,7 @@ def list_audit_logs(
     )
 
 
-@router.get("/audit-logs/export.csv")
+@router.get("/audit-logs/export.csv", summary="导出审计日志", description="导出审计日志为CSV文件")
 def export_audit_logs(
     request: Request,
     q: str = Query(None),
@@ -169,7 +169,7 @@ def export_audit_logs(
     )
 
 
-@router.get("/login-logs")
+@router.get("/login-logs", summary="登录日志页面", description="查看用户登录系统的历史记录")
 def list_login_logs(
     request: Request,
     q: str = Query(None),
@@ -215,7 +215,7 @@ def list_login_logs(
     )
 
 
-@router.get("/login-logs/export.csv")
+@router.get("/login-logs/export.csv", summary="导出登录日志", description="导出登录日志为CSV文件")
 def export_login_logs(
     request: Request,
     q: str = Query(None),
@@ -260,7 +260,7 @@ def export_login_logs(
     )
 
 
-@router.get("/settings")
+@router.get("/settings", summary="系统参数页面", description="查看系统全局参数配置")
 def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     _require_permission(request, "settings.view")
     with session_scope() as session:
@@ -294,7 +294,7 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
 
 
 
-@router.post("/settings")
+@router.post("/settings", summary="更新系统参数", description="修改系统全局参数")
 def update_settings(
     request: Request,
     background: BackgroundTasks,
@@ -384,7 +384,7 @@ def update_settings(
 
 
 
-@router.post("/settings/test-s3")
+@router.post("/settings/test-s3", summary="测试S3连通性", description="验证S3存储配置是否可用")
 def api_test_s3(
     request: Request,
     s3_endpoint: str = Form(""),
@@ -416,7 +416,7 @@ def api_test_s3(
     return {"success": success, "message": message}
 
 
-@router.post("/settings/test-ftp")
+@router.post("/settings/test-ftp", summary="测试FTP连通性", description="验证FTP存储配置是否可用")
 def api_test_ftp(
     request: Request,
     ftp_host: str = Form(""),
@@ -446,7 +446,7 @@ def api_test_ftp(
     return {"success": success, "message": message}
 
 
-@router.get("/notifications")
+@router.get("/notifications", summary="通知设置页面", description="查看系统消息通知配置")
 def notifications_page(request: Request):
     _require_permission(request, "notifications.view")
     with session_scope() as session:
@@ -481,7 +481,7 @@ def notifications_page(request: Request):
     )
 
 
-@router.post("/notifications/test")
+@router.post("/notifications/test", summary="测试通知设置", description="发送测试请求以验证通知配置")
 def test_notifications(
     request: Request,
     smtp_host: str = Form(""),
@@ -520,7 +520,7 @@ def test_notifications(
         return {"success": False, "message": f"发送出错: {str(exc)}"}
 
 
-@router.post("/notifications")
+@router.post("/notifications", summary="更新通知设置", description="修改通知参数")
 def update_notifications(
     request: Request,
     smtp_host: str = Form(""),
@@ -555,7 +555,7 @@ def update_notifications(
     return RedirectResponse(url="/notifications?msg=已保存", status_code=303)
 
 
-@router.get("/storage-settings")
+@router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")
 def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     _require_permission(request, "settings.view")
     with session_scope() as session:
@@ -607,7 +607,7 @@ def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends(
     return response
 
 
-@router.post("/storage-settings")
+@router.post("/storage-settings", summary="更新存储配置", description="修改存储参数")
 def update_storage_settings(
     request: Request,
     background: BackgroundTasks,
@@ -681,7 +681,7 @@ def update_storage_settings(
     return RedirectResponse(url="/storage-settings?msg=已保存", status_code=303)
 
 
-@router.post("/settings/schedule")
+@router.post("/settings/schedule", summary="更新调度配置", description="修改任务调度相关参数")
 def legacy_update_schedule(
     request: Request,
     schedule_enabled: str = Form("0"),
@@ -724,7 +724,7 @@ def legacy_update_schedule(
     return RedirectResponse(url="/schedules?msg=已保存", status_code=303)
 
 
-@router.get("/login-logs")
+@router.get("/login-logs", summary="登录日志页面", description="查看用户登录系统的历史记录")
 def list_login_logs(
     request: Request,
     q: str = Query(None),
@@ -771,7 +771,7 @@ def list_login_logs(
     )
 
 
-@router.get("/login-logs/export.csv")
+@router.get("/login-logs/export.csv", summary="导出登录日志", description="导出登录日志为CSV文件")
 def export_login_logs_csv(
     request: Request,
     q: str = Query(None),
@@ -819,7 +819,7 @@ def export_login_logs_csv(
 
 import os
 
-@router.get("/webshell-records")
+@router.get("/webshell-records", summary="WebShell录像页面", description="查看WebShell会话录像")
 def list_webshell_records(
     request: Request,
     q: str = Query(None),
@@ -859,7 +859,7 @@ def list_webshell_records(
         },
     )
 
-@router.get("/webshell-records/{record_id}/cast")
+@router.get("/webshell-records/{record_id}/cast", summary="回放WebShell", description="播放指定的WebShell录像文件")
 def get_webshell_cast(request: Request, record_id: int):
     _require_permission(request, "audit_logs.view")
     _require_permission(request, "webshell_records.view")

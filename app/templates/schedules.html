@@ -38,7 +38,7 @@
                   </div>
                   
                   <div class="mb-4">
-                    <label class="form-label small text-secondary fw-bold mb-2">Cron 表达式 (分 时 日 月 周)</label>
+                    <label class="form-label small text-secondary fw-bold mb-2">Cron 表达式 (APScheduler: 分 时 日 月 周)</label>
                     <input id="crontab-input" name="crontab" class="form-control font-monospace" value="{{ current.crontab if current else '0 2 * * *' }}" required />
                     <div id="crontab-meaning" class="form-text small text-primary mt-2 fw-medium min-height-1" style="min-height: 1.25rem;"></div>
                     
@@ -48,7 +48,7 @@
 │ ┌──────── 小时 (0 - 23)
 │ │ ┌────── 日 (1 - 31)
 │ │ │ ┌──── 月份 (1 - 12)
-│ │ │ │ ┌── 星期 (0 - 6, 0=周日)
+│ │ │ │ ┌── 星期 (0 - 6, 0=周一, 6=周日)
 │ │ │ │ │
 * * * * *</pre>
                     </div>
@@ -56,7 +56,7 @@
                       <span class="text-secondary">常用示例：</span>
                       <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * *'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * *</code> (每天02:00) 
                       <span class="mx-2 text-secondary opacity-50">|</span>
-                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * 6'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * 6</code> (每周六02:00)
+                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * 5'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * 5</code> (每周六02:00)
                     </div>
                   </div>
 
@@ -425,6 +425,54 @@
   <script src="/static/js/cronstrue-i18n.min.js"></script>
   <script>
     (function () {
+      // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
+      // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
+      function normalizeApschedulerCronForCronstrue(expr) {
+        if (!expr || typeof expr !== "string") return expr;
+        const parts = expr.trim().split(/\s+/);
+        if (parts.length !== 5) return expr;
+
+        const apsToLinuxDow = (n) => (n === 6 ? 0 : n + 1);
+
+        const mapDowSegment = (segment) => {
+          const s = (segment || "").trim();
+          if (!s || s === "*" || s.includes("/") || /[A-Za-z]/.test(s)) return s;
+
+          if (/^\d+$/.test(s)) {
+            const n = Number(s);
+            if (Number.isInteger(n) && n >= 0 && n <= 6) return String(apsToLinuxDow(n));
+            return s;
+          }
+
+          const m = s.match(/^(\d+)-(\d+)$/);
+          if (!m) return s;
+          const start = Number(m[1]);
+          const end = Number(m[2]);
+          if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > 6 || end < 0 || end > 6) {
+            return s;
+          }
+
+          const apsDays = [];
+          let cur = start;
+          while (true) {
+            apsDays.push(cur);
+            if (cur === end) break;
+            cur = (cur + 1) % 7;
+          }
+          const linuxDays = apsDays.map(apsToLinuxDow);
+          const uniq = Array.from(new Set(linuxDays));
+          if (uniq.length === 7) return "*";
+          return uniq.join(",");
+        };
+
+        const dowField = parts[4];
+        parts[4] = dowField
+          .split(",")
+          .map(mapDowSegment)
+          .join(",");
+        return parts.join(" ");
+      }
+
       function updateCronMeaning(inputEl, targetEl) {
         if (!inputEl || !targetEl) return;
         const val = inputEl.value || inputEl.getAttribute("data-cron");
@@ -433,7 +481,8 @@
           return;
         }
         try {
-          let meaning = cronstrue.toString(val, { 
+          const normalizedCron = normalizeApschedulerCronForCronstrue(val);
+          let meaning = cronstrue.toString(normalizedCron, {
             locale: "zh_CN",
             use24HourTimeFormat: true 
           });

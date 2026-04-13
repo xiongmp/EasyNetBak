@@ -32,7 +32,7 @@ from app.celery_app import celery_app
 from app.services.auth import create_webshell_token, decode_session_token, decode_webshell_token
 
 
-router = APIRouter()
+router = APIRouter(tags=["设备管理 (Devices)"])
 
 
 _SUPPORTED_DEVICE_ENCODINGS = {"utf-8", "gb18030", "gbk", "gb2312"}
@@ -132,7 +132,7 @@ def _load_webshell_context(user_id: int, device_id: int) -> dict[str, Any] | Non
         }
 
 
-@router.get("/devices/{device_id}/webshell")
+@router.get("/devices/{device_id}/webshell", summary="WebShell 页面", description="打开指定设备的 WebShell 终端页面")
 def device_webshell_page(
     request: Request,
     device_id: int,
@@ -194,7 +194,7 @@ def device_webshell_page(
         return response
 
 
-@router.post("/devices/{device_id}/webshell")
+@router.post("/devices/{device_id}/webshell", summary="WebShell 登录", description="提交设备凭据以启动 WebShell 会话")
 def device_webshell_open(
     request: Request,
     device_id: int,
@@ -219,7 +219,7 @@ def device_webshell_open(
     return RedirectResponse(url=f"/devices/{device_id}/webshell?token={token}", status_code=303)
 
 
-@router.post("/devices/{device_id}/webshell/token")
+@router.post("/devices/{device_id}/webshell/token", summary="获取WebShell Token", description="生成用于连接WebShell的认证Token")
 def device_webshell_token(
     request: Request,
     device_id: int,
@@ -541,7 +541,7 @@ def _get_redirect_url(request: Request, base_url: str = "/devices", msg: str = N
     return f"{base_url}?{qs}" if qs else base_url
 
 
-@router.get("/devices")
+@router.get("/devices", summary="设备列表页面", description="展示网络设备列表，支持搜索、筛选和分页")
 def devices_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     _require_permission(request, "devices.view")
     q = (request.query_params.get("q") or "").strip() or None
@@ -655,7 +655,7 @@ def devices_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/devices/bulk_backup")
+@router.post("/devices/bulk_backup", summary="批量触发备份", description="异步触发多个设备的备份任务")
 def bulk_backup(
     request: Request,
     device_ids: str = Form(""),
@@ -690,7 +690,7 @@ def bulk_backup(
 
 
 
-@router.post("/devices/bulk_delete")
+@router.post("/devices/bulk_delete", summary="批量删除设备", description="批量删除选中的网络设备")
 def bulk_delete_devices(request: Request, device_ids: str = Form("")):
     _require_permission(request, "devices.delete")
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
@@ -707,7 +707,7 @@ def bulk_delete_devices(request: Request, device_ids: str = Form("")):
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
 
 
-@router.post("/devices/bulk_update")
+@router.post("/devices/bulk_update", summary="批量更新设备", description="批量更新多个设备的基本属性或分组")
 def bulk_update_devices(
     request: Request,
     device_ids: str = Form(""),
@@ -821,7 +821,7 @@ def bulk_update_devices(
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg=f"成功更新 {count} 台设备"), status_code=303)
 
 
-@router.get("/devices/import_template.csv")
+@router.get("/devices/import_template.csv", summary="下载设备导入模板", description="获取设备导入的CSV模板文件")
 def download_import_template(request: Request):
     _require_permission(request, "devices.create")
     buf = io.StringIO()
@@ -837,7 +837,7 @@ def download_import_template(request: Request):
     )
 
 
-@router.get("/devices/export.csv")
+@router.get("/devices/export.csv", summary="导出设备列表", description="将设备列表导出为CSV文件")
 def export_devices_csv(request: Request):
     _require_permission(request, "devices.view")
     q = (request.query_params.get("q") or "").strip() or None
@@ -908,7 +908,7 @@ def export_devices_csv(request: Request):
     )
 
 
-@router.post("/devices/import.csv")
+@router.post("/devices/import.csv", summary="批量导入设备", description="通过CSV文件批量导入设备")
 async def import_devices_csv(
     request: Request,
     file: UploadFile = File(...),
@@ -1119,7 +1119,7 @@ async def import_devices_csv(
     )
 
 
-@router.post("/devices")
+@router.post("/devices", summary="创建或更新设备", description="新增或修改设备的基本信息、连接凭据及分组")
 def create_device(
     request: Request,
     background: BackgroundTasks,
@@ -1190,7 +1190,7 @@ def create_device(
     return RedirectResponse(url="/devices?msg=设备已创建", status_code=303)
 
 
-@router.post("/devices/{device_id}/delete")
+@router.post("/devices/{device_id}/delete", summary="删除设备", description="删除指定的网络设备")
 def delete_device(request: Request, device_id: int):
     user = _require_permission(request, "devices.delete")
     allowed_ids = get_user_allowed_group_ids(user)
@@ -1219,7 +1219,7 @@ def delete_device(request: Request, device_id: int):
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
 
 
-@router.get("/devices/{device_id}")
+@router.get("/devices/{device_id}", summary="设备详情页面", description="查看指定设备的详细信息及历史备份记录")
 def device_detail(request: Request, device_id: int):
     _require_permission(request, "devices.view")
     user = _current_user(request)
@@ -1289,7 +1289,7 @@ def device_detail(request: Request, device_id: int):
     )
 
 
-@router.post("/devices/{device_id}/update")
+@router.post("/devices/{device_id}/update", summary="更新设备", description="修改指定设备的基本信息")
 def update_device(
     request: Request,
     device_id: int,
@@ -1388,7 +1388,7 @@ def update_device(
     return RedirectResponse(url=f"/devices/{device_id}?msg=修改已保存", status_code=303)
 
 
-@router.post("/devices/{device_id}/backup")
+@router.post("/devices/{device_id}/backup", summary="手动触发备份", description="立即触发指定设备的配置备份任务")
 def trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
     _require_permission(request, "devices.view")
     _require_permission(request, "devices.backup")
@@ -1432,7 +1432,7 @@ def trigger_backup(request: Request, device_id: int, template_id: int = Form(0))
     return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
 
 
-@router.post("/api/devices/{device_id}/backup")
+@router.post("/api/devices/{device_id}/backup", summary="手动触发备份(API)", description="通过API触发指定设备的配置备份")
 def api_trigger_backup(request: Request, device_id: int, template_id: int = Form(0)):
     _require_permission(request, "devices.view")
     _require_permission(request, "devices.backup")
@@ -1485,7 +1485,7 @@ def api_trigger_backup(request: Request, device_id: int, template_id: int = Form
     }
 
 
-@router.post("/api/devices/bulk_backup")
+@router.post("/api/devices/bulk_backup", summary="批量备份(API)", description="通过API触发多个设备的配置备份")
 def api_bulk_backup(
     request: Request,
     device_ids: str = Form(""),
@@ -1540,7 +1540,7 @@ def api_bulk_backup(
     return {"records": [str(rid) for _, rid, __ in jobs]}
 
 
-@router.post("/api/devices/bulk_reachability")
+@router.post("/api/devices/bulk_reachability", summary="批量测试连通性", description="异步批量测试多个设备的连通状态")
 def api_bulk_reachability(
     request: Request,
     background: BackgroundTasks,
@@ -1619,7 +1619,7 @@ def api_bulk_reachability(
     return {"task_id": task.id}
 
 
-@router.get("/api/devices/reachability_tasks/{task_id}")
+@router.get("/api/devices/reachability_tasks/{task_id}", summary="获取连通性测试状态", description="查询连通性测试任务进度")
 def get_reachability_task_status(request: Request, task_id: str):
     _require_permission(request, "devices.update")
     result = AsyncResult(task_id, app=celery_app)
@@ -1678,7 +1678,7 @@ def get_reachability_task_status(request: Request, task_id: str):
         }
 
 
-@router.get("/api/devices/status")
+@router.get("/api/devices/status", summary="获取设备状态统计", description="查询设备的健康状态与在线统计")
 def get_devices_status(request: Request, ids: str = ""):
     _require_permission(request, "devices.view")
     id_list = [int(x) for x in (ids or "").split(",") if x.strip().isdigit()]

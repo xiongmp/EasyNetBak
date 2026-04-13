@@ -94,7 +94,7 @@
           </div>
           <div class="col-12">
             <label class="form-label small text-secondary mb-1">备份命令</label>
-            <textarea name="commands" class="form-control form-control-sm" rows="3" placeholder="每行输入一个命令；若留空则使用厂商默认命令">{{ current.commands if current else '' }}</textarea>
+            <textarea name="commands" class="form-control form-control-sm" rows="3" placeholder="支持多条命令，每行输入一个命令；若留空则使用厂商默认命令">{{ current.commands if current else '' }}</textarea>
             <div class="form-text small">示例：Cisco 使用 <code>show running-config</code>；华为/H3C 使用 <code>display current-configuration</code></div>
           </div>
           <div class="col-12 d-flex align-items-end gap-2 mt-2">

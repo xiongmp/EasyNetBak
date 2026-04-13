@@ -21,7 +21,20 @@ from app.services.auth import decode_session_token
 from app.core.logger import setup_logging, set_request_id
 
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(
+    title=settings.app_name,
+    description="Network Backup 系统 API 接口文档，包含设备管理、备份任务、系统设置等功能。",
+    version="1.0.0",
+    openapi_tags=[
+        {"name": "认证授权 (Auth)", "description": "用户登录、登出及多因素认证(MFA)相关接口"},
+        {"name": "仪表盘 (Dashboard)", "description": "系统概览与仪表盘统计数据接口"},
+        {"name": "设备管理 (Devices)", "description": "网络设备的增删改查、批量导入及连通性测试接口"},
+        {"name": "资源管理 (Resources)", "description": "设备组、凭据及备份模板管理接口"},
+        {"name": "备份管理 (Backups)", "description": "设备配置备份的执行、记录查看及对比分析接口"},
+        {"name": "定时任务 (Schedules)", "description": "自动化备份计划任务管理接口"},
+        {"name": "系统设置 (System)", "description": "用户管理、角色权限、存储配置、系统参数及审计日志接口"}
+    ]
+)
 
 
 @CsrfProtect.load_config

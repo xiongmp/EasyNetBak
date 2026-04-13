@@ -26,10 +26,10 @@ from app.routers.common import (
 from app.scheduler import plan_schedule_run, resolve_device_ids_from_targets, sync_scheduler_from_db
 
 
-router = APIRouter()
+router = APIRouter(tags=["定时任务 (Schedules)"])
 
 
-@router.get("/schedules")
+@router.get("/schedules", summary="定时任务页面", description="查看自动化备份计划任务列表")
 def schedules_page(request: Request):
     _require_permission(request, "schedules.view")
     page_raw = (request.query_params.get("page") or "1").strip()
@@ -85,7 +85,7 @@ def schedules_page(request: Request):
     )
 
 
-@router.post("/schedules")
+@router.post("/schedules", summary="创建或更新定时任务", description="新增或修改定时备份任务")
 def upsert_schedule(
     request: Request,
     schedule_id: int = Form(0),
@@ -142,7 +142,7 @@ def upsert_schedule(
     return RedirectResponse(url="/schedules?msg=已保存", status_code=303)
 
 
-@router.post("/schedules/{schedule_id}/delete")
+@router.post("/schedules/{schedule_id}/delete", summary="删除定时任务", description="删除指定的定时任务")
 def delete_schedule(request: Request, schedule_id: int):
     _require_permission(request, "schedules.delete")
     with session_scope() as session:
@@ -154,7 +154,7 @@ def delete_schedule(request: Request, schedule_id: int):
     return RedirectResponse(url="/schedules?msg=已删除", status_code=303)
 
 
-@router.get("/schedules/{schedule_id}/stats")
+@router.get("/schedules/{schedule_id}/stats", summary="任务统计", description="查看定时任务的执行统计数据")
 def schedule_stats_page(request: Request, schedule_id: int):
     _require_permission(request, "schedules.view")
     with session_scope() as session:
@@ -261,7 +261,7 @@ def schedule_stats_page(request: Request, schedule_id: int):
     )
 
 
-@router.post("/api/schedules/{schedule_id}/run")
+@router.post("/api/schedules/{schedule_id}/run", summary="手动触发任务", description="立即执行指定的定时任务")
 def api_run_schedule(request: Request, schedule_id: int):
     _require_permission(request, "schedules.update")
     _require_permission(request, "backups.trigger")
@@ -298,7 +298,7 @@ def api_run_schedule(request: Request, schedule_id: int):
     return {"run_id": str(run_id), "records": [str(rid) for _, rid, __ in jobs]}
 
 
-@router.post("/api/schedules/{schedule_id}/toggle")
+@router.post("/api/schedules/{schedule_id}/toggle", summary="启停定时任务", description="启用或禁用指定的定时任务")
 def api_toggle_schedule(request: Request, schedule_id: int):
     _require_permission(request, "schedules.update")
     with session_scope() as session:
@@ -318,7 +318,7 @@ def api_toggle_schedule(request: Request, schedule_id: int):
     return {"success": True, "enabled": new_status}
 
 
-@router.get("/api/schedules/targets/groups")
+@router.get("/api/schedules/targets/groups", summary="获取任务目标分组", description="查询定时任务的候选设备分组")
 def api_schedule_target_groups(request: Request):
     _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:
@@ -334,7 +334,7 @@ def api_schedule_target_groups(request: Request):
         ]
 
 
-@router.get("/api/schedules/targets/platforms")
+@router.get("/api/schedules/targets/platforms", summary="获取任务目标平台", description="查询定时任务的候选设备平台")
 def api_schedule_target_platforms(request: Request):
     _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:
@@ -346,7 +346,7 @@ def api_schedule_target_platforms(request: Request):
         ]
 
 
-@router.get("/api/schedules/targets/devices")
+@router.get("/api/schedules/targets/devices", summary="获取任务目标设备", description="查询定时任务的候选设备")
 def api_schedule_target_devices(
     request: Request,
     q: str = "",
@@ -386,7 +386,7 @@ def api_schedule_target_devices(
     return {"total": int(total), "devices": out}
 
 
-@router.post("/api/schedules/preview")
+@router.post("/api/schedules/preview", summary="预览任务目标", description="预览定时任务将会备份的设备列表")
 def api_schedule_preview(request: Request, targets: str = Form("")):
     _require_any_permission(request, ["schedules.create", "schedules.update"])
     with session_scope() as session:

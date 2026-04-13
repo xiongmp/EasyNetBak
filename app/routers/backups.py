@@ -20,10 +20,10 @@ from app.platforms import normalize_platform_id
 from app.routers.common import _current_user, _dt_local_str, _layout_context, _log_action, _require_permission, templates
 
 
-router = APIRouter()
+router = APIRouter(tags=["备份管理 (Backups)"])
 
 
-@router.get("/api/tasks/backups")
+@router.get("/api/tasks/backups", summary="获取备份任务", description="查询正在执行或历史备份任务")
 def api_tasks_backups(request: Request, ids: str = "", limit: int = 20):
     _require_permission(request, "backups.view")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
@@ -87,7 +87,7 @@ def api_tasks_backups(request: Request, ids: str = "", limit: int = 20):
     return {"items": ordered, "running": running_count}
 
 
-@router.get("/api/tasks/celery")
+@router.get("/api/tasks/celery", summary="获取Celery任务", description="查询异步后台任务状态")
 def api_tasks_celery(request: Request, ids: str = ""):
     _require_permission(request, "backups.view")
 
@@ -121,7 +121,7 @@ def api_tasks_celery(request: Request, ids: str = ""):
         return {"enabled": False, "items": [{"id": tid, "state": "UNKNOWN"} for tid in task_ids]}
 
 
-@router.get("/api/devices/{device_id}/backups")
+@router.get("/api/devices/{device_id}/backups", summary="获取设备备份记录", description="查询指定设备的历史配置备份")
 def api_device_backups(request: Request, device_id: int, page: int = 1, limit: int = 10):
     _require_permission(request, "backups.view")
     
@@ -164,7 +164,7 @@ def api_device_backups(request: Request, device_id: int, page: int = 1, limit: i
     return device_data
 
 
-@router.get("/api/backups/{backup_id}")
+@router.get("/api/backups/{backup_id}", summary="获取备份详情", description="查询指定备份记录的详细内容")
 def api_backup_view(request: Request, backup_id: UUID):
     _require_permission(request, "backups.view")
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
@@ -510,7 +510,7 @@ def _build_split_diff_payload(
     return out
 
 
-@router.get("/api/backups/{backup_id}/diff/{other_id}")
+@router.get("/api/backups/{backup_id}/diff/{other_id}", summary="对比备份差异", description="对比两次设备配置备份的差异")
 def api_backup_diff(
     request: Request,
     backup_id: UUID,
@@ -609,7 +609,7 @@ def api_backup_diff(
     return payload
 
 
-@router.get("/diff-rules")
+@router.get("/diff-rules", summary="Diff规则页面", description="查看配置对比忽略规则")
 def diff_rules_page(request: Request):
     _require_permission(request, "diff_rules.view")
     msg = (request.query_params.get("msg") or "").strip()
@@ -633,7 +633,7 @@ def diff_rules_page(request: Request):
     )
 
 
-@router.post("/diff-rules")
+@router.post("/diff-rules", summary="创建/更新Diff规则", description="新增或修改对比忽略规则")
 def update_diff_rules(request: Request, rules_json: str = Form("")):
     _require_permission(request, "diff_rules.update")
     try:
@@ -647,7 +647,7 @@ def update_diff_rules(request: Request, rules_json: str = Form("")):
     return RedirectResponse(url="/diff-rules?msg=已保存", status_code=303)
 
 
-@router.get("/backups")
+@router.get("/backups", summary="备份历史页面", description="查看全局设备备份记录")
 def backups_page(request: Request):
     _require_permission(request, "backups.view")
     with session_scope() as session:
@@ -674,7 +674,7 @@ def backups_page(request: Request):
     )
 
 
-@router.post("/api/backups/{backup_id}/delete")
+@router.post("/api/backups/{backup_id}/delete", summary="删除备份记录", description="删除指定的设备备份记录")
 def api_delete_backup(request: Request, backup_id: UUID):
     _require_permission(request, "backups.delete")
     with session_scope() as session:
@@ -690,7 +690,7 @@ def api_delete_backup(request: Request, backup_id: UUID):
     return {"success": True, "deleted": int(deleted), "id": str(backup_id)}
 
 
-@router.get("/config-search")
+@router.get("/config-search", summary="配置搜索页面", description="全文搜索设备的最新配置内容", tags=["备份管理 (Backups)"])
 def config_search_page(
     request: Request,
     q: str = "",
@@ -757,12 +757,12 @@ def config_search_page(
     )
 
 
-@router.get("/tasks")
+@router.get("/tasks", summary="任务页面", description="查看任务状态")
 def tasks_page(request: Request):
     return RedirectResponse(url="/backups", status_code=302)
 
 
-@router.get("/backups/{backup_id}/download")
+@router.get("/backups/{backup_id}/download", summary="下载备份配置", description="下载指定的设备备份配置文件")
 def download_backup(request: Request, backup_id: UUID):
     with session_scope() as session:
         record = crud.get_backup(session, backup_id)

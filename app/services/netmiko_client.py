@@ -9,6 +9,23 @@ from typing import Any
 from netmiko import ConnectHandler, NetmikoTimeoutException, NetmikoAuthenticationException
 
 logger = logging.getLogger(__name__)
+_ENABLE_LEGACY_HOSTKEY_FALLBACK = os.getenv("NETMIKO_ENABLE_LEGACY_HOSTKEY_FALLBACK", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
+
+# Disable modern host-key algorithms so legacy devices can negotiate ssh-rsa/ssh-dss.
+_LEGACY_HOSTKEY_DISABLED_ALGORITHMS = {
+    "keys": [
+        "ssh-ed25519",
+        "ecdsa-sha2-nistp256",
+        "ecdsa-sha2-nistp384",
+        "ecdsa-sha2-nistp521",
+        "rsa-sha2-256",
+        "rsa-sha2-512",
+    ]
+}
 
 
 @unique
@@ -55,6 +72,36 @@ class NetmikoClientError(RuntimeError):
         return self.error_code.code
 
 
+def _is_hostkey_algo_mismatch_error(exc: Exception) -> bool:
+    err_msg = str(exc).lower()
+    keywords = (
+        "incompatible ssh peer",
+        "no acceptable host key",
+        "no matching host key",
+        "host key type",
+    )
+    return any(keyword in err_msg for keyword in keywords)
+
+
+def _legacy_hostkey_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
+    legacy_device = dict(device)
+    existing = legacy_device.get("disabled_algorithms")
+    merged: dict[str, list[str]] = {}
+
+    if isinstance(existing, dict):
+        for key, value in existing.items():
+            if isinstance(value, list):
+                merged[key] = value.copy()
+
+    legacy_keys = merged.setdefault("keys", [])
+    for algo in _LEGACY_HOSTKEY_DISABLED_ALGORITHMS["keys"]:
+        if algo not in legacy_keys:
+            legacy_keys.append(algo)
+
+    legacy_device["disabled_algorithms"] = merged
+    return legacy_device
+
+
 def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
     if isinstance(exc, NetmikoClientError):
         raise exc
@@ -88,6 +135,9 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
         ("no common algorithms", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching cipher", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching mac", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no acceptable host key", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no matching host key", NetmikoErrorCode.ALGO_MISMATCH),
+        ("host key type", NetmikoErrorCode.ALGO_MISMATCH),
         ("incompatible version", NetmikoErrorCode.ALGO_MISMATCH),
         ("max sessions", NetmikoErrorCode.SESSION_LIMIT),
         ("too many connections", NetmikoErrorCode.SESSION_LIMIT),
@@ -185,9 +235,9 @@ def run_netmiko_commands(
     if enable_password:
         device["secret"] = enable_password
 
-    output_parts: list[str] = []
-    try:
-        with ConnectHandler(**device) as conn:
+    def _execute(conn_device: dict[str, Any]) -> list[str]:
+        output_parts: list[str] = []
+        with ConnectHandler(**conn_device) as conn:
             if device_type.startswith("cisco") and enable_password:
                 conn.enable()
             for cmd in commands:
@@ -200,14 +250,26 @@ def run_netmiko_commands(
                     max_loops=command_max_loops,
                 )
                 output_parts.append(out.rstrip())
-        
-        duration = time.time() - start_time
-        logger.info(f"Backup completed for {host}:{port} in {duration:.2f}s")
-        
+        return output_parts
+
+    try:
+        output_parts = _execute(device)
     except Exception as exc:
-        duration = time.time() - start_time
-        logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {exc}")
-        _raise_netmiko_error(exc, "备份失败")
+        if _ENABLE_LEGACY_HOSTKEY_FALLBACK and _is_hostkey_algo_mismatch_error(exc):
+            logger.warning("Detected host key algorithm mismatch for %s:%s, retrying with legacy hostkey compatibility mode", host, port)
+            try:
+                output_parts = _execute(_legacy_hostkey_compatible_device(device))
+            except Exception as retry_exc:
+                duration = time.time() - start_time
+                logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {retry_exc}")
+                _raise_netmiko_error(retry_exc, "备份失败")
+        else:
+            duration = time.time() - start_time
+            logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {exc}")
+            _raise_netmiko_error(exc, "备份失败")
+
+    duration = time.time() - start_time
+    logger.info(f"Backup completed for {host}:{port} in {duration:.2f}s")
 
     return "\n\n".join(output_parts).strip() + "\n"
 
@@ -254,10 +316,19 @@ def test_netmiko_connection(
     if enable_password:
         device["secret"] = enable_password
 
-    try:
-        with ConnectHandler(**device) as conn:
+    def _probe(conn_device: dict[str, Any]) -> str:
+        with ConnectHandler(**conn_device) as conn:
             if device_type.startswith("cisco") and enable_password:
                 conn.enable()
             return conn.find_prompt()
+
+    try:
+        return _probe(device)
     except Exception as exc:
+        if _ENABLE_LEGACY_HOSTKEY_FALLBACK and _is_hostkey_algo_mismatch_error(exc):
+            logger.warning("Detected host key algorithm mismatch for %s:%s, retrying test connection with legacy hostkey compatibility mode", host, port)
+            try:
+                return _probe(_legacy_hostkey_compatible_device(device))
+            except Exception as retry_exc:
+                _raise_netmiko_error(retry_exc, "连接失败")
         _raise_netmiko_error(exc, "连接失败")

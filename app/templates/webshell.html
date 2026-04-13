@@ -512,7 +512,7 @@
                   this.terminal.attachCustomKeyEventHandler((e) => {
                       if (
                           e.type === 'keydown' &&
-                          e.key === 'Delete' &&
+                          (e.key === 'Delete' || e.key === 'Backspace') &&
                           !e.ctrlKey &&
                           !e.metaKey &&
                           !e.altKey

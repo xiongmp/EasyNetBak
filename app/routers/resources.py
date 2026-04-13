@@ -14,10 +14,10 @@ from app.platforms import DEFAULT_COMMANDS, PLATFORMS, normalize_platform_id
 from app.routers.common import _layout_context, _log_action, _require_permission, templates
 
 
-router = APIRouter()
+router = APIRouter(tags=["资源管理 (Resources)"])
 
 
-@router.get("/credentials")
+@router.get("/credentials", summary="凭据管理页面", description="查看设备登录凭据列表")
 def credentials_page(request: Request):
     _require_permission(request, "credentials.view")
     page_raw = (request.query_params.get("page") or "1").strip()
@@ -65,7 +65,7 @@ def credentials_page(request: Request):
     )
 
 
-@router.post("/credentials")
+@router.post("/credentials", summary="创建或更新凭据", description="新增或修改登录凭据信息")
 def create_credential(
     request: Request,
     credential_id: int = Form(0),
@@ -104,7 +104,7 @@ def create_credential(
     return RedirectResponse(url="/credentials?msg=已保存", status_code=303)
 
 
-@router.post("/credentials/{credential_id}/delete")
+@router.post("/credentials/{credential_id}/delete", summary="删除凭据", description="删除指定的登录凭据")
 def delete_credential(request: Request, credential_id: int):
     _require_permission(request, "credentials.delete")
     with session_scope() as session:
@@ -118,7 +118,7 @@ def delete_credential(request: Request, credential_id: int):
     return RedirectResponse(url="/credentials?msg=已删除", status_code=303)
 
 
-@router.get("/credentials/import_template.csv")
+@router.get("/credentials/import_template.csv", summary="下载凭据导入模板", description="获取凭据导入的CSV模板文件")
 def download_credential_import_template(request: Request):
     _require_permission(request, "credentials.create")
     buf = io.StringIO()
@@ -133,7 +133,7 @@ def download_credential_import_template(request: Request):
     )
 
 
-@router.post("/credentials/import.csv")
+@router.post("/credentials/import.csv", summary="导入凭据", description="通过CSV批量导入登录凭据")
 async def import_credentials_csv(
     request: Request,
     file: UploadFile = File(...),
@@ -224,7 +224,7 @@ async def import_credentials_csv(
     return RedirectResponse(url=f"/credentials?msg={quote(msg)}", status_code=303)
 
 
-@router.get("/groups")
+@router.get("/groups", summary="设备组页面", description="查看设备分组列表")
 def groups_page(request: Request):
     _require_permission(request, "groups.view")
     page_raw = (request.query_params.get("page") or "1").strip()
@@ -266,7 +266,7 @@ def groups_page(request: Request):
     )
 
 
-@router.post("/groups")
+@router.post("/groups", summary="创建或更新设备组", description="新增或修改设备分组")
 def create_group(
     request: Request,
     group_id: int = Form(0),
@@ -286,7 +286,7 @@ def create_group(
     return RedirectResponse(url="/groups?msg=已保存", status_code=303)
 
 
-@router.post("/groups/{group_id}/delete")
+@router.post("/groups/{group_id}/delete", summary="删除设备组", description="删除指定的设备分组")
 def delete_group(request: Request, group_id: int):
     try:
         _require_permission(request, "groups.delete")
@@ -315,7 +315,7 @@ def delete_group(request: Request, group_id: int):
         return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
 
 
-@router.get("/templates")
+@router.get("/templates", summary="备份模板页面", description="查看设备备份模板列表")
 def templates_page(request: Request):
     _require_permission(request, "templates.view")
     page_raw = (request.query_params.get("page") or "1").strip()
@@ -363,7 +363,7 @@ def templates_page(request: Request):
     )
 
 
-@router.post("/templates")
+@router.post("/templates", summary="创建或更新模板", description="新增或修改备份模板规则")
 def create_template(
     request: Request,
     template_id: int = Form(0),
@@ -392,7 +392,7 @@ def create_template(
     return RedirectResponse(url="/templates?msg=已保存", status_code=303)
 
 
-@router.post("/templates/{template_id}/delete")
+@router.post("/templates/{template_id}/delete", summary="删除模板", description="删除指定的备份模板")
 def delete_template(request: Request, template_id: int):
     _require_permission(request, "templates.delete")
     with session_scope() as session:

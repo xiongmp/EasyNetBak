@@ -29,7 +29,7 @@ from app.services.auth import (
 )
 
 
-router = APIRouter()
+router = APIRouter(tags=["认证授权 (Auth)"])
 _PENDING_2FA_COOKIE = "pending_2fa"
 
 
@@ -162,7 +162,7 @@ def _users_page_response(
     return response
 
 
-@router.get("/login")
+@router.get("/login", summary="登录页面", description="用户登录界面")
 def login_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     user = _current_user(request)
     if user is not None:
@@ -183,7 +183,7 @@ def login_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/login")
+@router.post("/login", summary="用户登录", description="处理用户登录请求，包含密码验证和 MFA 校验逻辑")
 def login_submit(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -270,7 +270,7 @@ def login_submit(
     return resp
 
 
-@router.get("/mfa-setup")
+@router.get("/mfa-setup", summary="MFA 设置页面", description="多因素认证(MFA)配置页面，生成并展示绑定二维码")
 def mfa_setup_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     user = _current_user(request)
     if user is None:
@@ -304,7 +304,7 @@ def mfa_setup_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/mfa-setup")
+@router.post("/mfa-setup", summary="提交 MFA 设置", description="校验 MFA 验证码并启用多因素认证")
 def mfa_setup_submit(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -335,7 +335,7 @@ def mfa_setup_submit(
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
-@router.get("/mfa-verify")
+@router.get("/mfa-verify", summary="MFA 验证页面", description="用户登录时进行多因素认证或恢复码验证的页面")
 def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     token = request.cookies.get(_PENDING_2FA_COOKIE, "")
     payload = _decode_pending_token(token)
@@ -368,7 +368,7 @@ def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/mfa-verify")
+@router.post("/mfa-verify", summary="提交 MFA 验证", description="处理 MFA 验证码或恢复码的校验逻辑")
 def mfa_verify_submit(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -447,7 +447,7 @@ def mfa_verify_submit(
     return resp
 
 
-@router.get("/change-password")
+@router.get("/change-password", summary="修改密码页面", description="用户强制修改密码的页面")
 def change_password_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     user = _current_user(request)
     if user is None:
@@ -467,7 +467,7 @@ def change_password_page(request: Request, csrf_protect: CsrfProtect = Depends()
     return response
 
 
-@router.post("/change-password")
+@router.post("/change-password", summary="提交密码修改", description="验证并更新用户密码")
 def change_password_submit(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -499,7 +499,7 @@ def change_password_submit(
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
-@router.get("/profile")
+@router.get("/profile", summary="个人设置页面", description="管理个人信息和安全选项")
 def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     user = _current_user(request)
     if user is None:
@@ -523,7 +523,7 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/profile/change-password")
+@router.post("/profile/change-password", summary="修改个人密码", description="验证旧密码并更新当前用户的密码")
 def profile_change_password(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -555,7 +555,7 @@ def profile_change_password(
     return RedirectResponse(url="/profile?msg=密码已修改", status_code=303)
 
 
-@router.get("/logout")
+@router.get("/logout", summary="退出登录", description="注销当前用户并清除 Session")
 def logout(request: Request):
     user = _current_user(request)
     if user:
@@ -572,12 +572,12 @@ def logout(request: Request):
     return resp
 
 
-@router.get("/users")
+@router.get("/users", summary="用户管理页面", description="查看系统中所有用户的列表及分页信息", tags=["系统设置 (System)"])
 def users_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return _users_page_response(request, csrf_protect)
 
 
-@router.post("/users")
+@router.post("/users", summary="创建或更新用户", description="新增或修改用户信息、角色和权限", tags=["系统设置 (System)"])
 def upsert_user(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -734,7 +734,7 @@ def upsert_user(
     return RedirectResponse(url="/users?msg=已保存", status_code=303)
 
 
-@router.post("/users/{user_id}/delete")
+@router.post("/users/{user_id}/delete", summary="删除用户", description="删除指定用户（admin不可删除）", tags=["系统设置 (System)"])
 def delete_user(request: Request, user_id: int, csrf_protect: CsrfProtect = Depends()):
     csrf_protect.validate_csrf(request)
     current = _require_permission(request, "users.delete")
@@ -750,7 +750,7 @@ def delete_user(request: Request, user_id: int, csrf_protect: CsrfProtect = Depe
     return RedirectResponse(url="/users?msg=已删除", status_code=303)
 
 
-@router.get("/roles")
+@router.get("/roles", summary="角色管理页面", description="查看系统中所有角色的列表", tags=["系统设置 (System)"])
 def roles_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     _require_permission(request, "roles.view")
     with session_scope() as session:
@@ -802,7 +802,7 @@ def roles_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     return response
 
 
-@router.post("/roles")
+@router.post("/roles", summary="创建或更新角色", description="新增或修改角色及其权限配置", tags=["系统设置 (System)"])
 def upsert_role(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
@@ -865,7 +865,7 @@ def upsert_role(
     return RedirectResponse(url="/roles?msg=已保存", status_code=303)
 
 
-@router.post("/roles/{role_id}/delete")
+@router.post("/roles/{role_id}/delete", summary="删除角色", description="删除指定角色（系统内置角色不可删除）", tags=["系统设置 (System)"])
 def delete_role(request: Request, role_id: int, csrf_protect: CsrfProtect = Depends()):
     csrf_protect.validate_csrf(request)
     _require_permission(request, "roles.delete")

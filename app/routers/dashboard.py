@@ -10,15 +10,15 @@ from app.models import Device
 from app.routers.common import _current_user, _layout_context, _require_permission, templates
 
 
-router = APIRouter()
+router = APIRouter(tags=["仪表盘 (Dashboard)"])
 
 
-@router.get("/")
+@router.get("/", summary="重定向至仪表盘", description="根路径自动重定向到 /dashboard")
 def root() -> RedirectResponse:
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", summary="仪表盘页面", description="展示系统运行概览、平台统计、备份趋势、设备健康状态及最近备份记录")
 def dashboard_page(request: Request):
     user = _current_user(request)
     if not user:
@@ -59,6 +59,6 @@ def dashboard_page(request: Request):
     )
 
 
-@router.get("/@vite/client")
+@router.get("/@vite/client", include_in_schema=False)
 def _vite_client() -> Response:
     return Response(status_code=204)
