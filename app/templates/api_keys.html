@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="input-group input-group-lg api-key-wrapper">
             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
             <input type="text" class="form-control font-monospace fs-5 border-start-0 border-end-0 text-center bg-light" id="newApiKey" value="{{ new_key }}" readonly />
-            <button class="btn btn-primary px-4 shadow-sm" type="button" onclick="copyApiKey(event)">
+            <button class="btn btn-primary px-4 shadow-sm" type="button" onclick="copyApiKey(this)">
               <i class="bi bi-clipboard me-1"></i> 复制
             </button>
           </div>
@@ -224,9 +224,10 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 <script>
-async function copyApiKey(event) {
+async function copyApiKey(buttonEl) {
     const copyText = document.getElementById("newApiKey");
     const apiKeyValue = copyText?.value || "";
+    const btn = buttonEl;
     let copied = false;
 
     // Modern Clipboard API works only in secure context (HTTPS/localhost).
@@ -252,7 +253,6 @@ async function copyApiKey(event) {
         return;
     }
 
-    const btn = event.currentTarget;
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
     btn.classList.remove('btn-primary');
