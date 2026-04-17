@@ -4,6 +4,7 @@ from urllib.parse import quote
 from datetime import datetime
 
 from fastapi import FastAPI, Request, Depends
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi_csrf_protect import CsrfProtect
@@ -61,6 +62,8 @@ app = FastAPI(
         {"name": "API", "description": "API 接口"},
     ],
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
 )
 
 
@@ -76,6 +79,17 @@ def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(web_router)
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="/static/vendor/swagger-ui/swagger-ui-bundle.js",
+        swagger_css_url="/static/vendor/swagger-ui/swagger-ui.css",
+        swagger_favicon_url="/static/img/favicon.svg",
+    )
 
 
 @app.middleware("http")
