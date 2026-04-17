@@ -779,8 +779,10 @@ def roles_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         "webshell_records": "Webshell回放",
         "login_logs": "登录日志",
         "diff_rules": "Diff 规则",
-        "notifications": "通知设置",
-        "settings": "系统设置",
+        "notifications": "系统管理",
+        "settings": "系统管理",
+        "storage_settings": "系统管理",
+        "api_keys": "系统管理",
         "users": "用户管理",
         "roles": "角色管理",
     }

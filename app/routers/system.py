@@ -19,6 +19,8 @@ from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.s3_service import test_s3_connection
 from app.services.ftp_service import test_ftp_connection
 from app.services.notification_service import send_email
+from app.services.apikey import generate_api_key
+from datetime import timedelta
 
 
 router = APIRouter(tags=["系统设置 (System)"])
@@ -48,6 +50,7 @@ AUDIT_ACTION_MAP = {
     "TOGGLE_SCHEDULE": "启用/禁用定时任务",
     "TRIGGER_SCHEDULE_API": "API 手动触发定时任务",
     "UPDATE_SETTINGS": "更新系统设置",
+    "UPDATE_STORAGE_SETTINGS": "更新存储设置",
     "UPDATE_DIFF_RULES": "更新Diff忽略规则",
     "UPDATE_NOTIFICATIONS": "更新通知设置",
     "OPEN_WEBSHELL": "打开 WebShell",
@@ -72,6 +75,7 @@ AUDIT_RESOURCE_MAP = {
     "backup": "备份",
     "schedule": "定时任务",
     "settings": "系统设置",
+    "storage_settings": "存储设置",
     "notifications": "通知设置",
     "user": "用户",
     "role": "角色",
@@ -260,6 +264,115 @@ def export_login_logs(
     )
 
 
+@router.get("/api-keys", summary="API Key 管理页面", description="查看和管理用于外部接入的 API Keys")
+def api_keys_page(request: Request, csrf_protect: CsrfProtect = Depends()):
+    _require_permission(request, "api_keys.view")
+    with session_scope() as session:
+        api_keys = crud.get_api_keys(session, limit=100)
+    
+    # Check if session middleware is installed properly
+    new_key = None
+    if "session" in request.scope:
+        new_key = request.session.pop("new_api_key", None)
+
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    response = templates.TemplateResponse(
+        request=request,
+        name="api_keys.html",
+        context={
+            **_layout_context(request=request, active="api_keys"),
+            "csrf_token": csrf_token,
+            "api_keys": api_keys,
+            "new_key": new_key,
+        }
+    )
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
+
+@router.post("/api-keys", summary="创建 API Key", description="生成新的 API Key")
+def create_api_key(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    name: str = Form(...),
+    expires_in_days: int = Form(0)
+):
+    csrf_protect.validate_csrf(request)
+    user = _require_permission(request, "api_keys.create")
+    
+    plaintext_key, key_hash, prefix = generate_api_key()
+    
+    from app.models import ApiKey
+    from datetime import datetime
+    
+    expires_at = None
+    if expires_in_days > 0:
+        expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+        
+    api_key = ApiKey(
+        name=name.strip(),
+        key_hash=key_hash,
+        prefix=prefix,
+        is_active=True,
+        scopes="all",
+        created_by=user.id,
+        expires_at=expires_at
+    )
+    
+    with session_scope() as session:
+        crud.create_api_key(session, api_key=api_key)
+        _log_action(request, session, "UPDATE_SETTINGS", "settings", None, f"Created API Key: {name}")
+
+    if "session" in request.scope:
+        request.session["new_api_key"] = plaintext_key
+        return RedirectResponse(url="/api-keys", status_code=303)
+    else:
+        # Fallback if no SessionMiddleware is configured
+        csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+        with session_scope() as session:
+            api_keys = crud.get_api_keys(session, limit=100)
+        resp = templates.TemplateResponse(
+            request=request,
+            name="api_keys.html",
+            context={
+                **_layout_context(request=request, active="api_keys"),
+                "csrf_token": csrf_token,
+                "api_keys": api_keys,
+                "new_key": plaintext_key,
+            }
+        )
+        csrf_protect.set_csrf_cookie(signed_token, resp)
+        return resp
+
+@router.post("/api-keys/{key_id}/revoke", summary="吊销 API Key", description="使 API Key 立即失效")
+def revoke_api_key_endpoint(
+    request: Request,
+    key_id: int,
+    csrf_protect: CsrfProtect = Depends()
+):
+    csrf_protect.validate_csrf(request)
+    _require_permission(request, "api_keys.delete")
+    
+    with session_scope() as session:
+        if crud.revoke_api_key(session, key_id):
+            _log_action(request, session, "UPDATE_SETTINGS", "settings", None, f"Revoked API Key: {key_id}")
+            
+    return RedirectResponse(url="/api-keys", status_code=303)
+
+@router.post("/api-keys/{key_id}/delete", summary="删除 API Key", description="彻底删除 API Key")
+def delete_api_key_endpoint(
+    request: Request,
+    key_id: int,
+    csrf_protect: CsrfProtect = Depends()
+):
+    csrf_protect.validate_csrf(request)
+    _require_permission(request, "api_keys.delete")
+    
+    with session_scope() as session:
+        if crud.delete_api_key(session, key_id):
+            _log_action(request, session, "UPDATE_SETTINGS", "settings", None, f"Deleted API Key: {key_id}")
+            
+    return RedirectResponse(url="/api-keys", status_code=303)
+
 @router.get("/settings", summary="系统参数页面", description="查看系统全局参数配置")
 def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     _require_permission(request, "settings.view")
@@ -271,6 +384,8 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         task_time_limit = crud.get_setting(session, key="task_time_limit")
         retention_days = crud.get_setting(session, key="backup_retention_days")
         webshell_retention_days = crud.get_setting(session, key="webshell_record_retention_days")
+        audit_log_retention_days = crud.get_setting(session, key="audit_log_retention_days")
+        login_log_retention_days = crud.get_setting(session, key="login_log_retention_days")
 
     timezone_offset = normalize_timezone_offset(timezone_str, default=settings.timezone_offset)
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
@@ -287,6 +402,8 @@ def settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
             "task_time_limit": task_time_limit if (task_time_limit and task_time_limit != "0") else str(settings.celery.task_time_limit_seconds),
             "backup_retention_days": retention_days or "90",
             "webshell_record_retention_days": webshell_retention_days or "30",
+            "audit_log_retention_days": audit_log_retention_days or "180",
+            "login_log_retention_days": login_log_retention_days or "180",
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
@@ -306,6 +423,8 @@ def update_settings(
     task_time_limit: str = Form("300"),
     backup_retention_days: str = Form("90"),
     webshell_record_retention_days: str = Form("30"),
+    audit_log_retention_days: str = Form("180"),
+    login_log_retention_days: str = Form("180"),
 ):
     csrf_protect.validate_csrf(request)
     _require_permission(request, "settings.update")
@@ -360,6 +479,22 @@ def update_settings(
     except (ValueError, TypeError):
         webshell_record_retention_days = "30"
 
+    try:
+        val = int(audit_log_retention_days)
+        if val < 1:
+            val = 1
+        audit_log_retention_days = str(val)
+    except (ValueError, TypeError):
+        audit_log_retention_days = "180"
+
+    try:
+        val = int(login_log_retention_days)
+        if val < 1:
+            val = 1
+        login_log_retention_days = str(val)
+    except (ValueError, TypeError):
+        login_log_retention_days = "180"
+
     with session_scope() as session:
         crud.set_setting(session, key="timezone_offset", value=tz)
         crud.set_setting(session, key="max_concurrent_tasks", value=max_concurrent_tasks)
@@ -368,6 +503,8 @@ def update_settings(
         crud.set_setting(session, key="task_time_limit", value=task_time_limit)
         crud.set_setting(session, key="backup_retention_days", value=backup_retention_days)
         crud.set_setting(session, key="webshell_record_retention_days", value=webshell_record_retention_days)
+        crud.set_setting(session, key="audit_log_retention_days", value=audit_log_retention_days)
+        crud.set_setting(session, key="login_log_retention_days", value=login_log_retention_days)
 
         _log_action(
             request,
@@ -375,7 +512,7 @@ def update_settings(
             "UPDATE_SETTINGS",
             "settings",
             None,
-            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Backup Retention: {backup_retention_days}, Webshell Retention: {webshell_record_retention_days}",
+            f"TZ: {tz}, MaxConcurrent: {max_concurrent_tasks}, Backup Retention: {backup_retention_days}, Webshell Retention: {webshell_record_retention_days}, Audit Retention: {audit_log_retention_days}, Login Retention: {login_log_retention_days}",
         )
 
     background.add_task(run_cleanup)
@@ -393,7 +530,7 @@ def api_test_s3(
     s3_secret_key: str = Form(""),
     s3_bucket: str = Form(""),
 ):
-    _require_permission(request, "settings.update")
+    _require_permission(request, "storage_settings.update")
     
     # 如果 secret_key 为空或为纯星号掩码，尝试从数据库获取
     if not s3_secret_key or (set(s3_secret_key) == {'*'}):
@@ -427,7 +564,7 @@ def api_test_ftp(
     ftp_passive: str = Form("1"),
     ftp_timeout: str = Form("15"),
 ):
-    _require_permission(request, "settings.update")
+    _require_permission(request, "storage_settings.update")
 
     if not ftp_password or (set(ftp_password) == {'*'}):
         with session_scope() as session:
@@ -557,7 +694,7 @@ def update_notifications(
 
 @router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")
 def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends()):
-    _require_permission(request, "settings.view")
+    _require_permission(request, "storage_settings.view")
     with session_scope() as session:
         s3_enabled = crud.get_setting(session, key="s3_enabled") or "0"
         s3_endpoint = crud.get_setting(session, key="s3_endpoint") or ""
@@ -629,7 +766,7 @@ def update_storage_settings(
     ftp_timeout: str = Form("15"),
 ):
     csrf_protect.validate_csrf(request)
-    _require_permission(request, "settings.update")
+    _require_permission(request, "storage_settings.update")
 
     try:
         val = int(ftp_port)
@@ -672,8 +809,8 @@ def update_storage_settings(
         _log_action(
             request,
             session,
-            "UPDATE_SETTINGS",
-            "settings",
+            "UPDATE_STORAGE_SETTINGS",
+            "storage_settings",
             None,
             f"Update Storage Settings: S3Enabled: {s3_enabled}, FTPEnabled: {ftp_enabled}",
         )

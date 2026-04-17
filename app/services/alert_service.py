@@ -48,16 +48,26 @@ def _handle_failure_alert(session: Session, device: Device, record: BackupRecord
         return
 
     subject = f"【告警】设备备份失败: {device.name}({device.host})"
-    content = (
-        f"设备名称: {device.name}\n"
-        f"设备地址: {device.host}\n"
-        f"备份时间: {_format_datetime(record.started_at, session)}\n"
-        f"错误类型: {record.failure_type or 'UNKNOWN'}\n"
-        f"耗时: {record.duration_seconds:.2f}s\n" if record.duration_seconds is not None else ""
-        f"错误详情: {record.error_message or '未知错误'}\n"
-    )
     
-    send_email(subject, content)
+    # 构建 HTML 内容
+    duration_str = f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-"
+    content = f"""
+    <html>
+    <body>
+        <h3 style="color: #d9534f;">设备备份失败</h3>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 800px;">
+            <tr><th style="background-color: #f2f2f2; width: 120px; text-align: left;">设备名称</th><td>{device.name}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">设备地址</th><td>{device.host}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">备份时间</th><td>{_format_datetime(record.started_at, session)}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">错误类型</th><td>{record.failure_type or 'UNKNOWN'}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">耗时</th><td>{duration_str}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">错误详情</th><td style="color: #d9534f;">{record.error_message or '未知错误'}</td></tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    send_email(subject, content, content_type="html")
 
 def _handle_config_change_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False):
     """
@@ -81,13 +91,22 @@ def _handle_config_change_alert(session: Session, device: Device, record: Backup
 
     if record.config_text != prev_success.config_text:
         subject = f"【提醒】设备配置已变更: {device.name}({device.host})"
-        content = (
-            f"设备名称: {device.name}\n"
-            f"设备地址: {device.host}\n"
-            f"变更时间: {_format_datetime(record.finished_at, session)}\n"
-            f"检测到配置与上一次成功备份相比发生了变更，请确认是否为预期操作。"
-        )
-        send_email(subject, content)
+        
+        # 构建 HTML 内容
+        content = f"""
+        <html>
+        <body>
+            <h3 style="color: #f0ad4e;">设备配置已变更</h3>
+            <p>检测到配置与上一次成功备份相比发生了变更，请确认是否为预期操作。</p>
+            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 800px;">
+                <tr><th style="background-color: #f2f2f2; width: 120px; text-align: left;">设备名称</th><td>{device.name}</td></tr>
+                <tr><th style="background-color: #f2f2f2; text-align: left;">设备地址</th><td>{device.host}</td></tr>
+                <tr><th style="background-color: #f2f2f2; text-align: left;">变更时间</th><td>{_format_datetime(record.finished_at, session)}</td></tr>
+            </table>
+        </body>
+        </html>
+        """
+        send_email(subject, content, content_type="html")
 
 def check_and_alert_batch(session: Session, run_id: UUID):
     """
@@ -155,21 +174,62 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     else:
         subject += "全部备份成功"
         
-    content = f"任务时间: {_format_datetime(run.started_at, session)}\n"
-    content += f"统计结果: 总计 {run.total_devices} 台，成功 {run.success_count} 台，失败 {run.fail_count} 台\n\n"
+    content = f"""
+    <html>
+    <body>
+        <h2>备份汇总报告</h2>
+        <p><strong>任务时间:</strong> {_format_datetime(run.started_at, session)}</p>
+        <p><strong>统计结果:</strong> 总计 {run.total_devices} 台，成功 <span style="color: #5cb85c;">{run.success_count}</span> 台，失败 <span style="color: #d9534f;">{run.fail_count}</span> 台</p>
+    """
 
     if failed_records:
-        content += "--- 失败列表 ---\n"
+        content += """
+        <h3 style="color: #d9534f;">失败列表</h3>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 1000px;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="text-align: left; width: 20%;">设备名称</th>
+                <th style="text-align: left; width: 20%;">设备地址</th>
+                <th style="text-align: left; width: 15%;">耗时</th>
+                <th style="text-align: left; width: 15%;">错误类型</th>
+                <th style="text-align: left; width: 30%;">错误详情</th>
+            </tr>
+        """
         for device, record in failed_records:
-            ftype = f"[{record.failure_type}] " if record.failure_type else ""
-            dur = f" ({record.duration_seconds:.2f}s)" if record.duration_seconds is not None else ""
-            content += f"- {device.name}({device.host}){dur}: {ftype}{record.error_message or '未知错误'}\n"
-        content += "\n"
+            ftype = record.failure_type or "-"
+            dur = f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-"
+            err_msg = record.error_message or '未知错误'
+            content += f"""
+            <tr>
+                <td>{device.name}</td>
+                <td>{device.host}</td>
+                <td>{dur}</td>
+                <td>{ftype}</td>
+                <td style="color: #d9534f;">{err_msg}</td>
+            </tr>
+            """
+        content += "</table><br>"
 
     if changed_records:
-        content += "--- 配置变更列表 ---\n"
+        content += """
+        <h3 style="color: #f0ad4e;">配置变更列表</h3>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 1000px;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="text-align: left; width: 50%;">设备名称</th>
+                <th style="text-align: left; width: 50%;">设备地址</th>
+            </tr>
+        """
         for device, record in changed_records:
-            content += f"- {device.name}({device.host})\n"
-        content += "\n"
+            content += f"""
+            <tr>
+                <td>{device.name}</td>
+                <td>{device.host}</td>
+            </tr>
+            """
+        content += "</table><br>"
 
-    send_email(subject, content)
+    content += """
+    </body>
+    </html>
+    """
+
+    send_email(subject, content, content_type="html")

@@ -22,6 +22,7 @@ from app.models import (
     Role,
     User,
     WebshellRecord,
+    ApiKey,
 )
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.auth import hash_password, verify_password
@@ -65,6 +66,11 @@ PERMISSION_CATALOG = [
     {"code": "notifications.update", "name": "通知设置修改", "group": "notifications"},
     {"code": "settings.view", "name": "系统设置查看", "group": "settings"},
     {"code": "settings.update", "name": "系统设置修改", "group": "settings"},
+    {"code": "storage_settings.view", "name": "存储设置查看", "group": "storage_settings"},
+    {"code": "storage_settings.update", "name": "存储设置修改", "group": "storage_settings"},
+    {"code": "api_keys.view", "name": "API Key查看", "group": "api_keys"},
+    {"code": "api_keys.create", "name": "API Key新增", "group": "api_keys"},
+    {"code": "api_keys.delete", "name": "API Key删除", "group": "api_keys"},
     {"code": "users.view", "name": "用户查看", "group": "users"},
     {"code": "users.create", "name": "用户新增", "group": "users"},
     {"code": "users.update", "name": "用户修改", "group": "users"},
@@ -85,6 +91,8 @@ LEGACY_PERMISSION_EXPANSIONS = {
     "diff_rules.manage": {"diff_rules.view", "diff_rules.update"},
     "notifications.manage": {"notifications.view", "notifications.update"},
     "settings.manage": {"settings.view", "settings.update"},
+    "storage_settings.manage": {"storage_settings.view", "storage_settings.update"},
+    "api_keys.manage": {"api_keys.view", "api_keys.create", "api_keys.delete"},
     "users.manage": {"users.view", "users.create", "users.update", "users.delete"},
     "roles.manage": {"roles.view", "roles.create", "roles.update", "roles.delete"},
 }
@@ -917,6 +925,49 @@ def get_device_secrets(session: Session, device: Device) -> dict[str, str | None
     return get_credential_secrets(credential)
 
 
+# -----------------------------------------------------------------------------
+# ApiKey Functions
+# -----------------------------------------------------------------------------
+
+def get_api_key_by_hash(session: Session, key_hash: str) -> ApiKey | None:
+    return session.exec(select(ApiKey).where(ApiKey.key_hash == key_hash)).first()
+
+def get_api_keys(session: Session, skip: int = 0, limit: int = 100) -> list[ApiKey]:
+    return list(session.exec(select(ApiKey).order_by(ApiKey.created_at.desc()).offset(skip).limit(limit)).all())
+
+def count_api_keys(session: Session) -> int:
+    return int(session.exec(select(func.count()).select_from(ApiKey)).one())
+
+def create_api_key(session: Session, *, api_key: ApiKey) -> ApiKey:
+    session.add(api_key)
+    session.commit()
+    session.refresh(api_key)
+    return api_key
+
+def update_api_key_last_used(session: Session, key_id: int) -> None:
+    api_key = session.get(ApiKey, key_id)
+    if api_key:
+        api_key.last_used_at = datetime.utcnow()
+        session.add(api_key)
+        session.commit()
+
+def revoke_api_key(session: Session, key_id: int) -> bool:
+    api_key = session.get(ApiKey, key_id)
+    if api_key:
+        api_key.is_active = False
+        session.add(api_key)
+        session.commit()
+        return True
+    return False
+
+def delete_api_key(session: Session, key_id: int) -> bool:
+    api_key = session.get(ApiKey, key_id)
+    if api_key:
+        session.delete(api_key)
+        session.commit()
+        return True
+    return False
+
 def set_setting(session: Session, *, key: str, value: str) -> AppSetting:
     item = session.get(AppSetting, key)
     if item is None:
@@ -1651,6 +1702,27 @@ def count_login_logs(
         stmt = stmt.where(LoginLog.status == status)
     
     return int(session.exec(stmt).one())
+
+
+def cleanup_old_audit_logs(session: Session, days: int) -> int:
+    """清理指定天数之前的操作日志"""
+    if days <= 0:
+        return 0
+    threshold = datetime.utcnow() - timedelta(days=days)
+    stmt = delete(AuditLog).where(AuditLog.created_at < threshold)
+    result = session.exec(stmt)
+    session.commit()
+    return result.rowcount
+
+def cleanup_old_login_logs(session: Session, days: int) -> int:
+    """清理指定天数之前的登录日志"""
+    if days <= 0:
+        return 0
+    threshold = datetime.utcnow() - timedelta(days=days)
+    stmt = delete(LoginLog).where(LoginLog.created_at < threshold)
+    result = session.exec(stmt)
+    session.commit()
+    return result.rowcount
 
 def list_webshell_records(
     session: Session,

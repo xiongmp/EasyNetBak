@@ -1197,6 +1197,34 @@ input[type=number] {
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .smaller { font-size: 0.8rem; }
+
+/* API Key Modal Enhancements */
+.api-key-wrapper .form-control:focus {
+  box-shadow: none;
+  border-color: #dee2e6;
+}
+
+[data-bs-theme="dark"] .api-key-wrapper .form-control,
+[data-bs-theme="dark"] .api-key-wrapper .input-group-text {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .api-key-wrapper .form-control:focus {
+  border-color: #334155 !important;
+}
+
+/* Adjust the warning alert in dark mode for better readability */
+[data-bs-theme="dark"] .alert-warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+[data-bs-theme="dark"] .alert-warning .text-dark {
+  color: #fcd34d !important;
+}
 .text-xs { font-size: 0.7rem; }
 
 .badge-soft {
@@ -2207,7 +2235,6 @@ body.dashboard-page #group-health-chart {
 .btn-remove-rule:hover {
   background: #fee2e2;
   color: #ef4444;
-  transform: rotate(90deg);
 }
 
 [data-bs-theme="dark"] .btn-remove-rule:hover {

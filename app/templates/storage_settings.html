@@ -5,7 +5,7 @@
 {% block content %}
   <div class="card border shadow-sm">
     <div class="card-body p-4">
-      {% if has_permission('settings.update') %}
+      {% if has_permission('storage_settings.update') %}
         <form method="post" action="/storage-settings">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           

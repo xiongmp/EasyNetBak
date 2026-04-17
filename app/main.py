@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from urllib.parse import quote
+from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi_csrf_protect import CsrfProtect
@@ -21,19 +22,45 @@ from app.services.auth import decode_session_token
 from app.core.logger import setup_logging, set_request_id
 
 
+from app.services.apikey import hash_api_key
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logging()
+    init_db()
+    with session_scope() as session:
+        crud.ensure_default_roles(session)
+        if crud.count_users(session) == 0:
+            crud.create_user(session, username=settings.bootstrap_admin_username, password=settings.bootstrap_admin_password, role="admin", password_expired=True)
+    with session_scope() as session:
+        enabled_str = crud.get_setting(session, key="schedule_enabled")
+        crontab_str = crud.get_setting(session, key="backup_crontab")
+    
+    # 默认值：如果没有数据库设置，则默认禁用 schedule，默认 crontab 为 0 2 * * *
+    # 如果数据库有值，优先使用数据库值
+    # 注意：BackupSchedule 模型默认也是 enabled=False
+    enabled = False if enabled_str is None else enabled_str in {"1", "true", "True", "yes", "YES"}
+    crontab = crontab_str if crontab_str is not None else "0 2 * * *"
+    
+    ensure_default_schedule_from_legacy_settings(enabled=enabled, crontab=crontab)
+    
+    if settings.enable_scheduler:
+        sync_scheduler_from_db()
+
+    yield
+
+    stop_scheduler()
+
 app = FastAPI(
     title=settings.app_name,
-    description="Network Backup 系统 API 接口文档，包含设备管理、备份任务、系统设置等功能。",
+    description="Network Backup 系统 API 接口文档，包含设备管理、分组管理、凭据管理等功能。",
     version="1.0.0",
     openapi_tags=[
-        {"name": "认证授权 (Auth)", "description": "用户登录、登出及多因素认证(MFA)相关接口"},
-        {"name": "仪表盘 (Dashboard)", "description": "系统概览与仪表盘统计数据接口"},
-        {"name": "设备管理 (Devices)", "description": "网络设备的增删改查、批量导入及连通性测试接口"},
-        {"name": "资源管理 (Resources)", "description": "设备组、凭据及备份模板管理接口"},
-        {"name": "备份管理 (Backups)", "description": "设备配置备份的执行、记录查看及对比分析接口"},
-        {"name": "定时任务 (Schedules)", "description": "自动化备份计划任务管理接口"},
-        {"name": "系统设置 (System)", "description": "用户管理、角色权限、存储配置、系统参数及审计日志接口"}
-    ]
+        {"name": "API", "description": "API 接口"},
+    ],
+    lifespan=lifespan,
 )
 
 
@@ -58,15 +85,25 @@ async def _request_id_middleware(request, call_next):
     return response
 
 
-def _get_auth_context(uid: int) -> tuple[str | None, User | None]:
+def _get_auth_context(uid: int, api_key_str: str | None = None) -> tuple[str | None, User | None]:
     """
-    同步辅助函数：在线程池中运行，获取用户和时区设置。
-    不使用 session_scope() 以避免 commit 导致的实例过期问题。
+    Get user auth context and timezone setting in a separate DB session.
     """
     session = Session(engine)
     try:
         tz_str = crud.get_setting(session, key="timezone_offset")
-        user = crud.get_user(session, uid) if uid > 0 else None
+        user = None
+        if api_key_str:
+            key_hash = hash_api_key(api_key_str)
+            api_key = crud.get_api_key_by_hash(session, key_hash)
+            if api_key and api_key.is_active:
+                if api_key.expires_at is None or api_key.expires_at > datetime.utcnow():
+                    crud.update_api_key_last_used(session, api_key.id)
+                    if api_key.created_by:
+                        user = crud.get_user(session, api_key.created_by)
+        elif uid > 0:
+            user = crud.get_user(session, uid)
+            
         if user:
             # 显式从 session 中移除，确保 session 关闭后对象仍然可用且数据保留
             session.refresh(user)
@@ -97,12 +134,24 @@ async def _auth_middleware(request, call_next):
     request.state.tz_offset_minutes = sign * (hh * 60 + mm)
 
     if not skip_auth:
-        token = request.cookies.get(settings.auth_cookie_name, "")
-        payload = decode_session_token(token)
-        uid = int(payload.get("uid", 0)) if payload else 0
-        
-        # 使用 run_in_threadpool 在线程池中执行阻塞的数据库操作
-        tz_str, user = await run_in_threadpool(_get_auth_context, uid)
+        api_key_str = request.headers.get("X-API-Key")
+        if path.startswith("/api/v1/"):
+            # External APIs: Strictly require API Key, do not fall back to Session Cookie
+            # This prevents CSRF vulnerabilities on API endpoints that don't check CSRF tokens.
+            if api_key_str:
+                tz_str, user = await run_in_threadpool(_get_auth_context, 0, api_key_str)
+            else:
+                tz_str, user = await run_in_threadpool(_get_auth_context, 0, None)
+        else:
+            # Internal UI/Web routes: Accept API Key or Session Cookie
+            if api_key_str:
+                tz_str, user = await run_in_threadpool(_get_auth_context, 0, api_key_str)
+            else:
+                token = request.cookies.get(settings.auth_cookie_name, "")
+                payload = decode_session_token(token)
+                uid = int(payload.get("uid", 0)) if payload else 0
+                tz_str, user = await run_in_threadpool(_get_auth_context, uid)
+
         
         request.state.tz_offset = normalize_timezone_offset(tz_str, default=settings.timezone_offset)
         request.state.user = user
@@ -116,6 +165,9 @@ async def _auth_middleware(request, call_next):
         return await call_next(request)
 
     if user is None:
+        if path.startswith("/api/v1/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
         nxt = quote(str(request.url.path) + (("?" + request.url.query) if request.url.query else ""))
         response = RedirectResponse(url=f"/login?next={nxt}", status_code=303)
         if request.cookies.get(settings.auth_cookie_name):
@@ -130,32 +182,3 @@ async def _auth_middleware(request, call_next):
         return RedirectResponse(url="/mfa-setup", status_code=303)
 
     return await call_next(request)
-
-
-@app.on_event("startup")
-def _on_startup() -> None:
-    setup_logging()
-    init_db()
-    with session_scope() as session:
-        crud.ensure_default_roles(session)
-        if crud.count_users(session) == 0:
-            crud.create_user(session, username=settings.bootstrap_admin_username, password=settings.bootstrap_admin_password, role="admin", password_expired=True)
-    with session_scope() as session:
-        enabled_str = crud.get_setting(session, key="schedule_enabled")
-        crontab_str = crud.get_setting(session, key="backup_crontab")
-    
-    # 默认值：如果没有数据库设置，则默认禁用 schedule，默认 crontab 为 0 2 * * *
-    # 如果数据库有值，优先使用数据库值
-    # 注意：BackupSchedule 模型默认也是 enabled=False
-    enabled = False if enabled_str is None else enabled_str in {"1", "true", "True", "yes", "YES"}
-    crontab = crontab_str if crontab_str is not None else "0 2 * * *"
-    
-    ensure_default_schedule_from_legacy_settings(enabled=enabled, crontab=crontab)
-    
-    if settings.enable_scheduler:
-        sync_scheduler_from_db()
-
-
-@app.on_event("shutdown")
-def _on_shutdown() -> None:
-    stop_scheduler()

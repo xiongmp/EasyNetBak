@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% set page_title = "API Key 管理" %}
+{% set page_subtitle = "查看和管理用于外部接入的 API Keys" %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h5 class="mb-0 text-secondary"><i class="bi bi-key me-2"></i>API Key 列表</h5>
+      <div class="d-flex gap-2">
+        <a href="/docs" target="_blank" class="btn btn-outline-info btn-sm" title="查看 FastAPI 接口文档">
+          <i class="bi bi-journal-code me-1"></i>API 文档
+        </a>
+        {% if has_permission('api_keys.create') %}
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createApiKeyModal">
+          <i class="bi bi-plus-lg me-1"></i>新建 API Key
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">名称</th>
+            <th>前缀</th>
+            <th>状态</th>
+            <th>过期时间</th>
+            <th>最后使用</th>
+            <th>创建时间</th>
+            <th class="text-end pe-4">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key in api_keys %}
+          <tr>
+            <td class="ps-4">{{ key.name }}</td>
+            <td><code>{{ key.prefix }}***</code></td>
+            <td>
+              {% if key.is_active %}
+                <span class="badge bg-success-subtle text-success">正常</span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger">已吊销</span>
+              {% endif %}
+            </td>
+            <td>{{ key.expires_at | dt_local if key.expires_at else '永久' }}</td>
+            <td>{{ key.last_used_at | dt_local if key.last_used_at else '未使用' }}</td>
+            <td>{{ key.created_at | dt_local }}</td>
+            <td class="text-end pe-4">
+              {% if has_permission('api_keys.delete') %}
+              {% if key.is_active %}
+              <form action="/api-keys/{{ key.id }}/revoke" method="post" class="d-inline" id="revokeForm-{{ key.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <button type="button" class="btn btn-sm btn-outline-warning" title="吊销" onclick="showRevokeModal('{{ key.id }}', '{{ key.name }}')">
+                  <i class="bi bi-slash-circle"></i> 吊销
+                </button>
+              </form>
+              {% endif %}
+              <form action="/api-keys/{{ key.id }}/delete" method="post" class="d-inline" id="deleteForm-{{ key.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <button type="button" class="btn btn-sm btn-outline-danger" title="删除" onclick="showDeleteModal('{{ key.id }}', '{{ key.name }}')">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% else %}
+              <span class="text-muted small">无权限</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">暂无 API Key，请点击右上角新建</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if has_permission('api_keys.create') %}
+<!-- Create API Key Modal -->
+<div class="modal fade" id="createApiKeyModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-key-fill text-primary me-2"></i>新建 API Key</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="/api-keys" method="post">
+        <div class="modal-body pt-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <div class="mb-4">
+            <label class="form-label fw-medium text-secondary">名称 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-lg fs-6" name="name" required placeholder="例如：测试APIKey" />
+            <div class="form-text">给这个 API Key 起一个易于识别的名字</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-medium text-secondary">过期时间</label>
+            <select class="form-select form-select-lg fs-6" name="expires_in_days">
+              <option value="0">永久有效</option>
+              <option value="30" selected>30天</option>
+              <option value="90">90天</option>
+              <option value="365">1年</option>
+            </select>
+            <div class="form-text">建议定期轮换 API Key 以保证安全</div>
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary px-4">生成 API Key</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Revoke API Key Modal -->
+<div class="modal fade" id="revokeApiKeyModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fw-bold text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>确认吊销</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-4">
+        <p class="mb-1 fs-6">确定要吊销 API Key <strong id="revokeKeyName" class="text-dark"></strong> 吗？</p>
+        <p class="text-muted small mb-0">吊销后该 Key 将立即失效，无法再用于任何 API 访问，但记录会保留。</p>
+      </div>
+      <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-warning text-white px-4" id="confirmRevokeBtn">确认吊销</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete API Key Modal -->
+<div class="modal fade" id="deleteApiKeyModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-octagon-fill me-2"></i>彻底删除</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-4">
+        <p class="mb-1 fs-6">确定要彻底删除 API Key <strong id="deleteKeyName" class="text-dark"></strong> 吗？</p>
+        <div class="alert alert-danger border-danger-subtle py-2 px-3 mt-3 mb-0 small">
+          <i class="bi bi-shield-exclamation me-1"></i>此操作不可恢复！如果您只是想暂时停用，建议使用<strong>吊销</strong>功能。
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pt-3 pb-4 px-4">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-danger px-4" id="confirmDeleteBtn">彻底删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentRevokeFormId = null;
+let currentDeleteFormId = null;
+
+function showRevokeModal(id, name) {
+    currentRevokeFormId = 'revokeForm-' + id;
+    document.getElementById('revokeKeyName').textContent = name;
+    new bootstrap.Modal(document.getElementById('revokeApiKeyModal')).show();
+}
+
+function showDeleteModal(id, name) {
+    currentDeleteFormId = 'deleteForm-' + id;
+    document.getElementById('deleteKeyName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteApiKeyModal')).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('confirmRevokeBtn')?.addEventListener('click', function() {
+        if (currentRevokeFormId) {
+            document.getElementById(currentRevokeFormId).submit();
+        }
+    });
+
+    document.getElementById('confirmDeleteBtn')?.addEventListener('click', function() {
+        if (currentDeleteFormId) {
+            document.getElementById(currentDeleteFormId).submit();
+        }
+    });
+});
+</script>
+
+{% if new_key %}
+<!-- Show New Key Modal -->
+<div class="modal fade" id="showNewKeyModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-success text-white border-bottom-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i>API Key 已生成</h5>
+      </div>
+      <div class="modal-body p-4">
+        <div class="alert alert-warning border-warning-subtle d-flex align-items-start mb-4">
+          <i class="bi bi-exclamation-triangle-fill fs-5 text-warning me-3 mt-1"></i>
+          <div>
+            <h6 class="alert-heading fw-bold mb-1">请立即复制并妥善保存</h6>
+            <p class="mb-0 small text-dark">出于安全考虑，离开此页面后您将<strong>无法再次查看</strong>该 Key 的完整内容。</p>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-medium text-secondary">您的 API Key</label>
+          <div class="input-group input-group-lg api-key-wrapper">
+            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
+            <input type="text" class="form-control font-monospace fs-5 border-start-0 border-end-0 text-center bg-light" id="newApiKey" value="{{ new_key }}" readonly />
+            <button class="btn btn-primary px-4 shadow-sm" type="button" onclick="copyApiKey(event)">
+              <i class="bi bi-clipboard me-1"></i> 复制
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pb-4 px-4 justify-content-center">
+        <a href="/api-keys" class="btn btn-success px-5 rounded-pill shadow-sm">我已妥善保存，关闭窗口</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function copyApiKey(event) {
+    var copyText = document.getElementById("newApiKey");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(copyText.value).then(function() {
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary');
+        }, 2000);
+    });
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var myModal = new bootstrap.Modal(document.getElementById('showNewKeyModal'));
+    myModal.show();
+});
+</script>
+{% endif %}
+{% endblock %}

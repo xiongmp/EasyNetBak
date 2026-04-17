@@ -132,9 +132,11 @@
 
             <!-- 系统管理 -->
             {% set can_settings = has_permission('settings.view') or has_permission('settings.update') %}
+            {% set can_storage = has_permission('storage_settings.view') or has_permission('storage_settings.update') %}
             {% set can_notifications = has_permission('notifications.view') or has_permission('notifications.update') %}
-            {% set system_active = active in ['settings', 'notifications', 'storage_settings'] %}
-            {% set system_visible = can_settings or can_notifications %}
+            {% set can_api_keys = has_permission('api_keys.view') or has_permission('api_keys.create') or has_permission('api_keys.delete') %}
+            {% set system_active = active in ['settings', 'notifications', 'storage_settings', 'api_keys'] %}
+            {% set system_visible = can_settings or can_storage or can_notifications or can_api_keys %}
             {% if system_visible %}
               <div class="sidebar-group">
                 <div class="sidebar-group-label {% if not system_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-system" data-title="系统管理">
@@ -144,10 +146,15 @@
                 <div class="collapse {% if system_active %}show{% endif %}" id="group-system">
                   {% if can_settings %}
                     <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="系统设置"><i class="bi bi-gear"></i><span class="nav-text">系统设置</span></a>
+                  {% endif %}
+                  {% if can_storage %}
                     <a class="nav-link {% if active == 'storage_settings' %}active{% endif %}" href="/storage-settings" data-title="存储设置"><i class="bi bi-hdd"></i><span class="nav-text">存储设置</span></a>
                   {% endif %}
                   {% if can_notifications %}
                     <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="通知设置"><i class="bi bi-bell"></i><span class="nav-text">通知设置</span></a>
+                  {% endif %}
+                  {% if can_api_keys %}
+                    <a class="nav-link {% if active == 'api_keys' %}active{% endif %}" href="/api-keys" data-title="API Key"><i class="bi bi-key"></i><span class="nav-text">API Key</span></a>
                   {% endif %}
                 </div>
               </div>
@@ -337,7 +344,7 @@
                     <div class="breadcrumb-item"><span class="breadcrumb-link">备份管理</span></div>
                   {% elif active in ['audit_logs', 'login_logs', 'webshell_records'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">日志管理</span></div>
-                  {% elif active in ['settings', 'notifications'] %}
+                  {% elif active in ['settings', 'notifications', 'storage_settings', 'api_keys'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">系统管理</span></div>
                   {% elif active in ['users', 'roles'] %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">用户与授权</span></div>
@@ -356,7 +363,11 @@
                       {% elif active == 'config_search' %}配置搜索
                       {% elif active == 'schedules' %}定时任务
                       {% elif active == 'audit_logs' %}操作日志
+                      {% elif active == 'login_logs' %}登录日志
+                      {% elif active == 'webshell_records' %}Webshell 回放
                       {% elif active == 'settings' %}系统设置
+                      {% elif active == 'storage_settings' %}存储设置
+                      {% elif active == 'api_keys' %}API Key
                       {% elif active == 'notifications' %}通知设置
                       {% elif active == 'users' %}用户管理
                       {% elif active == 'roles' %}角色管理

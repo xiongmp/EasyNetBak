@@ -23,7 +23,7 @@
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="webshell-tab" data-bs-toggle="tab" data-bs-target="#webshell" type="button" role="tab" aria-controls="webshell" aria-selected="false">
-                <i class="bi bi-terminal me-1"></i>Webshell 设置
+                <i class="bi bi-card-list me-1"></i>日志设置
               </button>
             </li>
           </ul>
@@ -95,11 +95,29 @@
               </div>
             </div>
 
-            <!-- 标签页：Webshell 设置 -->
+            <!-- 标签页：日志设置 -->
             <div class="tab-pane fade" id="webshell" role="tabpanel" aria-labelledby="webshell-tab">
               <div class="row g-4">
                 <div class="col-12 col-md-8 col-lg-6">
                   <h6 class="fw-bold text-secondary mb-3">
+                    <i class="bi bi-journal-text me-2"></i>审计日志管理
+                  </h6>
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">操作日志保留天数</label>
+                    <input name="audit_log_retention_days" type="number" class="form-control" value="{{ audit_log_retention_days }}" min="1" />
+                    <div class="form-text x-small text-muted">
+                      超过此天数的操作日志将被自动清理，默认 180。
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small text-secondary mb-1">登录日志保留天数</label>
+                    <input name="login_log_retention_days" type="number" class="form-control" value="{{ login_log_retention_days }}" min="1" />
+                    <div class="form-text x-small text-muted">
+                      超过此天数的登录日志将被自动清理，默认 180。
+                    </div>
+                  </div>
+
+                  <h6 class="fw-bold text-secondary mt-4 mb-3">
                     <i class="bi bi-camera-video me-2"></i>录像与回放管理
                   </h6>
                   <div class="mb-3">
@@ -171,7 +189,15 @@
           <div class="col-12 col-md-6">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
-                <h6 class="fw-bold text-secondary mb-3">Webshell 设置</h6>
+                <h6 class="fw-bold text-secondary mb-3">日志设置</h6>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">操作日志保留天数</div>
+                  <div class="fw-bold">{{ audit_log_retention_days }}</div>
+                </div>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">登录日志保留天数</div>
+                  <div class="fw-bold">{{ login_log_retention_days }}</div>
+                </div>
                 <div>
                   <div class="small text-secondary mb-1">Webshell 录像保留天数</div>
                   <div class="fw-bold">{{ webshell_record_retention_days }}</div>

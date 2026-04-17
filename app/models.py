@@ -208,6 +208,19 @@ class AuditLog(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
+class ApiKey(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    key_hash: str
+    prefix: str = Field(index=True)
+    is_active: bool = Field(default=True)
+    scopes: str = Field(default="all")
+    created_by: Optional[int] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    expires_at: Optional[datetime] = Field(default=None, index=True)
+    last_used_at: Optional[datetime] = Field(default=None, index=True)
+
+
 class WebshellRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, index=True)

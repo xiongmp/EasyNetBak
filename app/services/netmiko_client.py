@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import logging
 import os
 import time
@@ -100,6 +101,18 @@ def _legacy_hostkey_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
 
     legacy_device["disabled_algorithms"] = merged
     return legacy_device
+
+
+def _clean_backspaces(text: str) -> str:
+    """处理退格符 \x08 和 \x7f 以模拟终端输出，保证输出无多余空格或乱码"""
+    chars = []
+    for char in text:
+        if char in ('\x08', '\x7f'):
+            if chars:
+                chars.pop()
+        else:
+            chars.append(char)
+    return "".join(chars)
 
 
 def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
@@ -238,17 +251,91 @@ def run_netmiko_commands(
     def _execute(conn_device: dict[str, Any]) -> list[str]:
         output_parts: list[str] = []
         with ConnectHandler(**conn_device) as conn:
+            conn.ansi_escape_codes = False
             if device_type.startswith("cisco") and enable_password:
                 conn.enable()
+            prompt = conn.find_prompt().rstrip()
+            
+            # 常见的分页提示符正则，如 "---- More ----", "--More--", "More:"
+            pagination_pattern = r"(?:--\s*[Mm][Oo][Rr][Ee]\s*--|----\s*[Mm][Oo][Rr][Ee]\s*----|[Mm][Oo][Rr][Ee]:)"
+            # 联合匹配设备提示符或分页提示符，用于及时发现分页异常
+            expect_pattern = rf"({re.escape(prompt)}|{pagination_pattern})"
+
             for cmd in commands:
+                # 默认 send_command 获取输出，利用 expect_pattern 发现分页异常时不等待超时立即返回
                 out = conn.send_command(
                     cmd,
-                    strip_prompt=True,
-                    strip_command=True,
+                    expect_string=expect_pattern,
+                    strip_prompt=False,
+                    strip_command=False,
                     read_timeout=command_read_timeout,
                     delay_factor=global_delay_factor,
                     max_loops=command_max_loops,
                 )
+
+                # 发现分页异常时，自动切到 send_command_timing() 循环处理
+                if re.search(pagination_pattern, out):
+                    logger.info(f"发现分页异常 (设备 {host}:{port})，命令 '{cmd}' 自动切到 send_command_timing() 并手动按空格处理...")
+                    full_output = [out]
+                    buffer_tail = out
+                    
+                    # 引入整体超时机制，防止死循环 (默认 command_read_timeout 比较大，比如 180s)
+                    start_time_pagination = time.time()
+                    
+                    while prompt not in buffer_tail:
+                        if time.time() - start_time_pagination > command_read_timeout:
+                            logger.error(f"处理分页时超时 ({command_read_timeout}s) - 设备: {host}:{port}")
+                            raise NetmikoTimeoutException(f"处理分页超时，未能找到提示符 '{prompt}'")
+                            
+                        if re.search(pagination_pattern, buffer_tail):
+                            # 当前处于分页符，发送空格 (注意 normalize=False 防止发送回车)
+                            page_out = conn.send_command_timing(
+                                " ",
+                                strip_prompt=False,
+                                strip_command=False,
+                                normalize=False,
+                                delay_factor=global_delay_factor,
+                            )
+                        else:
+                            # 没到分页符，也没到 prompt，可能是输出较慢，继续提取缓冲数据
+                            page_out = conn.send_command_timing(
+                                "",
+                                strip_prompt=False,
+                                strip_command=False,
+                                normalize=False,
+                                delay_factor=global_delay_factor,
+                            )
+                        
+                        if page_out:
+                            full_output.append(page_out)
+                            # 保留尾部用于正则检测
+                            buffer_tail = "".join(full_output)[-1000:]
+
+                    out = "".join(full_output)
+
+                # 处理退格符 \x08 和 \x7f 
+                out = _clean_backspaces(out)
+                
+                # 处理 ANSI 序列形式的分页擦除 (如 \x1b[16D 等) 或 H3C 等设备的回车覆盖模式 (\n\n   \n)
+                clear_seq_ansi = r"(?:\x1b\[[0-9;]*[a-zA-Z][ \t]*\x1b\[[0-9;]*[a-zA-Z])"
+                clear_seq_h3c = r"(?:\n+[ \t]+\n+)"
+                clear_seq = rf"(?:{clear_seq_ansi}|{clear_seq_h3c})?"
+                out = re.sub(r"[ \t]*" + pagination_pattern + r"[ \t]*" + clear_seq, "", out)
+
+                # 然后再剥离剩余的普通 ANSI 序列
+                out = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", out)
+
+                # 如果末尾残留了 prompt (因为 strip_prompt=False)，则将其剥离
+                if out.endswith(prompt):
+                    out = out[:-len(prompt)]
+                elif prompt in out:
+                    out = out.rsplit(prompt, 1)[0]
+
+                # Normalize command echo line to "<prompt><command>" format when device only echoes command.
+                lines = out.splitlines()
+                if lines and lines[0].strip() == cmd.strip():
+                    lines[0] = f"{prompt}{cmd}"
+                    out = "\n".join(lines)
                 output_parts.append(out.rstrip())
         return output_parts
 
