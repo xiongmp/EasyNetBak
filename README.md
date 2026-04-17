@@ -86,7 +86,7 @@
 
 3.  **启动服务**:
     ```bash
-    docker-compose up -d
+    docker compose up -d
     ```
 
 4.  **访问系统**:
@@ -109,7 +109,7 @@ cd network_backup
 git pull origin master
 
 # 重新构建并重启服务
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### 方式二：本地开发环境搭建
