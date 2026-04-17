@@ -224,22 +224,44 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 <script>
-function copyApiKey(event) {
-    var copyText = document.getElementById("newApiKey");
-    copyText.select();
-    copyText.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(copyText.value).then(function() {
-        const btn = event.currentTarget;
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-success');
-        setTimeout(() => {
-            btn.innerHTML = originalHtml;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-primary');
-        }, 2000);
-    });
+async function copyApiKey(event) {
+    const copyText = document.getElementById("newApiKey");
+    const apiKeyValue = copyText?.value || "";
+    let copied = false;
+
+    // Modern Clipboard API works only in secure context (HTTPS/localhost).
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(apiKeyValue);
+            copied = true;
+        } catch (err) {
+            console.warn('Clipboard API 复制失败，尝试降级方案:', err);
+        }
+    }
+
+    // Fallback for HTTP / older browsers.
+    if (!copied) {
+        copyText.focus();
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        copied = !!(document.execCommand && document.execCommand('copy'));
+    }
+
+    if (!copied) {
+        alert('复制失败，请手动选中后 Ctrl+C 复制。');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-success');
+    setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-primary');
+    }, 2000);
 }
 document.addEventListener('DOMContentLoaded', function() {
     var myModal = new bootstrap.Modal(document.getElementById('showNewKeyModal'));
