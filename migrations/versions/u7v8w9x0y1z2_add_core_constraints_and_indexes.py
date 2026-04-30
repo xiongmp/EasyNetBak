@@ -19,6 +19,16 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _has_unique_constraint(table_name: str, constraint_name: str) -> bool:
+    inspector = sa.inspect(op.get_bind())
+    return any((item.get("name") or "") == constraint_name for item in inspector.get_unique_constraints(table_name))
+
+
+def _has_index(table_name: str, index_name: str) -> bool:
+    inspector = sa.inspect(op.get_bind())
+    return any((item.get("name") or "") == index_name for item in inspector.get_indexes(table_name))
+
+
 def _assert_unique_values(table_name: str, column_name: str) -> None:
     bind = op.get_bind()
     rows = bind.execute(
@@ -44,37 +54,55 @@ def upgrade() -> None:
     _assert_unique_values("apikey", "prefix")
     _assert_unique_values("apikey", "key_hash")
 
-    with op.batch_alter_table("device") as batch_op:
-        batch_op.create_unique_constraint("uq_device_name", ["name"])
-        batch_op.create_unique_constraint("uq_device_host", ["host"])
+    need_device_name_uq = not _has_unique_constraint("device", "uq_device_name")
+    need_device_host_uq = not _has_unique_constraint("device", "uq_device_host")
+    if need_device_name_uq or need_device_host_uq:
+        with op.batch_alter_table("device") as batch_op:
+            if need_device_name_uq:
+                batch_op.create_unique_constraint("uq_device_name", ["name"])
+            if need_device_host_uq:
+                batch_op.create_unique_constraint("uq_device_host", ["host"])
 
-    with op.batch_alter_table("apikey") as batch_op:
-        batch_op.create_unique_constraint("uq_api_key_key_hash", ["key_hash"])
-        batch_op.create_unique_constraint("uq_api_key_prefix", ["prefix"])
+    need_apikey_hash_uq = not _has_unique_constraint("apikey", "uq_api_key_key_hash")
+    need_apikey_prefix_uq = not _has_unique_constraint("apikey", "uq_api_key_prefix")
+    if need_apikey_hash_uq or need_apikey_prefix_uq:
+        with op.batch_alter_table("apikey") as batch_op:
+            if need_apikey_hash_uq:
+                batch_op.create_unique_constraint("uq_api_key_key_hash", ["key_hash"])
+            if need_apikey_prefix_uq:
+                batch_op.create_unique_constraint("uq_api_key_prefix", ["prefix"])
 
-    op.create_index("ix_backup_record_device_started_at", "backuprecord", ["device_id", "started_at"], unique=False)
-    op.create_index("ix_backup_record_started_at_success", "backuprecord", ["started_at", "success"], unique=False)
-    op.create_index("ix_audit_log_action_created_at", "auditlog", ["action", "created_at"], unique=False)
-    op.create_index("ix_audit_log_resource_type_created_at", "auditlog", ["resource_type", "created_at"], unique=False)
-    op.create_index("ix_login_log_status_created_at", "loginlog", ["status", "created_at"], unique=False)
-    op.create_index(
-        "ix_backup_schedule_run_schedule_started_at",
-        "backupschedulerun",
-        ["schedule_id", "started_at"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_webshell_record_created_at_user_id",
-        "webshellrecord",
-        ["created_at", "user_id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_webshell_record_created_at_device_id",
-        "webshellrecord",
-        ["created_at", "device_id"],
-        unique=False,
-    )
+    if not _has_index("backuprecord", "ix_backup_record_device_started_at"):
+        op.create_index("ix_backup_record_device_started_at", "backuprecord", ["device_id", "started_at"], unique=False)
+    if not _has_index("backuprecord", "ix_backup_record_started_at_success"):
+        op.create_index("ix_backup_record_started_at_success", "backuprecord", ["started_at", "success"], unique=False)
+    if not _has_index("auditlog", "ix_audit_log_action_created_at"):
+        op.create_index("ix_audit_log_action_created_at", "auditlog", ["action", "created_at"], unique=False)
+    if not _has_index("auditlog", "ix_audit_log_resource_type_created_at"):
+        op.create_index("ix_audit_log_resource_type_created_at", "auditlog", ["resource_type", "created_at"], unique=False)
+    if not _has_index("loginlog", "ix_login_log_status_created_at"):
+        op.create_index("ix_login_log_status_created_at", "loginlog", ["status", "created_at"], unique=False)
+    if not _has_index("backupschedulerun", "ix_backup_schedule_run_schedule_started_at"):
+        op.create_index(
+            "ix_backup_schedule_run_schedule_started_at",
+            "backupschedulerun",
+            ["schedule_id", "started_at"],
+            unique=False,
+        )
+    if not _has_index("webshellrecord", "ix_webshell_record_created_at_user_id"):
+        op.create_index(
+            "ix_webshell_record_created_at_user_id",
+            "webshellrecord",
+            ["created_at", "user_id"],
+            unique=False,
+        )
+    if not _has_index("webshellrecord", "ix_webshell_record_created_at_device_id"):
+        op.create_index(
+            "ix_webshell_record_created_at_device_id",
+            "webshellrecord",
+            ["created_at", "device_id"],
+            unique=False,
+        )
 
 
 def downgrade() -> None:
