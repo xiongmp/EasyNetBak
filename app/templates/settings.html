@@ -166,7 +166,7 @@
         </ul>
 
         <div class="row g-4">
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-6 col-xl-4">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
                 <h6 class="fw-bold text-secondary mb-3">通用设置</h6>
@@ -174,9 +174,29 @@
                   <div class="small text-secondary mb-1">当前时区</div>
                   <div class="fw-bold">{{ timezone_offset }}</div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-xl-4">
+            <div class="card h-100 bg-body-tertiary border-0">
+              <div class="card-body">
+                <h6 class="fw-bold text-secondary mb-3">备份设置</h6>
                 <div class="mb-3">
                   <div class="small text-secondary mb-1">最大并发任务数</div>
                   <div class="fw-bold">{{ max_concurrent_tasks }}</div>
+                </div>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">失败重试次数</div>
+                  <div class="fw-bold">{{ backup_max_retries }}</div>
+                </div>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">重试间隔基数</div>
+                  <div class="fw-bold">{{ backup_retry_backoff }} 秒</div>
+                </div>
+                <div class="mb-3">
+                  <div class="small text-secondary mb-1">任务超时时间</div>
+                  <div class="fw-bold">{{ task_time_limit }} 秒</div>
                 </div>
                 <div>
                   <div class="small text-secondary mb-1">备份保留天数</div>
@@ -186,7 +206,7 @@
             </div>
           </div>
 
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-6 col-xl-4">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
                 <h6 class="fw-bold text-secondary mb-3">日志设置</h6>
@@ -205,7 +225,7 @@
               </div>
             </div>
           </div>
-          
+
           <div class="col-12">
             <div class="alert alert-info border-0 d-flex align-items-center">
               <i class="bi bi-shield-lock me-2"></i>

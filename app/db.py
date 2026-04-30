@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator
 
 from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
@@ -38,6 +39,16 @@ def _run_alembic_upgrade() -> None:
 
 
 @contextmanager
-def session_scope() -> Session:
-    with Session(engine) as session:
+def session_scope() -> Iterator[Session]:
+    with Session(engine, expire_on_commit=False) as session:
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+
+def get_session() -> Iterator[Session]:
+    with session_scope() as session:
         yield session

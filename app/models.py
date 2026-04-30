@@ -5,9 +5,11 @@ import json
 from typing import Optional
 from uuid import UUID, uuid4
 
+from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.services.crypto import decrypt_secret, encrypt_secret
+from app.services import task_state_service
 
 
 class User(SQLModel, table=True):
@@ -66,6 +68,9 @@ class Role(SQLModel, table=True):
 
 
 class LoginLog(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_login_log_status_created_at", "status", "created_at"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True)
     ip_address: Optional[str] = None
@@ -113,8 +118,16 @@ class Credential(SQLModel, table=True):
 
 
 class DeviceGroup(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_devicegroup_parent_id", "parent_id"),
+        Index("ix_devicegroup_path", "path"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
+    parent_id: Optional[int] = Field(default=None, foreign_key="devicegroup.id")
+    path: str = Field(default="")
+    depth: int = Field(default=0)
+    sort_order: int = Field(default=0)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
@@ -137,15 +150,19 @@ class BackupSchedule(SQLModel, table=True):
     name: str
     crontab: str
     enabled: bool = False
-    targets: str = ""
+    targets: str = "all"
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
 class BackupScheduleRun(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_backup_schedule_run_schedule_started_at", "schedule_id", "started_at"),
+    )
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     schedule_id: int = Field(index=True)
     trigger: str = "manual"
+    status: str = Field(default=task_state_service.SCHEDULE_RUN_STATUS_PLANNED, index=True)
     started_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     finished_at: Optional[datetime] = Field(default=None, index=True)
     total_devices: int = 0
@@ -163,6 +180,10 @@ class BackupScheduleRunItem(SQLModel, table=True):
 
 
 class Device(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_device_name"),
+        UniqueConstraint("host", name="uq_device_host"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     host: str = Field(index=True)
@@ -183,9 +204,14 @@ class Device(SQLModel, table=True):
 
 
 class BackupRecord(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_backup_record_device_started_at", "device_id", "started_at"),
+        Index("ix_backup_record_started_at_success", "started_at", "success"),
+    )
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     device_id: int = Field(index=True)
     template_id: Optional[int] = Field(default=None, index=True)
+    status: str = Field(default=task_state_service.BACKUP_RECORD_STATUS_PLANNED, index=True)
     started_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     finished_at: Optional[datetime] = Field(default=None, index=True)
     success: bool = False
@@ -196,7 +222,33 @@ class BackupRecord(SQLModel, table=True):
     config_snapshot_hash: Optional[str] = None
 
 
+class TaskEvent(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_task_event_event_created_at", "event", "created_at"),
+        Index("ix_task_event_record_event_created_at", "record_id", "event", "created_at"),
+        Index("ix_task_event_run_event_created_at", "run_id", "event", "created_at"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    event: str = Field(index=True)
+    task_id: Optional[str] = Field(default=None, index=True)
+    record_id: Optional[str] = Field(default=None, index=True)
+    run_id: Optional[str] = Field(default=None, index=True)
+    request_id: Optional[str] = Field(default=None, index=True)
+    device_id: Optional[int] = Field(default=None, index=True)
+    failure_type: Optional[str] = Field(default=None, index=True)
+    storage_type: Optional[str] = Field(default=None, index=True)
+    success: Optional[bool] = Field(default=None, index=True)
+    retries_done: Optional[int] = None
+    max_retries: Optional[int] = None
+    details: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class AuditLog(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_audit_log_action_created_at", "action", "created_at"),
+        Index("ix_audit_log_resource_type_created_at", "resource_type", "created_at"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, index=True)
     username: Optional[str] = Field(default=None, index=True)
@@ -209,6 +261,10 @@ class AuditLog(SQLModel, table=True):
 
 
 class ApiKey(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("key_hash", name="uq_api_key_key_hash"),
+        UniqueConstraint("prefix", name="uq_api_key_prefix"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     key_hash: str
@@ -222,6 +278,10 @@ class ApiKey(SQLModel, table=True):
 
 
 class WebshellRecord(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_webshell_record_created_at_user_id", "created_at", "user_id"),
+        Index("ix_webshell_record_created_at_device_id", "created_at", "device_id"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, index=True)
     username: str = Field(index=True)

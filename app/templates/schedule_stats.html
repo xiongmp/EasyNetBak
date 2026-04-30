@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import render_schedule_run_status %}
 {% set page_title = "定时任务统计" %}
 {% set page_subtitle = schedule.name if schedule else "" %}
 {% set html_class = "page-schedule-stats-html" %}
@@ -11,7 +12,7 @@
         <a class="btn btn-outline-secondary btn-sm border-0" href="/schedules" title="返回列表">
           <i class="bi bi-arrow-left fs-5"></i>
         </a>
-        {% if has_permission('schedules.update') and has_permission('backups.trigger') and schedule %}
+        {% if has_permission('schedules.update') and has_permission('devices.backup') and schedule %}
           <button class="btn btn-primary btn-sm px-3 js-schedule-run" type="button" data-schedule-id="{{ schedule.id }}">
             <i class="bi bi-play-fill me-1"></i>手动执行
           </button>
@@ -115,8 +116,8 @@
     </div>
 
     <div class="stats-main">
-      <!-- 左侧：统计面板 -->
-      <div class="pane-left">
+      <!-- 顶部行：趋势、失败、汇总 -->
+      <div class="stats-grid-top">
         <!-- 成功率趋势 -->
         <div class="card card-stat card-stat-trend">
           <div class="card-header">
@@ -218,9 +219,9 @@
         </div>
       </div>
 
-      <!-- 右侧：运行历史记录 -->
-      <div class="pane-right">
-        <div class="card card-stat h-100">
+      <!-- 底部行：运行历史记录 -->
+      <div class="stats-grid-bottom">
+        <div class="card card-stat">
           <div class="card-header">
             <h6 class="fw-bold mb-0 smaller"><i class="bi bi-clock-history me-2 text-primary"></i>历史运行记录</h6>
             <div class="d-flex gap-2">
@@ -228,72 +229,85 @@
             </div>
           </div>
           <div class="card-body p-0">
-            <div class="table-scroll">
-              <table class="table table-hover align-middle mb-0">
-                <thead>
+            <div class="table-scroll history-table-scroll">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="text-secondary text-nowrap" style="width: 160px;">执行时间</th>
+                  <th class="text-secondary text-nowrap" style="width: 160px;">完成时间</th>
+                  <th class="text-secondary text-nowrap" style="width: 100px;">触发方式</th>
+                  <th class="text-secondary text-nowrap" style="width: 100px;">耗时</th>
+                  <th class="text-secondary text-nowrap text-center" style="width: 160px;">结果 (成功/失败/总计)</th>
+                  <th class="text-secondary text-nowrap" style="width: 120px;">当前状态</th>
+                  <th class="text-secondary text-nowrap" style="width: 120px;">操作</th>
+                  <th class="text-secondary">错误摘要</th>
+                </tr>
+              </thead>
+              <tbody id="schedule-runs-tbody">
+                {% for r in runs %}
                   <tr>
-                    <th class="text-secondary">执行时间</th>
-                    <th class="text-secondary">触发方式</th>
-                    <th class="text-secondary">耗时</th>
-                    <th class="text-secondary text-center">结果 (成功/失败/总计)</th>
-                    <th class="text-secondary">当前状态</th>
-                    <th class="text-secondary">错误摘要</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for r in runs %}
-                    <tr>
-                      <td class="text-xs">
-                        <div class="fw-bold text-dark">{{ r.started_at|dt_local }}</div>
-                        {% if r.finished_at %}
-                          <div class="text-secondary opacity-75 mt-1">完成: {{ r.finished_at|dt_local }}</div>
-                        {% endif %}
-                      </td>
-                      <td>
-                        <div class="backup-status backup-status-light">{{ r.trigger }}</div>
-                      </td>
-                      <td>
-                        <span class="text-xs text-secondary">
-                          {% if r.finished_at and r.started_at %}
-                            {% set seconds = (r.finished_at - r.started_at).total_seconds() | int %}
-                            <i class="bi bi-stopwatch me-1"></i>
-                            {% if seconds < 60 %}
-                              {{ seconds }}s
-                            {% else %}
-                              {{ (seconds // 60) }}m {{ (seconds % 60) }}s
-                            {% endif %}
-                          {% elif not r.finished_at %}
-                            <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>
+                    <td class="text-xs text-nowrap">
+                      <div class="fw-medium text-dark">{{ r.started_at|dt_local }}</div>
+                    </td>
+                    <td class="text-xs text-nowrap">
+                      {% if r.finished_at %}
+                        <div class="fw-medium text-dark">{{ r.finished_at|dt_local }}</div>
+                      {% else %}
+                        <span class="text-secondary opacity-50">—</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-nowrap">
+                      <div class="backup-status backup-status-light">{{ r.trigger }}</div>
+                    </td>
+                    <td class="text-nowrap">
+                      <span class="text-xs text-secondary">
+                        {% if r.finished_at and r.started_at %}
+                          {% set seconds = (r.finished_at - r.started_at).total_seconds() | int %}
+                          <i class="bi bi-stopwatch me-1"></i>
+                          {% if seconds < 60 %}
+                            {{ seconds }}s
                           {% else %}
-                            —
+                            {{ (seconds // 60) }}m {{ (seconds % 60) }}s
                           {% endif %}
-                        </span>
-                      </td>
-                      <td class="text-center">
-                        <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded bg-light border border-light-subtle">
-                          <span class="text-success fw-bold text-xs">{% if r.finished_at %}{{ r.success_count }}{% else %}—{% endif %}</span>
-                          <span class="text-secondary mx-1">/</span>
-                          <span class="text-danger fw-bold text-xs">{% if r.finished_at %}{{ r.fail_count }}{% else %}—{% endif %}</span>
-                          <span class="text-secondary mx-1">/</span>
-                          <span class="text-dark fw-bold text-xs">{{ r.total_devices }}</span>
-                        </div>
-                      </td>
-                      <td>
-                        {% if not r.finished_at %}
-                          <div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>正在处理</div>
-                        {% elif r.fail_count > 0 %}
-                          <div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>部分失败</div>
+                        {% elif not r.finished_at %}
+                          <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>
                         {% else %}
-                          <div class="backup-status backup-status-success"><i class="bi bi-check-all"></i>全部成功</div>
+                          —
                         {% endif %}
-                      </td>
-                      <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}">
-                        {{ r.error_message or "" }}
-                      </td>
-                    </tr>
+                      </span>
+                    </td>
+                    <td class="text-center text-nowrap">
+                      <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded bg-light border border-light-subtle">
+                        <span class="text-success fw-bold text-xs">{% if r.finished_at %}{{ r.success_count }}{% else %}—{% endif %}</span>
+                        <span class="text-secondary mx-1">/</span>
+                        <span class="text-danger fw-bold text-xs">{% if r.finished_at %}{{ r.fail_count }}{% else %}—{% endif %}</span>
+                        <span class="text-secondary mx-1">/</span>
+                        <span class="text-dark fw-bold text-xs">{{ r.total_devices }}</span>
+                      </div>
+                    </td>
+                    <td class="text-nowrap">
+                      {{ render_schedule_run_status(r.status, run_status_labels.get(r.id|string, r.status), run_status_tones.get(r.id|string, 'info')) }}
+                    </td>
+                    <td class="text-nowrap">
+                      {% if has_permission('schedules.update') and r.status in ['planned', 'dispatching', 'running', 'finalizing'] %}
+                        <button
+                          class="btn btn-outline-danger btn-sm js-run-terminate"
+                          type="button"
+                          data-run-id="{{ r.id }}"
+                        >
+                          终止未运行任务
+                        </button>
+                      {% else %}
+                        <span class="text-secondary opacity-50 text-xs">—</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}">
+                      {{ run_error_summaries.get(r.id|string, r.error_message or "") }}
+                    </td>
+                  </tr>
                   {% else %}
                     <tr>
-                      <td colspan="6" class="text-center text-secondary py-5">
+                      <td colspan="8" class="text-center text-secondary py-5">
                         <div class="my-3">
                           <i class="bi bi-inbox fs-1 opacity-25"></i>
                           <p class="mt-2 text-xs">暂无运行记录</p>
@@ -310,12 +324,149 @@
     </div>
   </div>
  
-  {% if has_permission('schedules.update') and has_permission('backups.trigger') and schedule %}
+  {% if schedule %}
     <script>
       (function () {
         const btn = document.querySelector(".js-schedule-run");
-        if (!btn) return;
+        const scheduleId = {{ schedule.id | tojson if schedule else 'null' }};
+        const runsTbody = document.getElementById("schedule-runs-tbody");
+        const canTerminateRuns = {{ has_permission('schedules.update') | tojson }};
+        let pollTimer = null;
+        const terminatingRunIds = new Set();
+
+        function stopPolling() {
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        }
+
+        function escapeText(text) {
+          const span = document.createElement("span");
+          span.textContent = text == null ? "" : String(text);
+          return span.innerHTML;
+        }
+
+        function renderRuns(items) {
+          if (!runsTbody) return;
+          const rows = Array.isArray(items) ? items : [];
+          if (!rows.length) {
+            runsTbody.innerHTML = `
+              <tr>
+                <td colspan="8" class="text-center text-secondary py-5">
+                  <div class="my-3">
+                    <i class="bi bi-inbox fs-1 opacity-25"></i>
+                    <p class="mt-2 text-xs">暂无运行记录</p>
+                  </div>
+                </td>
+              </tr>`;
+            return;
+          }
+
+          function canTerminateRun(status) {
+            return ["planned", "dispatching", "running", "finalizing"].includes(String(status || "").trim());
+          }
+
+          runsTbody.innerHTML = rows.map((r) => {
+            const statusHtml = window.NB && typeof window.NB.renderTaskStatusBadge === "function"
+              ? window.NB.renderTaskStatusBadge("schedule_run", { status: r.status, success: null })
+              : escapeText(r.status_label || r.status || "");
+            const successCount = r.finished_at ? Number(r.success_count || 0) : "—";
+            const failCount = r.finished_at ? Number(r.fail_count || 0) : "—";
+            const isTerminating = terminatingRunIds.has(String(r.id || ""));
+            const finishedAtHtml = r.finished_at
+              ? `<div class="fw-medium text-dark">${escapeText(r.finished_at)}</div>`
+              : '<span class="text-secondary opacity-50">—</span>';
+            const durationHtml = r.duration_text === "运行中"
+              ? '<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>'
+              : escapeText(r.duration_text || "—");
+            const actionHtml = canTerminateRuns && canTerminateRun(r.status)
+              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${isTerminating ? "处理中..." : "终止未运行任务"}</button>`
+              : '<span class="text-secondary opacity-50 text-xs">—</span>';
+
+            return `
+              <tr>
+                <td class="text-xs text-nowrap">
+                  <div class="fw-medium text-dark">${escapeText(r.started_at || "")}</div>
+                </td>
+                <td class="text-xs text-nowrap">${finishedAtHtml}</td>
+                <td class="text-nowrap">
+                  <div class="backup-status backup-status-light">${escapeText(r.trigger || "")}</div>
+                </td>
+                <td class="text-nowrap">
+                  <span class="text-xs text-secondary">${durationHtml}</span>
+                </td>
+                <td class="text-center text-nowrap">
+                  <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded bg-light border border-light-subtle">
+                    <span class="text-success fw-bold text-xs">${successCount}</span>
+                    <span class="text-secondary mx-1">/</span>
+                    <span class="text-danger fw-bold text-xs">${failCount}</span>
+                    <span class="text-secondary mx-1">/</span>
+                    <span class="text-dark fw-bold text-xs">${Number(r.total_devices || 0)}</span>
+                  </div>
+                </td>
+                <td class="text-nowrap">${statusHtml}</td>
+                <td class="text-nowrap">${actionHtml}</td>
+                <td class="text-truncate text-secondary text-xs error-summary-cell" title="${escapeText(r.error_message || "")}">${escapeText(r.error_summary || r.error_message || "")}</td>
+              </tr>`;
+          }).join("");
+        }
+
+        async function refreshRuns() {
+          if (!scheduleId) return;
+          try {
+            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/stats/runs`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            renderRuns(data.items || []);
+            if (!data.has_active_runs) {
+              stopPolling();
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        function ensurePolling() {
+          if (pollTimer || !scheduleId) return;
+          pollTimer = setInterval(refreshRuns, 2000);
+        }
+
+        async function terminatePendingTasks(runId) {
+          const rid = String(runId || "").trim();
+          if (!rid || terminatingRunIds.has(rid)) return;
+          terminatingRunIds.add(rid);
+          await refreshRuns();
+          try {
+            const resp = await fetch(`/api/schedules/runs/${encodeURIComponent(rid)}/terminate`, { method: "POST" });
+            let data = null;
+            try {
+              data = await resp.json();
+            } catch (e) {
+              data = null;
+            }
+            if (!resp.ok) {
+              const msg = data && (data.detail || data.message) ? (data.detail || data.message) : "终止失败";
+              throw new Error(msg);
+            }
+            if (data && data.message && window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast(data.message, "info");
+            }
+            ensurePolling();
+            await refreshRuns();
+          } catch (e) {
+            console.error(e);
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast("终止失败: " + e.message, "error");
+            }
+          } finally {
+            terminatingRunIds.delete(rid);
+            await refreshRuns();
+          }
+        }
+
         async function runSchedule(scheduleId) {
+          if (!btn) return;
           btn.disabled = true;
           const old = btn.innerHTML;
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
@@ -324,9 +475,12 @@
             if (!resp.ok) throw new Error("run failed");
             const data = await resp.json();
             const records = (data && data.records) || [];
-            if (records.length && window.NB && typeof window.NB.trackBackups === "function") {
-              window.NB.trackBackups(records);
-              window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+            if (records.length) {
+              if (window.NB && typeof window.NB.showToast === "function") {
+                window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+              }
+              ensurePolling();
+              refreshRuns();
             } else if (records.length === 0) {
               window.NB.showToast("没有找到需要备份的设备", "warning");
             }
@@ -338,10 +492,41 @@
             btn.innerHTML = old;
           }
         }
-        btn.addEventListener("click", () => {
-          const sid = btn.getAttribute("data-schedule-id");
-          runSchedule(sid);
-        });
+        if (btn) {
+          btn.addEventListener("click", () => {
+            const sid = btn.getAttribute("data-schedule-id");
+            runSchedule(sid);
+          });
+        }
+
+        if (runsTbody) {
+          runsTbody.addEventListener("click", (event) => {
+            const terminateBtn = event.target.closest(".js-run-terminate");
+            if (!terminateBtn) return;
+            const runId = terminateBtn.getAttribute("data-run-id");
+            if (!runId) return;
+            if (window.NB && typeof window.NB.confirm === "function") {
+              window.NB.confirm({
+                title: "确认终止",
+                message: "确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。",
+                confirmBtnText: "确认终止",
+                confirmBtnClass: "btn-danger",
+                onConfirm: () => {
+                  terminatePendingTasks(runId);
+                },
+              });
+              return;
+            }
+            if (window.confirm("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。")) {
+              terminatePendingTasks(runId);
+            }
+          });
+        }
+
+        const hasActiveRuns = {{ (runs | selectattr('status', 'in', ['planned', 'dispatching', 'running', 'finalizing', 'cancelling']) | list | length > 0) | tojson }};
+        if (hasActiveRuns) {
+          ensurePolling();
+        }
       })();
     </script>
   {% endif %}
@@ -361,7 +546,7 @@
       const w = 600;
       const h = 160; 
       const padX = 20;
-      const padY = 20;
+      const padY = 8;
       svg.innerHTML = "";
 
       const defs = el("defs");

@@ -7,7 +7,8 @@
 {% set can_device_delete = has_permission('devices.delete') %}
 {% set can_device_backup = has_permission('devices.backup') %}
 {% set can_device_webshell = has_permission('devices.webshell') %}
-{% set can_device_bulk = can_device_update or can_device_delete or can_device_backup %}
+{% set can_device_view = has_permission('devices.view') %}
+{% set can_device_bulk = can_device_update or can_device_delete or (can_device_view and can_device_backup) %}
 
 {% block content %}
   <div class="card border">
@@ -39,12 +40,15 @@
             </select>
           </div>
           <div class="col-md-2 col-sm-6">
-            <select name="group_id" class="form-select form-select-sm" style="height: 31px;">
-              <option value="0">所属分组: 全部</option>
-              {% for g in groups %}
-                <option value="{{ g.id }}" {% if filters.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
-              {% endfor %}
-            </select>
+            <div class="dropdown custom-tree-select w-100">
+              <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="filterGroupDropdownBtn" style="height: 31px;">
+                <span id="filterGroupSelectedText" class="text-truncate">所属分组: 全部</span>
+              </button>
+              <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
+                <div id="filterGroupTreeContainer"></div>
+              </div>
+              <input type="hidden" name="group_id" id="filterGroupId" value="{{ filters.group_id or '0' }}">
+            </div>
           </div>
           <div class="col-md-2 col-sm-6">
             <select name="status" class="form-select form-select-sm" style="height: 31px;">
@@ -62,6 +66,102 @@
       </div>
 
       <script>
+        const groupItems = [
+          {% for g in groups %}
+          { id: {{ g.id }}, parent_id: {{ g.parent_id or 0 }}, name: {{ g.name|tojson }}, depth: {{ g.depth }} },
+          {% endfor %}
+        ];
+
+        function buildTree(flatList) {
+            const map = new Map();
+            const roots = [];
+            
+            flatList.forEach(item => {
+                map.set(item.id, { ...item, children: [] });
+            });
+            
+            flatList.forEach(item => {
+                if (item.parent_id && map.has(item.parent_id)) {
+                    map.get(item.parent_id).children.push(map.get(item.id));
+                } else {
+                    roots.push(map.get(item.id));
+                }
+            });
+            
+            return roots;
+        }
+
+        function renderTree(nodes, container, options = {}) {
+            const ul = document.createElement('ul');
+            ul.className = 'tree-view';
+            
+            nodes.forEach(node => {
+                const li = document.createElement('li');
+                li.className = 'tree-node';
+                
+                const content = document.createElement('div');
+                content.className = 'tree-node-content' + (options.selectedId == node.id ? ' selected' : '');
+                
+                const isRoot = node.depth === 0 || node.id === 0;
+                const hasChildren = node.children && node.children.length > 0;
+                
+                const toggle = document.createElement('div');
+                toggle.className = 'tree-toggle' + (hasChildren ? '' : ' empty');
+                toggle.innerHTML = '<i class="bi bi-caret-down-fill"></i>';
+                
+                let iconClass = 'bi me-2 ';
+                let textClass = '';
+                if (node.depth === 0 || node.id === 0) {
+                    iconClass += 'bi-house-door-fill text-secondary';
+                    textClass = 'fw-medium text-body';
+                } else if (node.depth === 1) {
+                    iconClass += 'bi-folder-fill text-secondary';
+                    textClass = 'fw-medium text-body';
+                } else {
+                    iconClass += 'bi-folder text-secondary opacity-75';
+                    textClass = 'text-secondary';
+                }
+                
+                const icon = document.createElement('i');
+                icon.className = iconClass;
+                
+                const text = document.createElement('span');
+                text.className = textClass;
+                text.textContent = node.name;
+                
+                content.appendChild(toggle);
+                content.appendChild(icon);
+                content.appendChild(text);
+                li.appendChild(content);
+                
+                let childrenUl = null;
+                if (hasChildren) {
+                    childrenUl = renderTree(node.children, null, options);
+                    childrenUl.className = 'tree-view tree-children';
+                    li.appendChild(childrenUl);
+                    
+                    toggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        toggle.classList.toggle('collapsed');
+                        childrenUl.classList.toggle('collapsed');
+                    });
+                }
+                
+                content.addEventListener('click', (e) => {
+                    if (e.target.closest('.tree-toggle')) return;
+                    if (options.onSelect) options.onSelect(node);
+                });
+                
+                ul.appendChild(li);
+            });
+            
+            if (container) {
+                container.innerHTML = '';
+                container.appendChild(ul);
+            }
+            return ul;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
           class SearchableSelect {
             constructor(selectElement) {
@@ -188,15 +288,45 @@
 
           const loginSelect = document.getElementById("device-filter-login-method");
           const platformSelect = document.getElementById("device-filter-platform");
-          const groupSelect = document.querySelector('select[name="group_id"]');
+          const filterGroupIdInput = document.getElementById('filterGroupId');
 
           let platformDropdown;
           if (platformSelect) {
              platformDropdown = new SearchableSelect(platformSelect);
           }
           
-          if (groupSelect) {
-             new SearchableSelect(groupSelect);
+          if (filterGroupIdInput) {
+              const currentGroupId = parseInt(filterGroupIdInput.value || '0', 10);
+              
+              const updateFilterGroupSelection = (nodeId) => {
+                  filterGroupIdInput.value = nodeId;
+                  const selectedText = document.getElementById('filterGroupSelectedText');
+                  if (nodeId == 0) {
+                      selectedText.textContent = '所属分组: 全部';
+                  } else {
+                      const selectedGroup = groupItems.find(g => g.id == nodeId);
+                      selectedText.textContent = selectedGroup ? selectedGroup.name : '所属分组: 全部';
+                  }
+                  
+                  const treeData = [
+                      { id: 0, name: '所属分组: 全部', depth: 0, children: [] },
+                      ...buildTree(groupItems)
+                  ];
+                  
+                  renderTree(treeData, document.getElementById('filterGroupTreeContainer'), {
+                      selectedId: nodeId,
+                      onSelect: (node) => {
+                          updateFilterGroupSelection(node.id);
+                          const dropdownBtn = document.getElementById('filterGroupDropdownBtn');
+                          const bsDropdown = bootstrap.Dropdown.getInstance(dropdownBtn) || new bootstrap.Dropdown(dropdownBtn);
+                          bsDropdown.hide();
+                          // 自动触发表单提交
+                          dropdownBtn.closest('form').submit();
+                      }
+                  });
+              };
+              
+              updateFilterGroupSelection(currentGroupId);
           }
 
           if (!loginSelect || !platformSelect) return;
@@ -239,7 +369,7 @@
               <span class="fw-semibold text-primary"><i class="bi bi-check2-square me-1"></i>已选 <span id="bulk-selected-count">0</span> 台</span>
             </div>
 
-            {% if can_device_backup %}
+            {% if can_device_view and can_device_backup %}
               <form method="post" action="/devices/bulk_backup" class="d-inline" id="bulk-backup-form">
                 <input type="hidden" name="device_ids" id="bulk-device-ids" value="" />
                 <input type="hidden" name="mode" id="bulk-backup-mode" value="selected" />
@@ -289,9 +419,11 @@
             </ul>
           </div>
           <div class="btn-group btn-group-sm">
-            <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-              <i class="bi bi-download me-1"></i>导出 CSV
-            </a>
+            {% if can_device_view %}
+              <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+                <i class="bi bi-download me-1"></i>导出 CSV
+              </a>
+            {% endif %}
             {% if can_device_create or can_device_update %}
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-upload me-1"></i>导入 CSV
@@ -445,8 +577,8 @@
                   <div class="backup-status" style="background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-color: var(--bs-warning-border-subtle); font-size: 10px;">{{ d.encoding or 'utf-8' }}</div>
                 </td>
                 <td class="text-secondary small text-start">
-                  {% if d.group_id and group_map.get(d.group_id) %}
-                    <span class="text-body">{{ group_map.get(d.group_id).name }}</span>
+                  {% if d.group_id and group_paths.get(d.group_id) %}
+                    <span class="text-body">{{ group_paths.get(d.group_id) }}</span>
                   {% else %}
                     <span class="opacity-50">-</span>
                   {% endif %}
@@ -464,7 +596,7 @@
                     <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/devices/{{ d.id }}">
                       <i class="bi bi-search me-1"></i>详情
                     </a>
-                    {% if can_device_webshell %}
+                    {% if can_device_view and can_device_webshell %}
                       <form method="post" action="/devices/{{ d.id }}/webshell" target="_blank" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                         <button class="btn btn-sm btn-outline-smart-dark px-2 text-nowrap" type="submit" title="在新窗口打开 WebShell">
@@ -1201,6 +1333,9 @@
       }
       });
     </script>
+  {% endif %}
+
+  {% if can_device_create %}
     <div class="modal fade" id="deviceCreateModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
@@ -1275,12 +1410,15 @@
                   <label class="form-label small fw-bold text-secondary">
                     <i class="bi bi-grid me-1"></i>设备分组
                   </label>
-                  <select name="group_id" class="form-select form-select-lg fs-6">
-                    <option value="0">未分组</option>
-                    {% for g in groups %}
-                      <option value="{{ g.id }}">{{ g.name }}</option>
-                    {% endfor %}
-                  </select>
+                  <div class="dropdown custom-tree-select w-100">
+                    <button class="form-select form-select-lg fs-6 text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="createGroupDropdownBtn">
+                      <span id="createGroupSelectedText" class="text-truncate">未分组</span>
+                    </button>
+                    <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
+                      <div id="createGroupTreeContainer"></div>
+                    </div>
+                    <input type="hidden" name="group_id" id="createGroupId" value="0">
+                  </div>
                 </div>
                 <div class="col-12 col-lg-6">
                   <label class="form-label small fw-bold text-secondary">
@@ -1323,6 +1461,45 @@
         const loginSelect = document.getElementById("device-create-login-method");
         const platformSelect = document.getElementById("device-create-platform");
         const portInput = document.getElementById("device-create-port");
+        
+        // 分组树选择逻辑
+        const createGroupIdInput = document.getElementById('createGroupId');
+        if (createGroupIdInput) {
+            const updateCreateGroupSelection = (nodeId) => {
+                createGroupIdInput.value = nodeId;
+                const selectedText = document.getElementById('createGroupSelectedText');
+                if (nodeId == 0) {
+                    selectedText.textContent = '未分组';
+                } else {
+                    const selectedGroup = groupItems.find(g => g.id == nodeId);
+                    selectedText.textContent = selectedGroup ? selectedGroup.name : '未分组';
+                }
+                
+                const treeData = [
+                    { id: 0, name: '未分组', depth: 0, children: [] },
+                    ...buildTree(groupItems)
+                ];
+                
+                renderTree(treeData, document.getElementById('createGroupTreeContainer'), {
+                    selectedId: nodeId,
+                    onSelect: (node) => {
+                        updateCreateGroupSelection(node.id);
+                        const dropdownBtn = document.getElementById('createGroupDropdownBtn');
+                        const bsDropdown = bootstrap.Dropdown.getInstance(dropdownBtn) || new bootstrap.Dropdown(dropdownBtn);
+                        bsDropdown.hide();
+                    }
+                });
+            };
+            
+            // 初始化
+            const modal = document.getElementById('deviceCreateModal');
+            if (modal) {
+                modal.addEventListener('show.bs.modal', function() {
+                    updateCreateGroupSelection(0);
+                });
+            }
+        }
+
         if (!loginSelect || !platformSelect) return;
 
         function syncPlatformOptions() {
@@ -1355,7 +1532,9 @@
         syncPlatformOptions();
       })();
     </script>
+  {% endif %}
 
+  {% if can_device_create or can_device_update %}
     <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
@@ -1391,7 +1570,8 @@
                   <code class="text-dark bg-light px-1 rounded">platform</code>, 
                   <code class="text-dark bg-light px-1 rounded">encoding</code>(可选), 
                   <code class="text-dark bg-light px-1 rounded">group_name</code>(可选), 
-                  <code class="text-dark bg-light px-1 rounded">credential_name</code>
+                  <code class="text-dark bg-light px-1 rounded">credential_name</code>,
+                  <code class="text-dark bg-light px-1 rounded">default_template_name</code>(可选)
                 </div>
               </div>
 
@@ -1424,7 +1604,9 @@
         </div>
       </div>
     </div>
+  {% endif %}
 
+  {% if can_device_update %}
     <!-- Bulk Update Modal -->
     <div class="modal fade" id="bulkUpdateModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -1469,7 +1651,12 @@
                   <select class="form-select form-select-lg fs-6" name="value" id="bulk-update-group-select">
                     <option value="0">无分组</option>
                     {% for g in groups %}
-                    <option value="{{ g.id }}">{{ g.name }}</option>
+                      <option value="{{ g.id }}">
+                        {% if g.depth > 0 %}
+                          {% for _ in range(g.depth) %}&nbsp;&nbsp;&nbsp;&nbsp;{% endfor %}├─ 
+                        {% endif %}
+                        {{ g.name }}
+                      </option>
                     {% endfor %}
                   </select>
 

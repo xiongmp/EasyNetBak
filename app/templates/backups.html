@@ -17,7 +17,7 @@
             <button class="btn btn-outline-primary btn-sm px-2" id="multi-device-btn" title="点击切换多设备对比模式">
               <i class="bi bi-intersect me-1"></i>多设备对比
             </button>
-            {% if has_permission('backups.trigger') %}
+            {% if has_permission('devices.backup') %}
             <button class="btn btn-primary btn-sm ms-auto px-3" id="backup-now-btn" disabled>
               <i class="bi bi-play-fill me-1"></i>立即备份
             </button>
@@ -193,7 +193,7 @@
   </div>
 
   <script>
-    const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('backups.trigger') else "false" }};
+    const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('devices.backup') else "false" }};
     const CAN_DELETE_BACKUP = {{ "true" if has_permission('backups.delete') else "false" }};
     const DEVICE_ROWS = {{ device_rows | tojson }};
 
@@ -267,32 +267,10 @@
     }
 
     function getStatusBadge(b) {
-      if (!b.finished_at) {
-        return '<div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>';
+      if (window.NB && typeof window.NB.renderTaskStatusBadge === "function") {
+        return window.NB.renderTaskStatusBadge("backup_record", b);
       }
-      if (b.success) {
-        return '<div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>';
-      }
-      const err = b.error_message || "";
-      let label = "失败";
-      let title = "";
-      
-      if (err.includes("连接超时")) { label = "超时"; title = "连接超时"; }
-      else if (err.includes("认证失败")) { label = "认证失败"; title = "认证失败"; }
-      else if (err.includes("连接被拒绝")) { label = "被拒绝"; title = "连接被拒绝"; }
-      else if (err.includes("特权模式失败")) { label = "特权失败"; title = "Enable 密码错误"; }
-      else if (err.includes("读取超时")) { label = "读取超时"; title = "设备响应慢"; }
-      else if (err.includes("连接断开")) { label = "连接断开"; title = "网络不稳定或被强制关闭"; }
-      else if (err.includes("密钥错误")) { label = "密钥错误"; title = "SSH 密钥无效"; }
-      else if (err.includes("权限不足")) { label = "权限不足"; title = "命令执行权限不足"; }
-      else if (err.includes("协议/命令错误")) { label = "配置错误"; title = "平台驱动或命令不匹配"; }
-      else if (err.includes("提示符错误")) { label = "交互错误"; title = "无法识别设备提示符"; }
-      else if (err.includes("域名解析失败")) { label = "DNS 错误"; title = "无法解析主机名"; }
-      else if (err.includes("网络不可达")) { label = "路由不可达"; title = "无路由或网络中断"; }
-      else if (err.includes("算法不匹配")) { label = "算法冲突"; title = "加密算法不支持"; }
-      else if (err.includes("会话超限")) { label = "会话满"; title = "设备连接数已满"; }
-
-      return `<div class="backup-status backup-status-failed" ${title ? `title="${title}"` : ''}><i class="bi bi-x-circle"></i>${label}</div>`;
+      return escapeText((b.status_label || b.status || ""));
     }
 
     function renderBackupsTable() {
@@ -527,7 +505,14 @@
       if (selectedDeviceIds.length === 1) {
          const dBackups = deviceBackupsMap[selectedDeviceIds[0]].backups || [];
          const newest = dBackups.length ? dBackups[0] : null;
-         if (newest && newest.id && !newest.finished_at) {
+         if (
+           newest &&
+           newest.id &&
+           (
+             (window.NB && typeof window.NB.isActiveBackupStatus === "function" && window.NB.isActiveBackupStatus(newest.status))
+             || (!window.NB && !newest.finished_at)
+           )
+         ) {
             startPolling(selectedDeviceIds[0], newest.id);
          }
       }

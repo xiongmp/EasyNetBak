@@ -77,7 +77,7 @@
             <!-- 备份管理 -->
             {% set can_backups = has_permission('backups.view') %}
             {% set can_config_search = has_permission('config_search.view') %}
-            {% set can_diff_rules = has_permission('diff_rules.view') or has_permission('diff_rules.update') %}
+            {% set can_diff_rules = has_permission('diff_rules.view') or has_permission('diff_rules.update') or has_permission('diff_rules.delete') %}
             {% set can_schedules = has_permission('schedules.view') or has_permission('schedules.create') or has_permission('schedules.update') or has_permission('schedules.delete') %}
             {% set backup_active = active in ['backups', 'schedules', 'config_search', 'diff_rules'] %}
             {% set backup_visible = can_backups or can_config_search or can_diff_rules or can_schedules %}
@@ -817,6 +817,22 @@
             }
           }
 
+          async function resolveBackupViewErrorMessage(resp) {
+            if (!resp) return "备份内容加载失败";
+
+            let detail = "";
+            try {
+              const payload = await resp.clone().json();
+              detail = payload && typeof payload.detail === "string" ? payload.detail : "";
+            } catch (e) {
+              detail = "";
+            }
+
+            if (resp.status === 403) return "当前账号无权限查看备份内容";
+            if (resp.status === 404) return detail || "备份记录不存在";
+            return detail || "备份内容加载失败";
+          }
+
           async function openBackupView(backupId) {
             if (!backupId || !backupViewModalEl) return;
             if (!backupViewModal) {
@@ -850,7 +866,7 @@
             if (backupViewLoading) backupViewLoading.classList.add("d-none");
             if (!resp || !resp.ok) {
               if (backupViewError) {
-                backupViewError.textContent = "备份内容加载失败";
+                backupViewError.textContent = await resolveBackupViewErrorMessage(resp);
                 backupViewError.classList.remove("d-none");
               }
               return;
@@ -877,6 +893,80 @@
             renderBackupText(record.config_text || "");
           }
 
+          function isActiveBackupStatus(status) {
+            return ["planned", "queued", "running"].includes(String(status || "").trim());
+          }
+
+          function isActiveScheduleRunStatus(status) {
+            return ["planned", "dispatching", "running", "finalizing", "cancelling"].includes(String(status || "").trim());
+          }
+
+          function backupStatusMeta(status, fallbackSuccess) {
+            const normalized = String(status || "").trim();
+            const metaMap = {
+              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
+              queued: { label: "已入队", tone: "info", icon: "bi-list-task" },
+              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
+              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
+              succeeded: { label: "成功", tone: "success", icon: "bi-check-circle" },
+              failed: { label: "失败", tone: "failed", icon: "bi-x-circle" },
+            };
+            if (metaMap[normalized]) {
+              return { ...metaMap[normalized], status: normalized };
+            }
+            if (fallbackSuccess === true) {
+              return { label: "成功", tone: "success", icon: "bi-check-circle", status: "succeeded" };
+            }
+            if (fallbackSuccess === false) {
+              return { label: "失败", tone: "failed", icon: "bi-x-circle", status: "failed" };
+            }
+            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
+          }
+
+          function scheduleRunStatusMeta(status) {
+            const normalized = String(status || "").trim();
+            const metaMap = {
+              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
+              dispatching: { label: "派发中", tone: "info", icon: "bi-send" },
+              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
+              finalizing: { label: "收尾中", tone: "running", icon: "bi-hourglass-bottom" },
+              cancelling: { label: "终止中", tone: "warning", icon: "bi-slash-circle" },
+              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
+              partial_cancelled: { label: "部分终止", tone: "warning", icon: "bi-exclamation-octagon" },
+              succeeded: { label: "全部成功", tone: "success", icon: "bi-check-all" },
+              partial_failed: { label: "部分失败", tone: "failed", icon: "bi-exclamation-triangle" },
+              failed: { label: "全部失败", tone: "failed", icon: "bi-x-circle" },
+            };
+            if (metaMap[normalized]) {
+              return { ...metaMap[normalized], status: normalized };
+            }
+            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
+          }
+
+          function taskStatusMeta(kind, status, fallbackSuccess) {
+            if (String(kind || "") === "schedule_run") {
+              return scheduleRunStatusMeta(status);
+            }
+            return backupStatusMeta(status, fallbackSuccess);
+          }
+
+          function renderTaskStatusBadge(kind, record) {
+            const meta = taskStatusMeta(kind, record ? record.status : "", record ? record.success : null);
+            return `<div class="backup-status backup-status-${meta.tone}"><i class="bi ${meta.icon}"></i>${escapeText(meta.label)}</div>`;
+          }
+
+          function renderBackupStatusBadge(record) {
+            return renderTaskStatusBadge("backup_record", record);
+          }
+
+          window.NB.backupStatusMeta = backupStatusMeta;
+          window.NB.scheduleRunStatusMeta = scheduleRunStatusMeta;
+          window.NB.taskStatusMeta = taskStatusMeta;
+          window.NB.renderTaskStatusBadge = renderTaskStatusBadge;
+          window.NB.renderBackupStatusBadge = renderBackupStatusBadge;
+          window.NB.isActiveBackupStatus = isActiveBackupStatus;
+          window.NB.isActiveScheduleRunStatus = isActiveScheduleRunStatus;
+
           function render() {
             const jobs = state.jobs;
             if (!jobs.length) {
@@ -885,9 +975,18 @@
             }
             setPanelVisible(true);
             const allDevices = jobs.reduce((acc, j) => acc + (j.devices ? j.devices.length : 0), 0);
-            const runningDevices = jobs.reduce((acc, j) => acc + (j.devices ? j.devices.filter((d) => !d.finished_at).length : 0), 0);
-            const successDevices = jobs.reduce((acc, j) => acc + (j.devices ? j.devices.filter((d) => d.finished_at && d.success).length : 0), 0);
-            const failedDevices = jobs.reduce((acc, j) => acc + (j.devices ? j.devices.filter((d) => d.finished_at && !d.success).length : 0), 0);
+            const runningDevices = jobs.reduce(
+              (acc, j) => acc + (j.devices ? j.devices.filter((d) => isActiveBackupStatus(d.status)).length : 0),
+              0,
+            );
+            const successDevices = jobs.reduce(
+              (acc, j) => acc + (j.devices ? j.devices.filter((d) => String(d.status || "") === "succeeded").length : 0),
+              0,
+            );
+            const failedDevices = jobs.reduce(
+              (acc, j) => acc + (j.devices ? j.devices.filter((d) => String(d.status || "") === "failed").length : 0),
+              0,
+            );
             summary.textContent = `任务：${jobs.length} · 设备：${allDevices} 台 · 进行中：${runningDevices} · 成功：${successDevices} · 失败：${failedDevices}`;
 
             const rows = [];
@@ -900,11 +999,7 @@
                 </tr>`,
               );
               (job.devices || []).forEach((d) => {
-                const status = !d.finished_at
-                  ? '<div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>'
-                  : d.success
-                    ? '<div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>'
-                    : '<div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>失败</div>';
+                const status = renderBackupStatusBadge(d);
                 const name = escapeText(d.name || "");
                 const host = escapeText(d.host || "");
                 const started = escapeText(d.started_at || "");
@@ -991,7 +1086,7 @@
               const devices = (job.backup_ids || []).map((bid) => {
                 const it = map[bid];
                 if (!it) {
-                  return { id: bid, name: "", host: "", started_at: "", finished_at: null, success: false, error_message: "" };
+                  return { id: bid, name: "", host: "", started_at: "", finished_at: null, status: "planned", success: false, error_message: "" };
                 }
                 return {
                   id: it.id,
@@ -999,6 +1094,7 @@
                   host: it.device ? it.device.host : "",
                   started_at: it.started_at || "",
                   finished_at: it.finished_at || null,
+                  status: it.status || "",
                   success: it.success,
                   error_message: it.error_message || "",
                 };
@@ -1007,7 +1103,7 @@
             });
             render();
 
-            const running = state.jobs.some((j) => j.devices && j.devices.some((d) => !d.finished_at));
+            const running = state.jobs.some((j) => j.devices && j.devices.some((d) => isActiveBackupStatus(d.status)));
             if (!running) {
               stopTimer();
             }

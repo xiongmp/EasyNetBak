@@ -65,7 +65,104 @@
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-8">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 px-3">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active py-2" id="health-overview-tab" data-bs-toggle="tab" data-bs-target="#health-overview-pane" type="button" role="tab" aria-controls="health-overview-pane" aria-selected="true">备份耗时</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link py-2" id="health-details-tab" data-bs-toggle="tab" data-bs-target="#health-details-pane" type="button" role="tab" aria-controls="health-details-pane" aria-selected="false">上传统计</button>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body px-3 pb-3">
+        {% if task_health.degraded_components %}
+        <div class="alert alert-warning py-2 px-3 small mb-3" role="alert">
+          <div class="fw-semibold mb-1">任务链路存在降级</div>
+          {% for item in task_health.degraded_components %}
+          <div>{{ item.component }}: {{ item.message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="tab-content">
+          <!-- 概览 Tab -->
+          <div class="tab-pane fade show active" id="health-overview-pane" role="tabpanel" aria-labelledby="health-overview-tab" tabindex="0">
+            <div class="d-flex align-items-center justify-content-center mt-3 mb-2">
+              <i class="bi bi-clock-history text-muted opacity-25" style="font-size: 2.2rem;"></i>
+            </div>
+            <div class="text-center text-muted small mb-3">最近 24 小时耗时分布</div>
+            <div class="row g-2 mb-2">
+              <div class="col-4">
+                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
+                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">平均</div>
+                  <div class="fs-5 fw-bold text-primary">{{ task_health.avg_duration_seconds }}s</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
+                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">最小</div>
+                  <div class="fs-5 fw-bold text-success">{{ task_health.min_duration_seconds }}s</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
+                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">最大</div>
+                  <div class="fs-5 fw-bold text-danger">{{ task_health.max_duration_seconds }}s</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 详细统计 Tab -->
+          <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="max-height: 250px; overflow-y: auto; overflow-x: hidden;">
+            <div class="mt-2 mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between">
+              <div class="text-muted small">24h 成功率</div>
+              <div class="d-flex align-items-baseline">
+                <div class="fw-bold me-2 {% if task_health.upload_success_rate >= 90 %}text-success{% elif task_health.upload_success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                  {{ task_health.upload_success_rate }}%
+                </div>
+                <div class="text-muted" style="font-size: 0.7rem;">{{ task_health.upload_success_total }}/{{ task_health.upload_attempt_total }}</div>
+              </div>
+            </div>
+            
+            <div class="table-responsive" style="overflow-x: hidden;">
+              <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.75rem; table-layout: fixed;">
+                <thead class="table-light">
+                  <tr>
+                    <th class="ps-1" style="width: 35%;">存储类型</th>
+                    <th class="text-center" style="width: 35%;">成功/尝试</th>
+                    <th class="text-end pe-1" style="width: 30%;">率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in task_health.storage_uploads %}
+                  <tr>
+                    <td class="ps-1 text-secondary text-truncate" title="{{ item.storage_type }}">
+                      {{ item.storage_type }}
+                    </td>
+                    <td class="text-center text-muted text-nowrap">{{ item.success_count }}/{{ item.attempt_count }}</td>
+                    <td class="text-end pe-1 fw-semibold text-nowrap {% if item.success_rate >= 90 %}text-success{% elif item.success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                      {{ item.success_rate }}%
+                    </td>
+                  </tr>
+                  {% else %}
+                  <tr>
+                    <td colspan="3" class="text-center text-muted py-2">
+                      <div style="font-size: 0.7rem;">无上传事件</div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-transparent border-0 pt-3 px-3">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
@@ -101,14 +198,14 @@
       </div>
     </div>
   </div>
-  <div class="col-md-4">
+  <div class="col-md-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-transparent border-0 pt-3 px-3">
         <h6 class="card-title mb-0 fw-bold">设备平台分布</h6>
       </div>
       <div class="card-body px-3 pb-3">
-        <div id="platform-pie-chart" style="min-height: 200px;">
-          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
+        <div id="platform-pie-chart" style="min-height: 220px;">
+          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 220px;">
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">加载中...</span>
             </div>
@@ -369,18 +466,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         legend: {
-            bottom: '0',
+            bottom: '5',
             left: 'center',
-            itemWidth: 12,
-            itemHeight: 12,
-            textStyle: { fontSize: 11, color: chartTextColor }
+            itemWidth: 10,
+            itemHeight: 10,
+            padding: [0, 5],
+            textStyle: { fontSize: 10, color: chartTextColor }
         },
         series: [
             {
                 name: '平台',
                 type: 'pie',
-                radius: ['50%', '80%'],
-                center: ['50%', '45%'],
+                radius: ['45%', '70%'],
+                center: ['50%', '40%'],
                 avoidLabelOverlap: false,
                 itemStyle: {
                     borderRadius: 5,

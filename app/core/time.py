@@ -43,3 +43,12 @@ def apply_timezone_offset(value: datetime | None, offset_minutes: int) -> dateti
     if value.tzinfo is not None and value.utcoffset() is not None:
         return value.astimezone(timezone(timedelta(minutes=offset_minutes)))
     return value + timedelta(minutes=offset_minutes)
+
+
+def format_local_datetime(value: datetime | None, *, offset_minutes: int) -> str:
+    if value is None:
+        return ""
+    local_value = apply_timezone_offset(value, offset_minutes)
+    if local_value is None:
+        return ""
+    return local_value.strftime("%Y-%m-%d %H:%M:%S")

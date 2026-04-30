@@ -1,7 +1,10 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_backup_record_status, render_pagination %}
 {% set page_title = "设备详情" %}
 {% set page_subtitle = "查看备份历史并手动触发备份" %}
+{% set can_device_view = has_permission('devices.view') %}
+{% set can_trigger_backup = can_device_view and has_permission('devices.backup') %}
+{% set can_backup_history_view = has_permission('backups.view') %}
 
 {% block content %}
   <div class="card border shadow-sm mb-3">
@@ -18,8 +21,8 @@
               <span><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
               <span><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
               <span><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
-              {% if device.group_id and groups.get(device.group_id) %}
-                <span><i class="bi bi-grid me-1"></i>{{ groups.get(device.group_id).name }}</span>
+              {% if device.group_id and group_map.get(device.group_id) %}
+                <span><i class="bi bi-grid me-1"></i>{{ group_map.get(device.group_id).name }}</span>
               {% endif %}
               {% if device.credential_id and credentials.get(device.credential_id) %}
                 <span><i class="bi bi-shield-lock me-1"></i>{{ credentials.get(device.credential_id).name }}</span>
@@ -34,7 +37,7 @@
 
       <hr class="text-black-50 opacity-10 mb-3" />
 
-      {% if has_permission('devices.backup') %}
+      {% if has_permission('devices.update') %}
         <!-- 设备配置表单 -->
         <form method="post" action="/devices/{{ device.id }}/update">
           <div class="row g-3">
@@ -82,12 +85,15 @@
             </div>
             <div class="col-12 col-lg-3">
               <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-grid me-1"></i>设备分组</label>
-              <select name="group_id" class="form-select form-select-sm">
-                <option value="0">未分组</option>
-                {% for gid, g in groups.items() %}
-                  <option value="{{ gid }}" {% if device.group_id == gid %}selected{% endif %}>{{ g.name }}</option>
-                {% endfor %}
-              </select>
+              <div class="dropdown custom-tree-select w-100">
+                <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="updateGroupDropdownBtn">
+                  <span id="updateGroupSelectedText" class="text-truncate">未分组</span>
+                </button>
+                <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
+                  <div id="updateGroupTreeContainer"></div>
+                </div>
+                <input type="hidden" name="group_id" id="updateGroupId" value="{{ device.group_id or '0' }}">
+              </div>
             </div>
             <div class="col-12 col-lg-3">
               <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-shield-lock me-1"></i>登录凭据</label>
@@ -121,7 +127,7 @@
         </div>
       {% endif %}
 
-      {% if has_permission('devices.backup') %}
+      {% if can_trigger_backup %}
         <hr class="text-black-50 opacity-10 my-3" />
 
         <!-- 立即备份操作 -->
@@ -157,10 +163,147 @@
 
       {% if has_permission('devices.update') %}
         <script>
+          const groupItems = [
+            {% for g in groups %}
+            { id: {{ g.id }}, parent_id: {{ g.parent_id or 0 }}, name: {{ g.name|tojson }}, depth: {{ g.depth }} },
+            {% endfor %}
+          ];
+
+          function buildTree(flatList) {
+              const map = new Map();
+              const roots = [];
+              
+              flatList.forEach(item => {
+                  map.set(item.id, { ...item, children: [] });
+              });
+              
+              flatList.forEach(item => {
+                  if (item.parent_id && map.has(item.parent_id)) {
+                      map.get(item.parent_id).children.push(map.get(item.id));
+                  } else {
+                      roots.push(map.get(item.id));
+                  }
+              });
+              
+              return roots;
+          }
+
+          function renderTree(nodes, container, options = {}) {
+              const ul = document.createElement('ul');
+              ul.className = 'tree-view';
+              
+              nodes.forEach(node => {
+                  const li = document.createElement('li');
+                  li.className = 'tree-node';
+                  
+                  const content = document.createElement('div');
+                  content.className = 'tree-node-content' + (options.selectedId == node.id ? ' selected' : '');
+                  
+                  const isRoot = node.depth === 0 || node.id === 0;
+                  const hasChildren = node.children && node.children.length > 0;
+                  
+                  const toggle = document.createElement('div');
+                  toggle.className = 'tree-toggle' + (hasChildren ? '' : ' empty');
+                  toggle.innerHTML = '<i class="bi bi-caret-down-fill"></i>';
+                  
+                  let iconClass = 'bi me-2 ';
+                  let textClass = '';
+                  if (node.depth === 0 || node.id === 0) {
+                      iconClass += 'bi-house-door-fill text-secondary';
+                      textClass = 'fw-medium text-body';
+                  } else if (node.depth === 1) {
+                      iconClass += 'bi-folder-fill text-secondary';
+                      textClass = 'fw-medium text-body';
+                  } else {
+                      iconClass += 'bi-folder text-secondary opacity-75';
+                      textClass = 'text-secondary';
+                  }
+                  
+                  const icon = document.createElement('i');
+                  icon.className = iconClass;
+                  
+                  const text = document.createElement('span');
+                  text.className = textClass;
+                  text.textContent = node.name;
+                  
+                  content.appendChild(toggle);
+                  content.appendChild(icon);
+                  content.appendChild(text);
+                  li.appendChild(content);
+                  
+                  let childrenUl = null;
+                  if (hasChildren) {
+                      childrenUl = renderTree(node.children, null, options);
+                      childrenUl.className = 'tree-view tree-children';
+                      li.appendChild(childrenUl);
+                      
+                      toggle.addEventListener('click', (e) => {
+                          e.stopPropagation();
+                          toggle.classList.toggle('collapsed');
+                          childrenUl.classList.toggle('collapsed');
+                      });
+                  }
+                  
+                  content.addEventListener('click', (e) => {
+                      if (e.target.closest('.tree-toggle')) return;
+                      if (options.onSelect) options.onSelect(node);
+                  });
+                  
+                  ul.appendChild(li);
+              });
+              
+              if (container) {
+                  container.innerHTML = '';
+                  container.appendChild(ul);
+              }
+              return ul;
+          }
+
           (function () {
             const loginSelect = document.getElementById("device-update-login-method");
             const platformSelect = document.getElementById("device-update-platform");
             const portInput = document.getElementById("device-update-port");
+            
+            // 分组树选择逻辑
+            const updateGroupIdInput = document.getElementById('updateGroupId');
+            if (updateGroupIdInput) {
+                const currentGroupId = parseInt(updateGroupIdInput.value || '0', 10);
+                
+                const updateGroupSelection = (nodeId) => {
+                    updateGroupIdInput.value = nodeId;
+                    const selectedText = document.getElementById('updateGroupSelectedText');
+                    if (nodeId == 0) {
+                        selectedText.textContent = '未分组';
+                    } else {
+                        // 使用 group_paths 获取全路径，如果不存在则退回使用 name
+                        const pathData = {{ group_paths|tojson }};
+                        const selectedGroup = groupItems.find(g => g.id == nodeId);
+                        if (pathData && pathData[nodeId]) {
+                            selectedText.textContent = pathData[nodeId];
+                        } else {
+                            selectedText.textContent = selectedGroup ? selectedGroup.name : '未分组';
+                        }
+                    }
+                    
+                    const treeData = [
+                        { id: 0, name: '未分组', depth: 0, children: [] },
+                        ...buildTree(groupItems)
+                    ];
+                    
+                    renderTree(treeData, document.getElementById('updateGroupTreeContainer'), {
+                        selectedId: nodeId,
+                        onSelect: (node) => {
+                            updateGroupSelection(node.id);
+                            const dropdownBtn = document.getElementById('updateGroupDropdownBtn');
+                            const bsDropdown = bootstrap.Dropdown.getInstance(dropdownBtn) || new bootstrap.Dropdown(dropdownBtn);
+                            bsDropdown.hide();
+                        }
+                    });
+                };
+                
+                updateGroupSelection(currentGroupId);
+            }
+
             if (!loginSelect || !platformSelect) return;
 
             function syncPlatformOptions(isInitial) {
@@ -200,54 +343,52 @@
   <div class="card">
     <div class="card-body">
       <div class="fw-semibold mb-3">备份历史</div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th style="width: 220px;">时间</th>
-              <th style="width: 110px;">状态</th>
-              <th>错误</th>
-              <th style="width: 220px;">操作</th>
-            </tr>
-          </thead>
-          <tbody id="device-backups-tbody">
-            {% for r in backups %}
+      {% if can_backup_history_view %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
               <tr>
-                <td class="text-secondary small">{{ r.started_at|dt_local }}</td>
-                <td>
-                  {% if r.finished_at %}
-                    {% if r.success %}
-                      <div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>
-                    {% else %}
-                      <div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>失败</div>
-                    {% endif %}
-                  {% else %}
-                    <div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>
-                  {% endif %}
-                </td>
-                <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
-                <td>
-                  <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">查看</button>
-                </td>
+                <th style="width: 220px;">时间</th>
+                <th style="width: 110px;">状态</th>
+                <th>错误</th>
+                <th style="width: 220px;">操作</th>
               </tr>
-            {% else %}
-              <tr>
-                <td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {{ render_pagination(pagination, pagination_base, "次备份") }}
+            </thead>
+            <tbody id="device-backups-tbody">
+              {% for r in backups %}
+                <tr>
+                  <td class="text-secondary small">{{ r.started_at|dt_local }}</td>
+                  <td>
+                    {{ render_backup_record_status(r.status) }}
+                  </td>
+                  <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">查看</button>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {{ render_pagination(pagination, pagination_base, "次备份") }}
+      {% else %}
+        <div class="alert alert-secondary mb-0 border-0 shadow-sm">
+          <i class="bi bi-lock-fill me-2"></i>当前账号无权限查看备份历史
+        </div>
+      {% endif %}
     </div>
   </div>
 
   <script>
-    const CAN_TRIGGER_BACKUP = {{ "true" if has_permission('devices.backup') else "false" }};
+    const CAN_TRIGGER_BACKUP = {{ "true" if can_trigger_backup else "false" }};
     const DEVICE_ID = {{ device.id }};
     const CURRENT_PAGE = {{ pagination.page }};
     const PAGE_LIMIT = {{ pagination.limit }};
-    {% set running_backup = backups | selectattr('finished_at', 'none') | first %}
+    {% set running_backup = backups | selectattr('status', 'in', ['planned', 'queued', 'running']) | first %}
     const RUNNING_BACKUP_ID = {{ running_backup.id | string | tojson if running_backup else 'null' }};
 
     const els = {
@@ -302,11 +443,9 @@
         return;
       }
       const rows = items.map((b, idx) => {
-        const status = !b.finished_at
-          ? '<div class="backup-status backup-status-running"><i class="bi bi-arrow-repeat"></i>运行中</div>'
-          : b.success
-            ? '<div class="backup-status backup-status-success"><i class="bi bi-check-circle"></i>成功</div>'
-            : '<div class="backup-status backup-status-failed"><i class="bi bi-x-circle"></i>失败</div>';
+        const status = window.NB && typeof window.NB.renderTaskStatusBadge === "function"
+          ? window.NB.renderTaskStatusBadge("backup_record", b)
+          : escapeText((b.status_label || b.status || ""));
         const err = b.error_message ? escapeText(b.error_message) : "";
         return `
           <tr>
@@ -340,7 +479,9 @@
         renderBackupsTable(backups);
 
         const target = backups.find((b) => b.id === targetBackupId);
-        const done = target && !!target.finished_at;
+        const done = target && !(window.NB && typeof window.NB.isActiveBackupStatus === "function"
+          ? window.NB.isActiveBackupStatus(target.status)
+          : !target.finished_at);
         if (done || polling.tries >= 120) {
           stopPolling();
           setDisabled(els.btn, false);

@@ -1,22 +1,43 @@
 {% extends "base.html" %}
+{% set can_update_rules = has_permission('diff_rules.update') %}
+{% set can_delete_rules = has_permission('diff_rules.delete') %}
+{% set can_submit_rules = can_update_rules or can_delete_rules %}
 
 {% block content %}
 
 <div class="container-fluid px-0">
   <form method="post" action="/diff-rules" id="diff-rules-form">
-    {% if has_permission('diff_rules.update') %}
+    {% if can_submit_rules %}
     <div class="d-flex flex-wrap gap-3 align-items-center justify-content-end mb-4">
       <div class="d-flex gap-2">
+        {% if can_update_rules and can_delete_rules %}
         <button type="button" class="btn btn-link text-secondary btn-sm text-decoration-none" id="btn-reset-default">
           <i class="bi bi-arrow-counterclockwise me-1"></i>重置为默认
         </button>
+        {% endif %}
+        {% if can_update_rules %}
         <button type="button" class="btn btn-outline-primary btn-sm px-3" id="btn-add-rule" style="border-radius: 10px;">
           <i class="bi bi-plus-lg me-1"></i>新增规则
         </button>
+        {% endif %}
         <button type="submit" class="btn btn-primary btn-sm px-4" style="border-radius: 10px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
           <i class="bi bi-check2-all me-1"></i>保存更改
         </button>
       </div>
+    </div>
+    {% endif %}
+
+    {% if not can_submit_rules %}
+    <div class="alert alert-secondary border-0 shadow-sm mb-4" role="alert">
+      当前账号仅可查看 Diff 忽略规则，不能新增、修改或删除。
+    </div>
+    {% elif can_delete_rules and not can_update_rules %}
+    <div class="alert alert-info border-0 shadow-sm mb-4" role="alert">
+      当前账号仅可删除已有规则，不能新增或修改规则内容。
+    </div>
+    {% elif can_update_rules and not can_delete_rules %}
+    <div class="alert alert-warning border-0 shadow-sm mb-4" role="alert">
+      当前账号可新增或修改规则，但不能删除已有规则。
     </div>
     {% endif %}
 
@@ -55,12 +76,18 @@
   const DEFAULT_RULES = {{ default_rules | tojson }};
   const PLATFORMS = {{ platforms | tojson }};
   const GROUPS = {{ groups | tojson }};
+  const CAN_UPDATE_RULES = {{ can_update_rules | tojson }};
+  const CAN_DELETE_RULES = {{ can_delete_rules | tojson }};
+  const CAN_SUBMIT_RULES = {{ can_submit_rules | tojson }};
 
   const rulesContainer = document.getElementById("rules-container");
   const formEl = document.getElementById("diff-rules-form");
   const rulesInput = document.getElementById("rules_json");
   const addBtn = document.getElementById("btn-add-rule");
   const resetBtn = document.getElementById("btn-reset-default");
+  const canCreateRules = Boolean(CAN_UPDATE_RULES && addBtn && formEl);
+  const canResetRules = Boolean(CAN_UPDATE_RULES && CAN_DELETE_RULES && resetBtn && formEl);
+  const canSubmitRules = Boolean(CAN_SUBMIT_RULES && formEl && rulesInput);
 
   const HINTS = [
     "^ntp clock-period.*",
@@ -122,9 +149,11 @@
     const row = document.createElement("div");
     row.className = "rule-card rule-row";
     row.innerHTML = `
+      ${CAN_DELETE_RULES ? `
       <button type="button" class="btn-remove-rule" title="移除此规则">
         <i class="bi bi-trash-fill"></i>
       </button>
+      ` : ""}
       
       <!-- Left Sidebar: Scope & Targets -->
       <div class="rule-sidebar">
@@ -184,9 +213,21 @@
       patternsInput.value = rule.patterns.join("\n");
     }
 
+    if (!CAN_UPDATE_RULES) {
+      scopeSelect.disabled = true;
+      platformSelect.disabled = true;
+      groupSelect.disabled = true;
+      patternsInput.readOnly = true;
+      row.querySelectorAll(".hint-chip").forEach((chip) => {
+        chip.classList.add("disabled");
+        chip.setAttribute("aria-disabled", "true");
+      });
+    }
+
     // Hint clicks
     row.querySelectorAll(".hint-chip").forEach(chip => {
       chip.addEventListener("click", () => {
+        if (!CAN_UPDATE_RULES) return;
         const val = chip.textContent.trim();
         const current = patternsInput.value.trim();
         const lines = current ? current.split("\n") : [];
@@ -200,27 +241,33 @@
     });
 
     updateRuleUI(row);
-    scopeSelect.addEventListener("change", () => updateRuleUI(row));
-    
-    row.querySelector(".btn-remove-rule").addEventListener("click", () => {
-      if (window.NB && typeof window.NB.confirmDelete === "function") {
-        window.NB.confirmDelete("确定要永久移除这条忽略规则吗？", () => {
-          row.style.opacity = "0";
-          row.style.transform = "scale(0.95) translateX(30px)";
-          setTimeout(() => {
-            row.remove();
-            if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("规则已成功移除", "info");
-            }
-            if (!rulesContainer.querySelector(".rule-row")) {
-              loadRules([]);
-            }
-          }, 300);
-        });
-      } else if (confirm("确定要删除这条规则吗？")) {
-        row.remove();
-      }
-    });
+    if (CAN_UPDATE_RULES) {
+      scopeSelect.addEventListener("change", () => updateRuleUI(row));
+    }
+
+    const removeBtn = row.querySelector(".btn-remove-rule");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => {
+        if (!CAN_DELETE_RULES) return;
+        if (window.NB && typeof window.NB.confirmDelete === "function") {
+          window.NB.confirmDelete("确定要永久移除这条忽略规则吗？", () => {
+            row.style.opacity = "0";
+            row.style.transform = "scale(0.95) translateX(30px)";
+            setTimeout(() => {
+              row.remove();
+              if (window.NB && typeof window.NB.showToast === "function") {
+                window.NB.showToast("规则已成功移除", "info");
+              }
+              if (!rulesContainer.querySelector(".rule-row")) {
+                loadRules([]);
+              }
+            }, 300);
+          });
+        } else if (confirm("确定要删除这条规则吗？")) {
+          row.remove();
+        }
+      });
+    }
     
     return row;
   }
@@ -234,9 +281,10 @@
         <div class="mb-4 text-primary opacity-20"><i class="bi bi-regex" style="font-size: 5rem;"></i></div>
         <h5 class="fw-bold">暂无自定义忽略规则</h5>
         <p class="text-secondary mb-4 small">通过添加规则，您可以让 Diff 对比更加聚焦于核心配置变更</p>
+        ${canCreateRules ? `
         <button type="button" class="btn btn-primary px-4" style="border-radius: 10px;" onclick="document.getElementById('btn-add-rule').click()">
           <i class="bi bi-plus-lg me-1"></i>配置第一条规则
-        </button>
+        </button>` : ""}
       `;
       rulesContainer.appendChild(empty);
       return;
@@ -271,33 +319,91 @@
     return out;
   }
 
-  addBtn.addEventListener("click", () => {
-    const empty = rulesContainer.querySelector(".empty-state");
-    if (empty) empty.remove();
-    
-    const newRow = createRuleRow({ scope: "global", targets: [], patterns: [] });
-    newRow.classList.add("new-row");
-    rulesContainer.appendChild(newRow);
-    newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
+  function clearRuleValidation(row) {
+    row.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
+  }
 
-  resetBtn.addEventListener("click", () => {
-    if (window.NB && typeof window.NB.confirmDelete === "function") {
-      window.NB.confirmDelete("确定要重置所有规则吗？当前所有未保存的配置都将丢失。", () => {
-        loadRules(DEFAULT_RULES);
-        if (window.NB && typeof window.NB.showToast === "function") {
-          window.NB.showToast("已恢复至系统默认规则", "info");
-        }
-      });
-    } else if (confirm("确定要恢复默认规则吗？")) {
-      loadRules(DEFAULT_RULES);
+  function validateRules() {
+    const rows = Array.from(rulesContainer.querySelectorAll(".rule-row"));
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      clearRuleValidation(row);
+
+      const scopeSelect = row.querySelector(".rule-scope");
+      const platformSelect = row.querySelector(".rule-targets-platform");
+      const groupSelect = row.querySelector(".rule-targets-group");
+      const patternsInput = row.querySelector(".rule-patterns");
+      const scope = scopeSelect.value;
+      const patterns = (patternsInput.value || "")
+        .split("\n")
+        .map((v) => v.trim())
+        .filter((v) => v);
+
+      if (!patterns.length) {
+        patternsInput.classList.add("is-invalid");
+        patternsInput.focus();
+        return `第 ${index + 1} 条规则尚未填写忽略正则表达式`;
+      }
+
+      if (scope === "platform" && getSelectedValues(platformSelect).length === 0) {
+        platformSelect.classList.add("is-invalid");
+        platformSelect.focus();
+        return `第 ${index + 1} 条规则尚未选择厂商`;
+      }
+
+      if (scope === "group" && getSelectedValues(groupSelect).length === 0) {
+        groupSelect.classList.add("is-invalid");
+        groupSelect.focus();
+        return `第 ${index + 1} 条规则尚未选择设备组`;
+      }
     }
-  });
 
-  formEl.addEventListener("submit", (e) => {
-    const rules = collectRules();
-    rulesInput.value = JSON.stringify(rules);
-  });
+    return "";
+  }
+
+  if (canCreateRules) {
+    addBtn.addEventListener("click", () => {
+      const empty = rulesContainer.querySelector(".empty-state");
+      if (empty) empty.remove();
+      
+      const newRow = createRuleRow({ scope: "global", targets: [], patterns: [] });
+      newRow.classList.add("new-row");
+      rulesContainer.appendChild(newRow);
+      newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  if (canResetRules) {
+    resetBtn.addEventListener("click", () => {
+      if (window.NB && typeof window.NB.confirmDelete === "function") {
+        window.NB.confirmDelete("确定要重置所有规则吗？当前所有未保存的配置都将丢失。", () => {
+          loadRules(DEFAULT_RULES);
+          if (window.NB && typeof window.NB.showToast === "function") {
+            window.NB.showToast("已恢复至系统默认规则", "info");
+          }
+        });
+      } else if (confirm("确定要恢复默认规则吗？")) {
+        loadRules(DEFAULT_RULES);
+      }
+    });
+  }
+
+  if (canSubmitRules) {
+    formEl.addEventListener("submit", (event) => {
+      const validationMessage = validateRules();
+      if (validationMessage) {
+        event.preventDefault();
+        if (window.NB && typeof window.NB.showToast === "function") {
+          window.NB.showToast(validationMessage, "warning");
+        } else {
+          alert(validationMessage);
+        }
+        return;
+      }
+      const rules = collectRules();
+      rulesInput.value = JSON.stringify(rules);
+    });
+  }
 
   loadRules(RULES);
 </script>

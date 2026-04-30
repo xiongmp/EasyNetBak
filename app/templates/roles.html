@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% set page_title = "角色管理" %}
 {% set page_subtitle = "维护系统角色与权限分配" %}
+{% set can_role_create = has_permission('roles.create') %}
+{% set can_role_update = has_permission('roles.update') %}
+{% set can_role_delete = has_permission('roles.delete') %}
 
 {% block content %}
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="small text-secondary">角色列表</div>
-        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#roleModal">
-          <i class="bi bi-plus-lg me-1"></i>新增角色
-        </button>
+        {% if can_role_create %}
+          <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#roleModal">
+            <i class="bi bi-plus-lg me-1"></i>新增角色
+          </button>
+        {% endif %}
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -48,32 +53,37 @@
                 </td>
                 <td class="text-nowrap">
                   <div class="d-flex gap-1 text-nowrap">
-                    <button
-                      class="btn btn-sm btn-outline-primary px-2 text-nowrap"
-                      type="button"
-                      data-bs-toggle="modal"
-                      data-bs-target="#roleModal"
-                      data-bs-id="{{ r.id }}"
-                      data-bs-code="{{ r.code }}"
-                      data-bs-name="{{ r.name }}"
-                      data-bs-perms="{{ r.permissions or '' }}"
-                      data-bs-admin="{{ '1' if r.code in admin_role_codes else '0' }}"
-                    >
-                      <i class="bi bi-pencil me-1"></i>编辑
-                    </button>
-                    {% if r.code not in admin_role_codes %}
+                    {% if can_role_update %}
+                      <button
+                        class="btn btn-sm btn-outline-primary px-2 text-nowrap"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#roleModal"
+                        data-bs-id="{{ r.id }}"
+                        data-bs-code="{{ r.code }}"
+                        data-bs-name="{{ r.name }}"
+                        data-bs-perms="{{ r.permissions or '' }}"
+                        data-bs-admin="{{ '1' if r.code in admin_role_codes else '0' }}"
+                      >
+                        <i class="bi bi-pencil me-1"></i>编辑
+                      </button>
+                    {% endif %}
+                    {% if can_role_delete and r.code not in admin_role_codes %}
                       <form method="post" action="/roles/{{ r.id }}/delete" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                         <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此角色吗？">
                           <i class="bi bi-trash me-1"></i>删除
                         </button>
                       </form>
-                    {% else %}
+                    {% elif can_role_delete %}
                       <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="系统内置角色不可删除">
                         <button class="btn btn-sm btn-outline-secondary px-2 text-nowrap disabled" type="button" style="pointer-events: none;">
                           <i class="bi bi-trash me-1"></i>删除
                         </button>
                       </span>
+                    {% endif %}
+                    {% if not can_role_update and not can_role_delete %}
+                      <span class="text-muted small">无可用操作</span>
                     {% endif %}
                   </div>
                 </td>
@@ -89,6 +99,7 @@
     </div>
   </div>
 
+  {% if can_role_create or can_role_update %}
   <div class="modal fade" id="roleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content shadow-lg border-0">
@@ -157,6 +168,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <select id="roleAllPermissions" class="d-none">
     {% for p in permission_catalog %}
@@ -172,6 +184,9 @@
       const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
       const modal = document.getElementById('roleModal');
+      if (!modal) {
+        return;
+      }
       const allOptions = Array.from(document.querySelectorAll('#roleAllPermissions option')).map((opt) => ({
         value: opt.value,
         text: opt.textContent,

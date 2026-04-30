@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import render_pagination %}
 {% set page_title = "API Key 管理" %}
 {% set page_subtitle = "查看和管理用于外部接入的 API Keys" %}
 
@@ -76,6 +77,8 @@
         </tbody>
       </table>
     </div>
+
+    {{ render_pagination(pagination, pagination_base, "个 API Key") }}
   </div>
 </div>
 

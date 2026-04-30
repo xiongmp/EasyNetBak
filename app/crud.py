@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Iterable, Any
+from typing import Iterable, Any, TypeVar
 from uuid import UUID
 
-from sqlalchemy import func, or_, desc
+from sqlalchemy import case, desc, false, func, or_
 from sqlmodel import Session, select, delete
 
 from app.models import (
     AppSetting,
+    ApiKey,
     AuditLog,
     BackupRecord,
     BackupSchedule,
@@ -20,14 +21,16 @@ from app.models import (
     DeviceGroup,
     LoginLog,
     Role,
+    TaskEvent,
     User,
     WebshellRecord,
-    ApiKey,
 )
+from app.services import task_state_service
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.auth import hash_password, verify_password
 
 _UNSET = object()
+_ModelT = TypeVar("_ModelT")
 
 PERMISSION_CATALOG = [
     {"code": "dashboard.view", "name": "仪表盘查看", "group": "dashboard"},
@@ -50,7 +53,6 @@ PERMISSION_CATALOG = [
     {"code": "templates.update", "name": "模板修改", "group": "templates"},
     {"code": "templates.delete", "name": "模板删除", "group": "templates"},
     {"code": "backups.view", "name": "备份历史查看", "group": "backups"},
-    {"code": "backups.trigger", "name": "立即备份", "group": "backups"},
     {"code": "backups.delete", "name": "备份历史删除", "group": "backups"},
     {"code": "config_search.view", "name": "配置搜索查看", "group": "config_search"},
     {"code": "schedules.view", "name": "定时任务查看", "group": "schedules"},
@@ -62,6 +64,7 @@ PERMISSION_CATALOG = [
     {"code": "login_logs.view", "name": "登录日志查看", "group": "login_logs"},
     {"code": "diff_rules.view", "name": "Diff规则查看", "group": "diff_rules"},
     {"code": "diff_rules.update", "name": "Diff规则修改", "group": "diff_rules"},
+    {"code": "diff_rules.delete", "name": "Diff规则删除", "group": "diff_rules"},
     {"code": "notifications.view", "name": "通知设置查看", "group": "notifications"},
     {"code": "notifications.update", "name": "通知设置修改", "group": "notifications"},
     {"code": "settings.view", "name": "系统设置查看", "group": "settings"},
@@ -83,12 +86,17 @@ PERMISSION_CATALOG = [
 
 LEGACY_PERMISSION_EXPANSIONS = {
     "devices.manage": {"devices.view", "devices.create", "devices.update", "devices.delete", "devices.backup", "devices.webshell"},
+    "resources.view": {"groups.view", "credentials.view", "templates.view"},
+    "resources.create": {"groups.create", "credentials.create", "templates.create"},
+    "resources.update": {"groups.update", "credentials.update", "templates.update"},
+    "resources.delete": {"groups.delete", "credentials.delete", "templates.delete"},
+    "backups.trigger": {"devices.backup"},
     "groups.manage": {"groups.view", "groups.create", "groups.update", "groups.delete"},
     "credentials.manage": {"credentials.view", "credentials.create", "credentials.update", "credentials.delete"},
     "templates.manage": {"templates.view", "templates.create", "templates.update", "templates.delete"},
-    "backups.manage": {"backups.view", "backups.trigger", "backups.delete"},
+    "backups.manage": {"backups.view", "devices.backup", "backups.delete"},
     "schedules.manage": {"schedules.view", "schedules.create", "schedules.update", "schedules.delete"},
-    "diff_rules.manage": {"diff_rules.view", "diff_rules.update"},
+    "diff_rules.manage": {"diff_rules.view", "diff_rules.update", "diff_rules.delete"},
     "notifications.manage": {"notifications.view", "notifications.update"},
     "settings.manage": {"settings.view", "settings.update"},
     "storage_settings.manage": {"storage_settings.view", "storage_settings.update"},
@@ -119,7 +127,6 @@ BUILTIN_ROLE_DEFAULTS = {
         "templates.update",
         "templates.delete",
         "backups.view",
-        "backups.trigger",
         "backups.delete",
         "config_search.view",
         "schedules.view",
@@ -154,6 +161,16 @@ BUILTIN_ROLE_LABELS = {
 ROLE_DEFAULT_PERMISSIONS = {k: set(v) for k, v in BUILTIN_ROLE_DEFAULTS.items()}
 ROLE_LABELS = dict(BUILTIN_ROLE_LABELS)
 ROLE_ADMIN_CODES = {"admin"}
+
+
+def _flush(session: Session) -> None:
+    session.flush()
+
+
+def _flush_and_refresh(session: Session, instance: _ModelT) -> _ModelT:
+    session.flush()
+    session.refresh(instance)
+    return instance
 
 def list_permission_catalog() -> list[dict[str, str]]:
     return PERMISSION_CATALOG
@@ -257,7 +274,7 @@ def ensure_default_roles(session: Session) -> None:
         session.add(role)
         created = True
     if created:
-        session.commit()
+        _flush(session)
     refresh_role_cache(session)
 
 def is_admin_role_code(code: str | None) -> bool:
@@ -318,8 +335,7 @@ def create_role(
         is_admin=is_admin,
     )
     session.add(role)
-    session.commit()
-    session.refresh(role)
+    _flush_and_refresh(session, role)
     refresh_role_cache(session)
     return role
 
@@ -353,8 +369,7 @@ def update_role(
     if permissions is not None:
         role.permissions = permissions
     session.add(role)
-    session.commit()
-    session.refresh(role)
+    _flush_and_refresh(session, role)
     refresh_role_cache(session)
     return role
 
@@ -363,7 +378,7 @@ def delete_role(session: Session, role_id: int) -> None:
     if role is None:
         return
     session.delete(role)
-    session.commit()
+    _flush(session)
     refresh_role_cache(session)
 
 def role_usage_count(session: Session, code: str) -> int:
@@ -410,7 +425,10 @@ def search_devices(
             candidates.add(base + "_telnet")
         stmt = stmt.where(Device.platform.in_(list(candidates)))
     if group_id:
-        stmt = stmt.where(Device.group_id == group_id)
+        filtered_group_ids = expand_group_ids(session, [group_id], include_special_ids=False)
+        if not filtered_group_ids:
+            return []
+        stmt = stmt.where(Device.group_id.in_(filtered_group_ids))
     
     if allowed_group_ids is not None:
         allowed_set = set(allowed_group_ids)
@@ -467,7 +485,10 @@ def count_devices(
             candidates.add(base + "_telnet")
         stmt = stmt.where(Device.platform.in_(list(candidates)))
     if group_id:
-        stmt = stmt.where(Device.group_id == group_id)
+        filtered_group_ids = expand_group_ids(session, [group_id], include_special_ids=False)
+        if not filtered_group_ids:
+            return 0
+        stmt = stmt.where(Device.group_id.in_(filtered_group_ids))
 
     if allowed_group_ids is not None:
         allowed_set = set(allowed_group_ids)
@@ -503,9 +524,7 @@ def get_devices_subset(session: Session, device_ids: list[int]) -> list[Device]:
 
 def create_device(session: Session, *, device: Device) -> Device:
     session.add(device)
-    session.commit()
-    session.refresh(device)
-    return device
+    return _flush_and_refresh(session, device)
 
 
 def delete_device(session: Session, device_id: int, commit: bool = True) -> None:
@@ -541,9 +560,8 @@ def delete_device(session: Session, device_id: int, commit: bool = True) -> None
             # 但在设备删除场景下，保持为空字符串是相对合理的。
             s.targets = "\n".join(new_tokens)
             session.add(s)
-
     if commit:
-        session.commit()
+        _flush(session)
 
 
 def update_device(
@@ -573,9 +591,7 @@ def update_device(
     device.credential_id = credential_id
     device.default_template_id = default_template_id
     session.add(device)
-    session.commit()
-    session.refresh(device)
-    return device
+    return _flush_and_refresh(session, device)
 
 
 def count_groups(session: Session) -> int:
@@ -583,10 +599,66 @@ def count_groups(session: Session) -> int:
 
 
 def list_groups(session: Session, *, limit: int | None = None, offset: int = 0) -> list[DeviceGroup]:
-    stmt = select(DeviceGroup).order_by(DeviceGroup.id)
+    stmt = select(DeviceGroup).order_by(DeviceGroup.depth, DeviceGroup.path, DeviceGroup.sort_order, DeviceGroup.id)
     if limit is not None:
         stmt = stmt.offset(offset).limit(limit)
     return list(session.exec(stmt))
+
+
+def get_group_by_name(session: Session, name: str) -> DeviceGroup | None:
+    normalized = (name or "").strip()
+    if not normalized:
+        return None
+    return session.exec(select(DeviceGroup).where(DeviceGroup.name == normalized).limit(1)).first()
+
+
+def _build_group_path(*, group_id: int, parent: DeviceGroup | None) -> str:
+    if parent is None:
+        return f"/{group_id}/"
+    return f"{parent.path}{group_id}/"
+
+
+def _depth_from_group_path(path: str) -> int:
+    normalized = (path or "").strip()
+    if not normalized:
+        return 0
+    return max(normalized.count("/") - 2, 0)
+
+
+def expand_group_ids(
+    session: Session,
+    group_ids: Iterable[int] | None,
+    *,
+    include_special_ids: bool = True,
+) -> list[int]:
+    if group_ids is None:
+        return []
+
+    raw_ids = {int(group_id) for group_id in group_ids if group_id is not None}
+    special_ids = {group_id for group_id in raw_ids if group_id <= 0}
+    positive_ids = {group_id for group_id in raw_ids if group_id > 0}
+    if not positive_ids:
+        return sorted(special_ids) if include_special_ids else []
+
+    groups = list_groups(session)
+    selected_paths = {
+        (group.path or "").strip()
+        for group in groups
+        if group.id and int(group.id) in positive_ids and (group.path or "").strip()
+    }
+    expanded_ids = {
+        int(group.id)
+        for group in groups
+        if group.id and any((group.path or "").startswith(path) for path in selected_paths)
+    }
+    if include_special_ids:
+        expanded_ids |= special_ids
+    return sorted(expanded_ids)
+
+
+def group_child_count(session: Session, group_id: int) -> int:
+    stmt = select(func.count()).select_from(DeviceGroup).where(DeviceGroup.parent_id == group_id)
+    return int(session.exec(stmt).one())
 
 
 def group_usage_count(session: Session, group_id: int) -> int:
@@ -594,16 +666,41 @@ def group_usage_count(session: Session, group_id: int) -> int:
     return int(session.exec(stmt).one())
 
 
+def group_subtree_usage_count(session: Session, group_id: int) -> int:
+    subtree_ids = expand_group_ids(session, [group_id], include_special_ids=False)
+    if not subtree_ids:
+        return 0
+    stmt = select(func.count()).select_from(Device).where(Device.group_id.in_(subtree_ids))
+    return int(session.exec(stmt).one())
+
+
 def get_group(session: Session, group_id: int) -> DeviceGroup | None:
     return session.get(DeviceGroup, group_id)
 
 
-def create_group(session: Session, *, name: str) -> DeviceGroup:
-    group = DeviceGroup(name=name.strip())
+def create_group(
+    session: Session,
+    *,
+    name: str,
+    parent_id: int | None = None,
+    sort_order: int = 0,
+) -> DeviceGroup:
+    parent = get_group(session, int(parent_id)) if parent_id else None
+    if parent_id and parent is None:
+        raise RuntimeError("Parent group not found")
+    group = DeviceGroup(
+        name=name.strip(),
+        parent_id=int(parent_id) if parent_id else None,
+        sort_order=int(sort_order or 0),
+    )
     session.add(group)
-    session.commit()
-    session.refresh(group)
-    return group
+    _flush_and_refresh(session, group)
+    if group.id is None:
+        return group
+    group.path = _build_group_path(group_id=int(group.id), parent=parent)
+    group.depth = int(parent.depth + 1) if parent is not None else 0
+    session.add(group)
+    return _flush_and_refresh(session, group)
 
 
 def delete_group(session: Session, group_id: int) -> None:
@@ -611,18 +708,58 @@ def delete_group(session: Session, group_id: int) -> None:
     if group is None:
         return
     session.delete(group)
-    session.commit()
+    _flush(session)
 
 
-def update_group(session: Session, group_id: int, *, name: str) -> DeviceGroup | None:
+def update_group(
+    session: Session,
+    group_id: int,
+    *,
+    name: str,
+    parent_id: int | None | object = _UNSET,
+    sort_order: int | None | object = _UNSET,
+) -> DeviceGroup | None:
     group = session.get(DeviceGroup, group_id)
     if group is None:
         return None
+    old_path = (group.path or "").strip() or f"/{group_id}/"
     group.name = name.strip()
+    if sort_order is not _UNSET:
+        group.sort_order = int(sort_order or 0)
+
+    if parent_id is not _UNSET:
+        normalized_parent_id = int(parent_id) if parent_id else None
+        if normalized_parent_id == int(group.id):
+            raise RuntimeError("Group cannot be its own parent")
+        parent = get_group(session, normalized_parent_id) if normalized_parent_id else None
+        if normalized_parent_id and parent is None:
+            raise RuntimeError("Parent group not found")
+        if parent is not None and (parent.path or "").startswith(old_path):
+            raise RuntimeError("Cannot move group under its descendant")
+
+        group.parent_id = normalized_parent_id
+        group.path = _build_group_path(group_id=int(group.id), parent=parent)
+        group.depth = int(parent.depth + 1) if parent is not None else 0
+
     session.add(group)
-    session.commit()
-    session.refresh(group)
-    return group
+    _flush_and_refresh(session, group)
+
+    new_path = (group.path or "").strip() or old_path
+    if new_path != old_path:
+        descendants = list(
+            session.exec(
+                select(DeviceGroup)
+                .where(DeviceGroup.path.like(f"{old_path}%"))
+                .where(DeviceGroup.id != group.id)
+            )
+        )
+        for item in descendants:
+            suffix = (item.path or "")[len(old_path):]
+            item.path = f"{new_path}{suffix}"
+            item.depth = _depth_from_group_path(item.path)
+            session.add(item)
+
+    return _flush_and_refresh(session, group)
 
 
 def count_credentials(session: Session) -> int:
@@ -643,9 +780,7 @@ def get_credential(session: Session, credential_id: int) -> Credential | None:
 def create_credential(session: Session, *, credential: Credential) -> Credential:
     # encryption is handled by Credential model property setters
     session.add(credential)
-    session.commit()
-    session.refresh(credential)
-    return credential
+    return _flush_and_refresh(session, credential)
 
 
 def update_credential(
@@ -669,9 +804,7 @@ def update_credential(
         credential.enable_password = enable_password
     credential.remarks = remarks
     session.add(credential)
-    session.commit()
-    session.refresh(credential)
-    return credential
+    return _flush_and_refresh(session, credential)
 
 
 def credential_usage_count(session: Session, credential_id: int) -> int:
@@ -687,7 +820,7 @@ def delete_credential(session: Session, credential_id: int) -> None:
     if credential is None:
         return
     session.delete(credential)
-    session.commit()
+    _flush(session)
 
 
 def get_credential_secrets(credential: Credential) -> dict[str, str | None]:
@@ -715,9 +848,7 @@ def get_template(session: Session, template_id: int) -> BackupTemplate | None:
 
 def create_template(session: Session, *, template: BackupTemplate) -> BackupTemplate:
     session.add(template)
-    session.commit()
-    session.refresh(template)
-    return template
+    return _flush_and_refresh(session, template)
 
 
 def delete_template(session: Session, template_id: int) -> None:
@@ -725,7 +856,7 @@ def delete_template(session: Session, template_id: int) -> None:
     if template is None:
         return
     session.delete(template)
-    session.commit()
+    _flush(session)
 
 
 def update_template(session: Session, template_id: int, *, name: str, platform: str, commands: str) -> BackupTemplate | None:
@@ -736,9 +867,7 @@ def update_template(session: Session, template_id: int, *, name: str, platform: 
     template.platform = platform
     template.commands = commands
     session.add(template)
-    session.commit()
-    session.refresh(template)
-    return template
+    return _flush_and_refresh(session, template)
 
 
 def create_backup_record(
@@ -747,11 +876,28 @@ def create_backup_record(
     device_id: int,
     template_id: int | None,
 ) -> BackupRecord:
-    record = BackupRecord(device_id=device_id, template_id=template_id, success=False)
+    record = BackupRecord(
+        device_id=device_id,
+        template_id=template_id,
+        status=task_state_service.BACKUP_RECORD_STATUS_PLANNED,
+        success=False,
+    )
     session.add(record)
-    session.commit()
-    session.refresh(record)
-    return record
+    return _flush_and_refresh(session, record)
+
+
+def update_backup_record_status(
+    session: Session,
+    *,
+    record_id: UUID,
+    status: str,
+) -> BackupRecord | None:
+    record = session.get(BackupRecord, record_id)
+    if record is None:
+        return None
+    record.status = (status or "").strip() or task_state_service.BACKUP_RECORD_STATUS_PLANNED
+    session.add(record)
+    return _flush_and_refresh(session, record)
 
 
 def finish_backup_record(
@@ -767,6 +913,7 @@ def finish_backup_record(
     record = session.get(BackupRecord, record_id)
     if record is None:
         return None
+    record.status = task_state_service.backup_record_terminal_status(success=bool(success))
     record.finished_at = datetime.utcnow()
     record.success = success
     record.config_text = config_text
@@ -774,9 +921,26 @@ def finish_backup_record(
     record.duration_seconds = duration_seconds
     record.failure_type = failure_type
     session.add(record)
-    session.commit()
-    session.refresh(record)
-    return record
+    return _flush_and_refresh(session, record)
+
+
+def cancel_backup_record(
+    session: Session,
+    *,
+    record_id: UUID,
+    error_message: str | None = None,
+    failure_type: str | None = None,
+) -> BackupRecord | None:
+    record = session.get(BackupRecord, record_id)
+    if record is None:
+        return None
+    record.status = task_state_service.BACKUP_RECORD_STATUS_CANCELLED
+    record.finished_at = datetime.utcnow()
+    record.success = False
+    record.error_message = (error_message or "").strip() or "Task cancelled"
+    record.failure_type = (failure_type or "").strip() or "CANCELLED"
+    session.add(record)
+    return _flush_and_refresh(session, record)
 
 
 def list_backups(session: Session, *, limit: int = 50) -> list[BackupRecord]:
@@ -848,6 +1012,24 @@ def _config_search_condition(session: Session, keyword: str):
     return BackupRecord.config_text.like(f"%{q}%")
 
 
+def _allowed_device_groups_condition(allowed_group_ids: list[int] | None):
+    if allowed_group_ids is None:
+        return None
+
+    allowed_set = {int(group_id) for group_id in allowed_group_ids}
+    include_ungrouped = (-1 in allowed_set) or (0 in allowed_set)
+    real_ids = [group_id for group_id in allowed_set if group_id > 0]
+
+    conditions = []
+    if real_ids:
+        conditions.append(Device.group_id.in_(real_ids))
+    if include_ungrouped:
+        conditions.append(or_(Device.group_id.is_(None), Device.group_id == 0))
+    if not conditions:
+        return false()
+    return or_(*conditions)
+
+
 def search_config(
     session: Session,
     *,
@@ -855,11 +1037,19 @@ def search_config(
     latest_only: bool = True,
     limit: int = 100,
     offset: int = 0,
+    allowed_group_ids: list[int] | None = None,
 ) -> list[BackupRecord]:
-    stmt = select(BackupRecord).join(Device, BackupRecord.device_id == Device.id).where(BackupRecord.success == True)
+    stmt = (
+        select(BackupRecord)
+        .join(Device, BackupRecord.device_id == Device.id)
+        .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
+    )
     condition = _config_search_condition(session, q)
     if condition is not None:
         stmt = stmt.where(condition)
+    group_condition = _allowed_device_groups_condition(allowed_group_ids)
+    if group_condition is not None:
+        stmt = stmt.where(group_condition)
 
     if latest_only:
         subq = (
@@ -867,7 +1057,7 @@ def search_config(
                 BackupRecord.device_id,
                 func.max(BackupRecord.started_at).label("max_started"),
             )
-            .where(BackupRecord.success == True)
+            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
             .group_by(BackupRecord.device_id)
             .subquery()
         )
@@ -886,16 +1076,20 @@ def count_config_search_results(
     *,
     q: str,
     latest_only: bool = True,
+    allowed_group_ids: list[int] | None = None,
 ) -> int:
     stmt = (
         select(func.count())
         .select_from(BackupRecord)
         .join(Device, BackupRecord.device_id == Device.id)
-        .where(BackupRecord.success == True)
+        .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
     )
     condition = _config_search_condition(session, q)
     if condition is not None:
         stmt = stmt.where(condition)
+    group_condition = _allowed_device_groups_condition(allowed_group_ids)
+    if group_condition is not None:
+        stmt = stmt.where(group_condition)
 
     if latest_only:
         subq = (
@@ -903,7 +1097,7 @@ def count_config_search_results(
                 BackupRecord.device_id,
                 func.max(BackupRecord.started_at).label("max_started"),
             )
-            .where(BackupRecord.success == True)
+            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
             .group_by(BackupRecord.device_id)
             .subquery()
         )
@@ -940,23 +1134,21 @@ def count_api_keys(session: Session) -> int:
 
 def create_api_key(session: Session, *, api_key: ApiKey) -> ApiKey:
     session.add(api_key)
-    session.commit()
-    session.refresh(api_key)
-    return api_key
+    return _flush_and_refresh(session, api_key)
 
 def update_api_key_last_used(session: Session, key_id: int) -> None:
     api_key = session.get(ApiKey, key_id)
     if api_key:
         api_key.last_used_at = datetime.utcnow()
         session.add(api_key)
-        session.commit()
+        _flush(session)
 
 def revoke_api_key(session: Session, key_id: int) -> bool:
     api_key = session.get(ApiKey, key_id)
     if api_key:
         api_key.is_active = False
         session.add(api_key)
-        session.commit()
+        _flush(session)
         return True
     return False
 
@@ -964,7 +1156,7 @@ def delete_api_key(session: Session, key_id: int) -> bool:
     api_key = session.get(ApiKey, key_id)
     if api_key:
         session.delete(api_key)
-        session.commit()
+        _flush(session)
         return True
     return False
 
@@ -976,9 +1168,7 @@ def set_setting(session: Session, *, key: str, value: str) -> AppSetting:
         item.value = value
         item.updated_at = datetime.utcnow()
     session.add(item)
-    session.commit()
-    session.refresh(item)
-    return item
+    return _flush_and_refresh(session, item)
 
 
 def get_setting(session: Session, *, key: str) -> str | None:
@@ -1006,9 +1196,7 @@ def get_schedule(session: Session, schedule_id: int) -> BackupSchedule | None:
 def create_schedule(session: Session, *, schedule: BackupSchedule) -> BackupSchedule:
     schedule.updated_at = datetime.utcnow()
     session.add(schedule)
-    session.commit()
-    session.refresh(schedule)
-    return schedule
+    return _flush_and_refresh(session, schedule)
 
 
 def update_schedule(
@@ -1033,9 +1221,7 @@ def update_schedule(
         item.targets = targets or ""
     item.updated_at = datetime.utcnow()
     session.add(item)
-    session.commit()
-    session.refresh(item)
-    return item
+    return _flush_and_refresh(session, item)
 
 
 def delete_schedule(session: Session, schedule_id: int) -> None:
@@ -1049,7 +1235,7 @@ def delete_schedule(session: Session, schedule_id: int) -> None:
     for r in runs:
         session.delete(r)
     session.delete(item)
-    session.commit()
+    _flush(session)
 
 
 def create_schedule_run(
@@ -1062,19 +1248,32 @@ def create_schedule_run(
     run = BackupScheduleRun(
         schedule_id=int(schedule_id),
         trigger=(trigger or "manual").strip() or "manual",
+        status=task_state_service.SCHEDULE_RUN_STATUS_PLANNED,
         total_devices=int(total_devices or 0),
         success_count=0,
         fail_count=0,
         error_message=None,
     )
     session.add(run)
-    session.commit()
-    session.refresh(run)
-    return run
+    return _flush_and_refresh(session, run)
 
 
 def get_schedule_run(session: Session, run_id: UUID) -> BackupScheduleRun | None:
     return session.get(BackupScheduleRun, run_id)
+
+
+def update_schedule_run_status(
+    session: Session,
+    *,
+    run_id: UUID,
+    status: str,
+) -> BackupScheduleRun | None:
+    run = session.get(BackupScheduleRun, run_id)
+    if run is None:
+        return None
+    run.status = (status or "").strip() or task_state_service.SCHEDULE_RUN_STATUS_PLANNED
+    session.add(run)
+    return _flush_and_refresh(session, run)
 
 
 def finish_schedule_run(
@@ -1084,18 +1283,26 @@ def finish_schedule_run(
     success_count: int,
     fail_count: int,
     error_message: str | None,
+    status: str | None = None,
+    cancelled_count: int = 0,
+    unfinished_count: int = 0,
 ) -> BackupScheduleRun | None:
     run = session.get(BackupScheduleRun, run_id)
     if run is None:
         return None
+    run.status = (status or "").strip() or task_state_service.derive_schedule_run_terminal_status(
+        total_devices=int(run.total_devices or 0),
+        success_count=int(success_count or 0),
+        fail_count=int(fail_count or 0),
+        cancelled_count=int(cancelled_count or 0),
+        unfinished_count=int(unfinished_count or 0),
+    )
     run.finished_at = datetime.utcnow()
     run.success_count = int(success_count or 0)
     run.fail_count = int(fail_count or 0)
     run.error_message = (error_message or "").strip() or None
     session.add(run)
-    session.commit()
-    session.refresh(run)
-    return run
+    return _flush_and_refresh(session, run)
 
 
 def list_schedule_runs(session: Session, schedule_id: int, *, limit: int = 50) -> list[BackupScheduleRun]:
@@ -1136,9 +1343,7 @@ def add_schedule_run_item(
         device_id=int(device_id),
     )
     session.add(item)
-    session.commit()
-    session.refresh(item)
-    return item
+    return _flush_and_refresh(session, item)
 
 
 def list_schedule_run_items(session: Session, run_id: UUID) -> list[BackupScheduleRunItem]:
@@ -1157,7 +1362,7 @@ def bulk_delete_backups(session: Session, backup_ids: Iterable[UUID]) -> int:
         session.exec(stmt)
         session.delete(record)
         count += 1
-    session.commit()
+    _flush(session)
     return count
 
 
@@ -1189,7 +1394,7 @@ def cleanup_old_backups(session: Session, days: int) -> int:
         stmt_latest = (
             select(BackupRecord.id)
             .where(BackupRecord.device_id == did)
-            .where(BackupRecord.success == True)
+            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
             .order_by(BackupRecord.started_at.desc())
             .limit(1)
         )
@@ -1200,7 +1405,7 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     record_ids_to_delete = []
     for r in records_to_check:
         # 如果是该设备最新的成功备份，则跳过删除
-        if r.success and latest_success_map.get(r.device_id) == r.id:
+        if r.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED and latest_success_map.get(r.device_id) == r.id:
             continue
         record_ids_to_delete.append(r.id)
     
@@ -1227,8 +1432,8 @@ def cleanup_old_backups(session: Session, days: int) -> int:
         # 删除 run
         stmt_del_runs = delete(BackupScheduleRun).where(BackupScheduleRun.id.in_(run_ids))
         session.exec(stmt_del_runs)
-        
-    session.commit()
+
+    _flush(session)
     return len(record_ids_to_delete)
 
 
@@ -1256,11 +1461,11 @@ def cleanup_old_webshell_records(session: Session, days: int) -> int:
                 os.remove(record.file_path)
             except Exception as e:
                 pass # 可选地添加日志： logger.warning(f"Failed to delete webshell record file {record.file_path}: {e}")
-        
+
         session.delete(record)
         count += 1
-    
-    session.commit()
+
+    _flush(session)
     return count
 
 
@@ -1316,9 +1521,7 @@ def create_user(
     if mfa_secret:
         user.mfa_secret = mfa_secret
     session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
+    return _flush_and_refresh(session, user)
 
 
 def create_audit_log(
@@ -1342,9 +1545,7 @@ def create_audit_log(
         ip_address=ip_address,
     )
     session.add(log)
-    session.commit()
-    session.refresh(log)
-    return log
+    return _flush_and_refresh(session, log)
 
 
 def list_audit_logs(
@@ -1453,11 +1654,9 @@ def update_user(
 
     if recovery_codes_enabled is not None:
         user.recovery_codes_enabled = bool(recovery_codes_enabled)
-        
+
     session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
+    return _flush_and_refresh(session, user)
 
 
 def delete_user(session: Session, user_id: int) -> None:
@@ -1465,7 +1664,7 @@ def delete_user(session: Session, user_id: int) -> None:
     if user is None:
         return
     session.delete(user)
-    session.commit()
+    _flush(session)
 
 
 def authenticate_user(session: Session, *, username: str, password: str) -> User | None:
@@ -1492,7 +1691,7 @@ def get_dashboard_summary(session: Session) -> dict[str, Any]:
         select(func.count())
         .select_from(BackupRecord)
         .where(BackupRecord.started_at >= day_ago)
-        .where(BackupRecord.success == True)
+        .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
     ).one()
 
     success_rate = 0
@@ -1517,39 +1716,51 @@ def get_device_platform_stats(session: Session) -> list[dict[str, Any]]:
 
 
 def get_backup_trend_stats(session: Session, days: int = 7) -> dict[str, list]:
-    # 统计过去 N 天的备份趋势
     now = datetime.utcnow()
+    start_day = datetime(now.year, now.month, now.day) - timedelta(days=days - 1)
+    end_day = datetime(now.year, now.month, now.day) + timedelta(days=1)
+
+    rows = session.exec(
+        select(
+            func.date(BackupRecord.started_at).label("day"),
+            func.sum(
+                case((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case(
+                    ((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_FAILED), 1),
+                    else_=0,
+                )
+            ).label("fail_count"),
+        )
+        .where(
+            BackupRecord.started_at >= start_day,
+            BackupRecord.started_at < end_day,
+        )
+        .group_by(func.date(BackupRecord.started_at))
+        .order_by(func.date(BackupRecord.started_at))
+    ).all()
+
+    grouped_counts = {
+        str(day): {
+            "success": int(success_count or 0),
+            "fail": int(fail_count or 0),
+        }
+        for day, success_count, fail_count in rows
+        if day is not None
+    }
+
     dates = []
     success_counts = []
     fail_counts = []
-
-    for i in range(days - 1, -1, -1):
-        d = now - timedelta(days=i)
-        date_str = d.strftime("%m-%d")
+    for i in range(days):
+        current_day = start_day + timedelta(days=i)
+        day_key = current_day.strftime("%Y-%m-%d")
+        date_str = current_day.strftime("%m-%d")
+        counts = grouped_counts.get(day_key, {"success": 0, "fail": 0})
         dates.append(date_str)
-
-        start_of_day = datetime(d.year, d.month, d.day)
-        end_of_day = start_of_day + timedelta(days=1)
-
-        success = session.exec(
-            select(func.count())
-            .select_from(BackupRecord)
-            .where(BackupRecord.started_at >= start_of_day)
-            .where(BackupRecord.started_at < end_of_day)
-            .where(BackupRecord.success == True)
-        ).one()
-
-        fail = session.exec(
-            select(func.count())
-            .select_from(BackupRecord)
-            .where(BackupRecord.started_at >= start_of_day)
-            .where(BackupRecord.started_at < end_of_day)
-            .where(BackupRecord.success == False)
-            .where(BackupRecord.finished_at != None)
-        ).one()
-
-        success_counts.append(success)
-        fail_counts.append(fail)
+        success_counts.append(counts["success"])
+        fail_counts.append(counts["fail"])
 
     return {
         "dates": dates,
@@ -1559,33 +1770,36 @@ def get_backup_trend_stats(session: Session, days: int = 7) -> dict[str, list]:
 
 
 def get_group_health_stats(session: Session) -> list[dict[str, Any]]:
-    # 统计各分组的备份成功率
-    groups = session.exec(select(DeviceGroup)).all()
-    stats = []
-    for g in groups:
-        # 获取该分组下所有设备的ID
-        device_ids = session.exec(select(Device.id).where(Device.group_id == g.id)).all()
-        if not device_ids:
-            continue
+    rows = session.exec(
+        select(
+            DeviceGroup.name,
+            func.count(BackupRecord.id).label("total"),
+            func.sum(
+                case((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED, 1), else_=0)
+            ).label("success_count"),
+        )
+        .join(Device, Device.group_id == DeviceGroup.id)
+        .join(BackupRecord, BackupRecord.device_id == Device.id)
+        .group_by(DeviceGroup.id, DeviceGroup.name)
+        .having(func.count(BackupRecord.id) > 0)
+        .order_by(
+            (
+                func.sum(
+                    case((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED, 1), else_=0)
+                ) * 1.0
+                / func.nullif(func.count(BackupRecord.id), 0)
+            ).desc(),
+            DeviceGroup.name,
+        )
+    ).all()
 
-        total = session.exec(
-            select(func.count()).select_from(BackupRecord).where(BackupRecord.device_id.in_(device_ids))
-        ).one()
-        if total == 0:
-            continue
-
-        success = session.exec(
-            select(func.count())
-            .select_from(BackupRecord)
-            .where(BackupRecord.device_id.in_(device_ids))
-            .where(BackupRecord.success == True)
-        ).one()
-
-        stats.append({"name": g.name, "value": round((success / total) * 100, 1)})
-
-    # 按成功率排序
-    stats.sort(key=lambda x: x["value"], reverse=True)
-    return stats
+    return [
+        {
+            "name": group_name,
+            "value": round((int(success_count or 0) / int(total or 1)) * 100, 1),
+        }
+        for group_name, total, success_count in rows
+    ]
 
 
 def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[str, Any]:
@@ -1601,7 +1815,7 @@ def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[st
         prev = session.exec(
             select(BackupRecord)
             .where(BackupRecord.device_id == did)
-            .where(BackupRecord.success == True)
+            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
             .where(BackupRecord.started_at < start_day)
             .order_by(BackupRecord.started_at.desc())
             .limit(1)
@@ -1609,7 +1823,7 @@ def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[st
         rows = session.exec(
             select(BackupRecord)
             .where(BackupRecord.device_id == did)
-            .where(BackupRecord.success == True)
+            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
             .where(BackupRecord.started_at >= start_day)
             .where(BackupRecord.started_at < end_day)
             .order_by(BackupRecord.started_at.asc())
@@ -1654,9 +1868,7 @@ def create_login_log(
         fail_reason=fail_reason,
     )
     session.add(log)
-    session.commit()
-    session.refresh(log)
-    return log
+    return _flush_and_refresh(session, log)
 
 
 def list_login_logs(
@@ -1711,7 +1923,7 @@ def cleanup_old_audit_logs(session: Session, days: int) -> int:
     threshold = datetime.utcnow() - timedelta(days=days)
     stmt = delete(AuditLog).where(AuditLog.created_at < threshold)
     result = session.exec(stmt)
-    session.commit()
+    _flush(session)
     return result.rowcount
 
 def cleanup_old_login_logs(session: Session, days: int) -> int:
@@ -1721,7 +1933,18 @@ def cleanup_old_login_logs(session: Session, days: int) -> int:
     threshold = datetime.utcnow() - timedelta(days=days)
     stmt = delete(LoginLog).where(LoginLog.created_at < threshold)
     result = session.exec(stmt)
-    session.commit()
+    _flush(session)
+    return result.rowcount
+
+
+def cleanup_old_task_events(session: Session, days: int = 90) -> int:
+    """清理指定天数之前的任务事件，默认仅保留最近 90 天。"""
+    if days <= 0:
+        return 0
+    threshold = datetime.utcnow() - timedelta(days=days)
+    stmt = delete(TaskEvent).where(TaskEvent.created_at < threshold)
+    result = session.exec(stmt)
+    _flush(session)
     return result.rowcount
 
 def list_webshell_records(

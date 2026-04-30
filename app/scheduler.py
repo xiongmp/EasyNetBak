@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
-
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import select
@@ -11,8 +9,12 @@ from app import crud
 from app.core.settings import settings
 from app.core.time import normalize_timezone_offset, parse_timezone_offset_to_minutes
 from app.db import session_scope
-from app.models import BackupSchedule, BackupScheduleRun
-from app.platforms import platforms_compatible
+from app.models import BackupSchedule
+from app.services import task_orchestration_service
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 _scheduler: BackgroundScheduler | None = None
@@ -46,10 +48,19 @@ def _normalize_targets_text(value: str | None) -> str:
     return "\n".join([line.strip() for line in (value or "").splitlines() if line.strip()])
 
 
-def resolve_device_ids_from_targets(session, *, targets: str | None) -> list[int]:
+def resolve_device_ids_from_targets(
+    session,
+    *,
+    targets: str | None,
+    allowed_group_ids: list[int] | None = None,
+) -> list[int]:
     raw = _normalize_targets_text(targets)
     if not raw:
-        return [int(d.id) for d in crud.list_devices(session) if d.id]
+        # 如果 targets 明确为 "all" 字符串，则返回所有
+        if targets and targets.strip().lower() == "all":
+            return [int(d.id) for d in crud.list_devices(session) if d.id]
+        # 否则，如果为空（且不是显式的 all），则返回空列表（表示未选择任何目标）
+        return []
 
     devices = crud.list_devices(session)
     by_id = {int(d.id): d for d in devices if d.id}
@@ -92,70 +103,43 @@ def resolve_device_ids_from_targets(session, *, targets: str | None) -> list[int
         elif prefix == "group":
             gid = int(value) if value.isdigit() else group_name_to_id.get(value.strip().lower())
             if gid:
-                picked.update([int(d.id) for d in devices if d.id and int(d.group_id or 0) == int(gid)])
+                subtree_ids = set(crud.expand_group_ids(session, [int(gid)], include_special_ids=False))
+                picked.update(
+                    [
+                        int(d.id)
+                        for d in devices
+                        if d.id and int(d.group_id or 0) in subtree_ids
+                    ]
+                )
         elif prefix == "platform":
             picked.update([int(d.id) for d in devices if d.id and (d.platform or "").strip() == value])
 
-    return sorted(picked)
+    if allowed_group_ids is None:
+        return sorted(picked)
+
+    allowed_set = set(allowed_group_ids)
+    out: list[int] = []
+    for device_id in sorted(picked):
+        device = by_id.get(int(device_id))
+        if device is None:
+            continue
+        group_id = int(getattr(device, "group_id", 0) or 0)
+        if group_id in allowed_set or (group_id == 0 and (-1 in allowed_set or 0 in allowed_set)):
+            out.append(int(device_id))
+    return out
 
 
-def resolve_schedule_device_ids(session, *, schedule: BackupSchedule) -> list[int]:
-    return resolve_device_ids_from_targets(session, targets=schedule.targets)
-
-
-def _effective_template_id(session, *, device_id: int) -> int | None:
-    device = crud.get_device(session, device_id)
-    if device is None:
-        return None
-    effective_template_id = int(getattr(device, "default_template_id", 0) or 0)
-    if not effective_template_id:
-        return None
-    tpl = crud.get_template(session, effective_template_id)
-    if tpl is None:
-        return None
-    if not platforms_compatible(tpl.platform, device.platform):
-        return None
-    return int(effective_template_id)
-
-
-def plan_schedule_run(*, schedule_id: int, trigger: str) -> tuple[UUID, list[tuple[int, UUID, int | None]]]:
-    with session_scope() as session:
-        schedule = crud.get_schedule(session, schedule_id)
-        if schedule is None:
-            raise RuntimeError("Schedule not found")
-        device_ids = resolve_schedule_device_ids(session, schedule=schedule)
-        run = crud.create_schedule_run(session, schedule_id=schedule_id, trigger=trigger, total_devices=len(device_ids))
-        run_id = UUID(str(run.id))
-        jobs: list[tuple[int, UUID, int | None]] = []
-        for did in device_ids:
-            tpl_id = _effective_template_id(session, device_id=did)
-            record = crud.create_backup_record(session, device_id=did, template_id=tpl_id)
-            crud.add_schedule_run_item(
-                session,
-                run_id=run_id,
-                schedule_id=schedule_id,
-                backup_id=record.id,
-                device_id=did,
-            )
-            jobs.append((did, record.id, tpl_id))
-        return run_id, jobs
-
-
-def execute_schedule_run(*, run_id: UUID, jobs: list[tuple[int, UUID, int | None]]) -> bool:
-    from app.celery_tasks import enqueue_schedule_run
-
-    if enqueue_schedule_run(run_id=run_id, jobs=jobs):
-        return True
-
-    with session_scope() as session:
-        crud.finish_schedule_run(
-            session,
-            run_id=run_id,
-            success_count=0,
-            fail_count=0,
-            error_message="CELERY_ENQUEUE_FAILED",
-        )
-    return False
+def resolve_schedule_device_ids(
+    session,
+    *,
+    schedule: BackupSchedule,
+    allowed_group_ids: list[int] | None = None,
+) -> list[int]:
+    return resolve_device_ids_from_targets(
+        session,
+        targets=schedule.targets,
+        allowed_group_ids=allowed_group_ids,
+    )
 
 
 def run_cleanup() -> None:
@@ -203,11 +187,17 @@ def run_cleanup() -> None:
         if login_days > 0:
             login_count = crud.cleanup_old_login_logs(session, login_days)
 
+        # TaskEvent 固定默认只保留最近 90 天
+        crud.cleanup_old_task_events(session, 90)
+
 
 def sync_scheduler_from_db() -> None:
+    from app.services import schedule_service
+
     with session_scope() as session:
         tz_str = crud.get_setting(session, key="timezone_offset")
         schedules = crud.list_schedules(session)
+        legacy_named_targets = schedule_service.list_legacy_group_name_targets(session)
 
     tz_offset = normalize_timezone_offset(tz_str, default=settings.timezone_offset)
     offset_minutes = parse_timezone_offset_to_minutes(tz_offset) or 0
@@ -216,6 +206,19 @@ def sync_scheduler_from_db() -> None:
         return
 
     _scheduler.remove_all_jobs()
+
+    if legacy_named_targets:
+        for item in legacy_named_targets:
+            legacy_tokens = ", ".join(
+                f"{target['raw']} -> {target['normalized']}"
+                for target in item.get("targets", [])
+            )
+            logger.warning(
+                "Schedule %s(%s) still contains legacy named group targets: %s",
+                item.get("schedule_name") or "",
+                item.get("schedule_id") or 0,
+                legacy_tokens,
+            )
 
     # 添加定时清理任务，每天凌晨 3:00 执行
     _scheduler.add_job(
@@ -238,8 +241,23 @@ def sync_scheduler_from_db() -> None:
 
             if not celery_enabled():
                 return
-            run_id, jobs = plan_schedule_run(schedule_id=schedule_id, trigger="cron")
-            execute_schedule_run(run_id=run_id, jobs=jobs)
+            with session_scope() as session:
+                schedule = crud.get_schedule(session, schedule_id)
+                if schedule is None:
+                    return
+                device_ids = resolve_schedule_device_ids(session, schedule=schedule)
+                run_id, jobs = task_orchestration_service.plan_schedule_run(
+                    session,
+                    schedule_id=schedule_id,
+                    trigger="cron",
+                    device_ids=device_ids,
+                )
+                task_orchestration_service.enqueue_schedule_run(
+                    session,
+                    run_id=run_id,
+                    jobs=jobs,
+                    skip_email=True,
+                )
 
         _scheduler.add_job(
             _job,
@@ -249,25 +267,6 @@ def sync_scheduler_from_db() -> None:
             max_instances=1,
             coalesce=True,
         )
-
-
-def plan_bulk_backup_run(session, device_ids: list[int], trigger: str = "manual") -> tuple[UUID, list[tuple[int, UUID, int | None]]]:
-    """为手动批量备份计划一次运行记录"""
-    run = crud.create_schedule_run(session, schedule_id=0, trigger=trigger, total_devices=len(device_ids))
-    run_id = UUID(str(run.id))
-    jobs: list[tuple[int, UUID, int | None]] = []
-    for did in device_ids:
-        tpl_id = _effective_template_id(session, device_id=did)
-        record = crud.create_backup_record(session, device_id=did, template_id=tpl_id)
-        crud.add_schedule_run_item(
-            session,
-            run_id=run_id,
-            schedule_id=0,
-            backup_id=record.id,
-            device_id=did,
-        )
-        jobs.append((did, record.id, tpl_id))
-    return run_id, jobs
 
 
 def ensure_default_schedule_from_legacy_settings(*, enabled: bool, crontab: str) -> None:

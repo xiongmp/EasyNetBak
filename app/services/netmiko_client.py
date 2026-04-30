@@ -216,7 +216,7 @@ def run_netmiko_commands(
     global_delay_factor: float = 2.0,
     auth_timeout: int = 45,
     read_timeout_override: int = 60,
-    command_read_timeout: int = 180,
+    command_read_timeout: int = 240,
     command_max_loops: int = 120,
 ) -> str:
     from app.platforms import to_netmiko_device_type
@@ -279,7 +279,7 @@ def run_netmiko_commands(
                     full_output = [out]
                     buffer_tail = out
                     
-                    # 引入整体超时机制，防止死循环 (默认 command_read_timeout 比较大，比如 180s)
+                    # 引入整体超时机制，防止死循环 (默认 command_read_timeout 比较大，比如 240s)
                     start_time_pagination = time.time()
                     
                     while prompt not in buffer_tail:

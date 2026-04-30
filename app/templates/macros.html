@@ -39,3 +39,57 @@
     </div>
 </nav>
 {% endmacro %}
+
+{% macro render_status_badge(status, label=None, tone=None, icon=None, show_raw=False) %}
+{% set raw_status = status or "unknown" %}
+{% set badge_label = label or raw_status %}
+{% set badge_tone = tone or "info" %}
+{% set badge_icon = icon or "bi-question-circle" %}
+<div class="backup-status backup-status-{{ badge_tone }}"><i class="bi {{ badge_icon }}"></i>{{ badge_label }}{% if show_raw %}<span class="ms-1 opacity-75">{{ raw_status }}</span>{% endif %}</div>
+{% endmacro %}
+
+{% macro render_backup_record_status(status, label=None, tone=None, show_raw=False) %}
+{% set raw_status = status or "unknown" %}
+{% if raw_status == "planned" %}
+  {{ render_status_badge(raw_status, label or "待计划", tone or "info", "bi-hourglass-split", show_raw) }}
+{% elif raw_status == "queued" %}
+  {{ render_status_badge(raw_status, label or "已入队", tone or "info", "bi-list-task", show_raw) }}
+{% elif raw_status == "running" %}
+  {{ render_status_badge(raw_status, label or "运行中", tone or "running", "bi-arrow-repeat", show_raw) }}
+{% elif raw_status == "cancelled" %}
+  {{ render_status_badge(raw_status, label or "已终止", tone or "warning", "bi-stop-circle", show_raw) }}
+{% elif raw_status == "succeeded" %}
+  {{ render_status_badge(raw_status, label or "成功", tone or "success", "bi-check-circle", show_raw) }}
+{% elif raw_status == "failed" %}
+  {{ render_status_badge(raw_status, label or "失败", tone or "failed", "bi-x-circle", show_raw) }}
+{% else %}
+  {{ render_status_badge(raw_status, label or raw_status, tone or "info", "bi-question-circle", show_raw) }}
+{% endif %}
+{% endmacro %}
+
+{% macro render_schedule_run_status(status, label=None, tone=None, show_raw=False) %}
+{% set raw_status = status or "unknown" %}
+{% if raw_status == "planned" %}
+  {{ render_status_badge(raw_status, label or "待计划", tone or "info", "bi-hourglass-split", show_raw) }}
+{% elif raw_status == "dispatching" %}
+  {{ render_status_badge(raw_status, label or "派发中", tone or "info", "bi-send", show_raw) }}
+{% elif raw_status == "running" %}
+  {{ render_status_badge(raw_status, label or "运行中", tone or "running", "bi-arrow-repeat", show_raw) }}
+{% elif raw_status == "finalizing" %}
+  {{ render_status_badge(raw_status, label or "收尾中", tone or "running", "bi-hourglass-bottom", show_raw) }}
+{% elif raw_status == "cancelling" %}
+  {{ render_status_badge(raw_status, label or "终止中", tone or "warning", "bi-slash-circle", show_raw) }}
+{% elif raw_status == "cancelled" %}
+  {{ render_status_badge(raw_status, label or "已终止", tone or "warning", "bi-stop-circle", show_raw) }}
+{% elif raw_status == "partial_cancelled" %}
+  {{ render_status_badge(raw_status, label or "部分终止", tone or "warning", "bi-exclamation-octagon", show_raw) }}
+{% elif raw_status == "succeeded" %}
+  {{ render_status_badge(raw_status, label or "全部成功", tone or "success", "bi-check-all", show_raw) }}
+{% elif raw_status == "partial_failed" %}
+  {{ render_status_badge(raw_status, label or "部分失败", tone or "failed", "bi-exclamation-triangle", show_raw) }}
+{% elif raw_status == "failed" %}
+  {{ render_status_badge(raw_status, label or "全部失败", tone or "failed", "bi-x-circle", show_raw) }}
+{% else %}
+  {{ render_status_badge(raw_status, label or raw_status, tone or "info", "bi-question-circle", show_raw) }}
+{% endif %}
+{% endmacro %}

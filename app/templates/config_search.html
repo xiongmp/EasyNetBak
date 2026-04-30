@@ -324,7 +324,18 @@ document.addEventListener('DOMContentLoaded', function() {
             
             try {
                 const resp = await fetch(`/api/backups/${backupId}`);
-                if (!resp.ok) throw new Error('加载失败');
+                if (!resp.ok) {
+                    let detail = '';
+                    try {
+                        const payload = await resp.clone().json();
+                        detail = payload && typeof payload.detail === 'string' ? payload.detail : '';
+                    } catch (e) {
+                        detail = '';
+                    }
+                    if (resp.status === 403) throw new Error('当前账号无权限查看备份内容');
+                    if (resp.status === 404) throw new Error(detail || '备份记录不存在');
+                    throw new Error(detail || '备份内容加载失败');
+                }
                 const data = await resp.json();
                 
                 loadingEl.classList.add('d-none');

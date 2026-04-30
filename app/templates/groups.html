@@ -19,7 +19,7 @@
         {% endif %}
       </div>
       <div class="table-responsive">
-        <table class="table table-sm align-middle">
+        <table class="table table-sm table-hover align-middle">
           <thead>
             <tr>
               <th style="width: 80px;">ID</th>
@@ -31,11 +31,32 @@
           </thead>
           <tbody>
             {% for g in items %}
-              <tr>
-                <td class="text-start">{{ g.id }}</td>
-                <td class="text-start">{{ g.name }}</td>
+              <tr class="tree-row" data-id="{{ g.id }}" data-parent-id="{{ g.parent_id or 0 }}">
+                <td class="text-start text-secondary">{{ g.id }}</td>
                 <td class="text-start">
-                  <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">
+                  <div class="d-flex align-items-center" style="padding-left: {{ g.depth * 2 }}rem;">
+                    {% if g.children and g.children|length > 0 %}
+                      <button class="btn btn-sm btn-link p-0 text-secondary me-1 btn-tree-toggle" data-id="{{ g.id }}" title="展开/折叠">
+                        <i class="bi bi-chevron-down toggle-icon" style="transition: transform 0.2s; font-size: 0.8rem;"></i>
+                      </button>
+                    {% else %}
+                      <span style="width: 20px; display: inline-block;"></span>
+                    {% endif %}
+                    
+                    {% if g.depth == 0 %}
+                      <i class="bi bi-house-door-fill text-secondary me-2 fs-5"></i>
+                      <span class="fw-medium text-body">{{ g.name }}</span>
+                    {% elif g.depth == 1 %}
+                      <i class="bi bi-folder-fill text-secondary me-2 fs-5"></i>
+                      <span class="fw-medium text-body">{{ g.name }}</span>
+                    {% else %}
+                      <i class="bi bi-folder text-secondary opacity-75 me-2 fs-5"></i>
+                      <span class="text-secondary">{{ g.name }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-start">
+                  <div class="backup-status d-inline-flex align-items-center gap-1 px-2 py-1 rounded" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border: 1px solid var(--bs-border-color); font-size: 12px;">
                     <i class="bi bi-cpu"></i>{{ usage.get(g.id, 0) }} 台设备
                   </div>
                 </td>
@@ -49,13 +70,25 @@
                                 data-bs-toggle="modal" 
                                 data-bs-target="#groupCreateModal"
                                 data-bs-id="{{ g.id }}"
-                                data-bs-name="{{ g.name }}">
+                                data-bs-name="{{ g.name }}"
+                                data-bs-parent-id="{{ g.parent_id or '0' }}"
+                                title="编辑分组">
                           <i class="bi bi-pencil me-1"></i>编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-success px-2 text-nowrap" 
+                                type="button" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#groupCreateModal"
+                                data-bs-id="0"
+                                data-bs-name=""
+                                data-bs-parent-id="{{ g.id }}"
+                                title="添加子分组">
+                          <i class="bi bi-plus-lg me-1"></i>添加
                         </button>
                       {% endif %}
                       {% if can_group_delete %}
                         <form method="post" action="/groups/{{ g.id }}/delete" class="m-0 text-nowrap">
-                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？">
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？" title="删除分组">
                             <i class="bi bi-trash me-1"></i>删除
                           </button>
                         </form>
@@ -74,8 +107,6 @@
           </tbody>
         </table>
       </div>
-
-      {{ render_pagination(pagination, pagination_base, "个分组") }}
     </div>
   </div>
 
@@ -93,6 +124,21 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body p-4">
+              <div class="mb-3">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-diagram-3 me-1"></i>父分组
+                </label>
+                <div class="dropdown custom-tree-select w-100">
+                  <button class="form-select form-select-lg fs-6 text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="parentGroupDropdownBtn">
+                    <span id="parentGroupSelectedText">作为一级根分组</span>
+                  </button>
+                  <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
+                    <div id="parentGroupTreeContainer"></div>
+                  </div>
+                  <input type="hidden" name="parent_id" id="modalGroupParentId" value="0">
+                </div>
+                <div class="form-text x-small mt-2">选择该分组所属的上级节点</div>
+              </div>
               <div class="mb-3">
                 <label class="form-label small fw-bold text-secondary">
                   <i class="bi bi-tag me-1"></i>分组名称
@@ -113,6 +159,109 @@
     </div>
 
     <script>
+      const groupItems = [
+        {% for g in items %}
+        { id: {{ g.id }}, parent_id: {{ g.parent_id or 0 }}, name: {{ g.name|tojson }}, depth: {{ g.depth }} },
+        {% endfor %}
+      ];
+
+      function buildTree(flatList) {
+          const map = new Map();
+          const roots = [];
+          
+          flatList.forEach(item => {
+              map.set(item.id, { ...item, children: [] });
+          });
+          
+          flatList.forEach(item => {
+              if (item.parent_id && map.has(item.parent_id)) {
+                  map.get(item.parent_id).children.push(map.get(item.id));
+              } else {
+                  roots.push(map.get(item.id));
+              }
+          });
+          
+          return roots;
+      }
+
+      function renderTree(nodes, container, options = {}) {
+          const ul = document.createElement('ul');
+          ul.className = 'tree-view';
+          
+          nodes.forEach(node => {
+              const li = document.createElement('li');
+              li.className = 'tree-node';
+              
+              const content = document.createElement('div');
+              content.className = 'tree-node-content' + (options.selectedId == node.id ? ' selected' : '');
+              
+              let isDisabled = false;
+              if (options.disabledIds && options.disabledIds.has(node.id)) {
+                  isDisabled = true;
+                  content.classList.add('disabled');
+              }
+              
+              const isRoot = node.depth === 0;
+              const hasChildren = node.children && node.children.length > 0;
+              
+              const toggle = document.createElement('div');
+              toggle.className = 'tree-toggle' + (hasChildren ? '' : ' empty');
+              toggle.innerHTML = '<i class="bi bi-caret-down-fill"></i>';
+              
+              let iconClass = 'bi me-2 ';
+              let textClass = '';
+              if (node.depth === 0 || node.id === 0) {
+                  iconClass += 'bi-house-door-fill text-secondary';
+                  textClass = 'fw-medium text-body';
+              } else if (node.depth === 1) {
+                  iconClass += 'bi-folder-fill text-secondary';
+                  textClass = 'fw-medium text-body';
+              } else {
+                  iconClass += 'bi-folder text-secondary opacity-75';
+                  textClass = 'text-secondary';
+              }
+              
+              const icon = document.createElement('i');
+              icon.className = iconClass;
+              
+              const text = document.createElement('span');
+              text.className = textClass;
+              text.textContent = node.name;
+              
+              content.appendChild(toggle);
+              content.appendChild(icon);
+              content.appendChild(text);
+              li.appendChild(content);
+              
+              let childrenUl = null;
+              if (hasChildren) {
+                  childrenUl = renderTree(node.children, null, options);
+                  childrenUl.className = 'tree-view tree-children';
+                  li.appendChild(childrenUl);
+                  
+                  toggle.addEventListener('click', (e) => {
+                      e.stopPropagation();
+                      toggle.classList.toggle('collapsed');
+                      childrenUl.classList.toggle('collapsed');
+                  });
+              }
+              
+              content.addEventListener('click', (e) => {
+                  if (e.target.closest('.tree-toggle')) return;
+                  if (isDisabled) return;
+                  if (options.onSelect) options.onSelect(node);
+              });
+              
+              ul.appendChild(li);
+          });
+          
+          if (container) {
+              container.innerHTML = '';
+              container.appendChild(ul);
+          }
+          return ul;
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('groupCreateModal');
         if (modal) {
@@ -120,19 +269,92 @@
             const button = event.relatedTarget;
             const id = button.getAttribute('data-bs-id') || '0';
             const name = button.getAttribute('data-bs-name') || '';
+            const parentId = button.getAttribute('data-bs-parent-id') || '0';
             
             const title = modal.querySelector('#modalTitle');
             const idInput = modal.querySelector('#modalGroupId');
             const nameInput = modal.querySelector('#modalGroupName');
+            const parentIdInput = modal.querySelector('#modalGroupParentId');
             
+            title.textContent = id !== '0' ? '编辑分组' : '新增分组';
+            idInput.value = id;
+            nameInput.value = name;
+            parentIdInput.value = parentId;
+            
+            const disabledIds = new Set();
             if (id !== '0') {
-              title.textContent = '编辑分组';
-              idInput.value = id;
-              nameInput.value = name;
+                const addDisabled = (nodeId) => {
+                    disabledIds.add(parseInt(nodeId));
+                    groupItems.filter(g => g.parent_id == nodeId).forEach(g => addDisabled(g.id));
+                };
+                addDisabled(id);
+            }
+            
+            const updateParentSelection = (nodeId) => {
+                parentIdInput.value = nodeId;
+                const selectedText = document.getElementById('parentGroupSelectedText');
+                if (nodeId == 0) {
+                    selectedText.textContent = '作为一级根分组';
+                } else {
+                    const selectedGroup = groupItems.find(g => g.id == nodeId);
+                    selectedText.textContent = selectedGroup ? selectedGroup.name : '作为一级根分组';
+                }
+                
+                // Re-render tree to update selected state
+                 const treeData = [
+                     { id: 0, name: '作为一级根分组', depth: 0, children: [] },
+                     ...buildTree(groupItems)
+                 ];
+                
+                renderTree(treeData, document.getElementById('parentGroupTreeContainer'), {
+                    selectedId: nodeId,
+                    disabledIds: disabledIds,
+                    onSelect: (node) => {
+                        updateParentSelection(node.id);
+                        const dropdownBtn = document.getElementById('parentGroupDropdownBtn');
+                        const bsDropdown = bootstrap.Dropdown.getInstance(dropdownBtn) || new bootstrap.Dropdown(dropdownBtn);
+                        bsDropdown.hide();
+                    }
+                });
+            };
+            
+            updateParentSelection(parentId);
+          });
+        }
+        
+        // 树形表格展开/折叠逻辑
+        document.querySelectorAll('.btn-tree-toggle').forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const id = this.getAttribute('data-id');
+            const icon = this.querySelector('.toggle-icon');
+            const isCollapsed = icon.classList.contains('bi-chevron-right');
+            
+            if (isCollapsed) {
+              icon.classList.replace('bi-chevron-right', 'bi-chevron-down');
+              toggleChildren(id, true);
             } else {
-              title.textContent = '新增分组';
-              idInput.value = '0';
-              nameInput.value = '';
+              icon.classList.replace('bi-chevron-down', 'bi-chevron-right');
+              toggleChildren(id, false);
+            }
+          });
+        });
+
+        function toggleChildren(parentId, show) {
+          const children = document.querySelectorAll(`.tree-row[data-parent-id="${parentId}"]`);
+          children.forEach(child => {
+            const childId = child.getAttribute('data-id');
+            if (show) {
+              child.style.display = '';
+              // 如果显示当前子节点，需要检查它自身的折叠状态，决定是否显示它的子节点
+              const toggleBtn = child.querySelector('.btn-tree-toggle .toggle-icon');
+              if (toggleBtn && toggleBtn.classList.contains('bi-chevron-down')) {
+                 toggleChildren(childId, true);
+              }
+            } else {
+              child.style.display = 'none';
+              // 隐藏时，递归隐藏所有后代节点
+              toggleChildren(childId, false);
             }
           });
         }

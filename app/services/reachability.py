@@ -7,7 +7,7 @@ from typing import Any
 
 from app import crud
 from app.db import session_scope
-from app.routers.common import _dt_local_str
+from app.core.time import format_local_datetime
 from app.services.netmiko_client import test_netmiko_connection
 
 
@@ -23,7 +23,6 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
             device.reachability_error = "未配置凭据"
             device.last_reachability_check = datetime.utcnow()
             session.add(device)
-            session.commit()
             return {
                 "id": device.id,
                 "name": device.name,
@@ -31,7 +30,7 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
                 "success": False,
                 "error_message": "未配置凭据",
                 "duration_ms": 0,
-                "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
+                "last_checked": format_local_datetime(device.last_reachability_check, offset_minutes=offset_minutes),
                 "login_method": device.login_method,
             }
 
@@ -52,8 +51,7 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
             device.reachability_duration_ms = int((time.monotonic() - started) * 1000)
             device.last_reachability_check = datetime.utcnow()
             session.add(device)
-            session.commit()
-            
+
             return {
                 "id": device.id,
                 "name": device.name,
@@ -61,7 +59,7 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
                 "success": False,
                 "error_message": device.reachability_error,
                 "duration_ms": device.reachability_duration_ms,
-                "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
+                "last_checked": format_local_datetime(device.last_reachability_check, offset_minutes=offset_minutes),
                 "login_method": device.login_method,
             }
 
@@ -86,8 +84,7 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
         device.reachability_duration_ms = int((time.monotonic() - started) * 1000)
         device.last_reachability_check = datetime.utcnow()
         session.add(device)
-        session.commit()
-        
+
         return {
             "id": device.id,
             "name": device.name,
@@ -95,6 +92,6 @@ def perform_single_reachability_check(device_id: int, offset_minutes: int = 0) -
             "success": device.reachability_status,
             "error_message": device.reachability_error,
             "duration_ms": device.reachability_duration_ms,
-            "last_checked": _dt_local_str(device.last_reachability_check, offset_minutes=offset_minutes),
+            "last_checked": format_local_datetime(device.last_reachability_check, offset_minutes=offset_minutes),
             "login_method": device.login_method,
         }

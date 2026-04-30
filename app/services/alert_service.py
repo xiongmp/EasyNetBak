@@ -10,6 +10,7 @@ from app.core.settings import settings
 from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
 from app.models import BackupRecord, Device
 from app.services.notification_service import send_email
+from app.services import task_state_service
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     records = crud.list_backups_by_ids(session, backup_ids)
     
     failed_records = []
+    cancelled_records = []
     changed_records = []
     
     # 获取配置
@@ -138,7 +140,9 @@ def check_and_alert_batch(session: Session, run_id: UUID):
         if not device:
             continue
             
-        if not record.success:
+        if str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED:
+            cancelled_records.append((device, record))
+        elif not record.success:
             failed_records.append((device, record))
         else:
             # 始终检查配置变更，以便汇总报告展示（如果需要）
@@ -157,7 +161,7 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     # 2. 如果未开启汇总，但开启了“失败告警”且有失败，则发送
     # 3. 如果未开启汇总，但开启了“变更提醒”且有变更，则发送
     should_send = always_send
-    if not should_send and alert_on_fail and failed_records:
+    if not should_send and alert_on_fail and (failed_records or cancelled_records):
         should_send = True
     if not should_send and alert_on_change and changed_records:
         should_send = True
@@ -169,6 +173,8 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     subject = f"【备份汇总报告】"
     if failed_records:
         subject += f"发现 {len(failed_records)} 台设备备份失败"
+    elif cancelled_records:
+        subject += f"发现 {len(cancelled_records)} 台任务被终止"
     elif changed_records:
         subject += f"发现 {len(changed_records)} 台设备配置变更"
     else:
@@ -179,7 +185,7 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     <body>
         <h2>备份汇总报告</h2>
         <p><strong>任务时间:</strong> {_format_datetime(run.started_at, session)}</p>
-        <p><strong>统计结果:</strong> 总计 {run.total_devices} 台，成功 <span style="color: #5cb85c;">{run.success_count}</span> 台，失败 <span style="color: #d9534f;">{run.fail_count}</span> 台</p>
+        <p><strong>统计结果:</strong> 总计 {run.total_devices} 台，成功 <span style="color: #5cb85c;">{run.success_count}</span> 台，失败 <span style="color: #d9534f;">{run.fail_count}</span> 台，终止 <span style="color: #f0ad4e;">{len(cancelled_records)}</span> 台</p>
     """
 
     if failed_records:
@@ -205,6 +211,30 @@ def check_and_alert_batch(session: Session, run_id: UUID):
                 <td>{dur}</td>
                 <td>{ftype}</td>
                 <td style="color: #d9534f;">{err_msg}</td>
+            </tr>
+            """
+        content += "</table><br>"
+
+    if cancelled_records:
+        content += """
+        <h3 style="color: #f0ad4e;">终止列表</h3>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 1000px;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="text-align: left; width: 20%;">设备名称</th>
+                <th style="text-align: left; width: 20%;">设备地址</th>
+                <th style="text-align: left; width: 15%;">结束时间</th>
+                <th style="text-align: left; width: 15%;">类型</th>
+                <th style="text-align: left; width: 30%;">详情</th>
+            </tr>
+        """
+        for device, record in cancelled_records:
+            content += f"""
+            <tr>
+                <td>{device.name}</td>
+                <td>{device.host}</td>
+                <td>{_format_datetime(record.finished_at, session)}</td>
+                <td>{record.failure_type or 'CANCELLED'}</td>
+                <td style="color: #f0ad4e;">{record.error_message or '任务已终止'}</td>
             </tr>
             """
         content += "</table><br>"
