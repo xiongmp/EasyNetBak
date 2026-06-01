@@ -73,3 +73,51 @@ def test_ruijie_enable_password_enters_enable_mode(monkeypatch, runner, kwargs):
     )
 
     assert fake_conn.enable_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("runner", "kwargs"),
+    [
+        (
+            netmiko_client.run_netmiko_commands,
+            {"commands": ["show running-config"]},
+        ),
+        (
+            netmiko_client.test_netmiko_connection,
+            {},
+        ),
+    ],
+)
+def test_legacy_ssh_fallback_retries_on_no_acceptable_kex(monkeypatch, runner, kwargs):
+    fake_conn = _FakeConnection()
+    connect_calls: list[dict[str, object]] = []
+
+    def fake_connect_handler(**device):
+        connect_calls.append(device)
+        if len(connect_calls) == 1:
+            raise Exception(
+                "A paramiko SSHException occurred during connection creation: "
+                "Incompatible ssh peer (no acceptable kex algorithm)"
+            )
+        assert device["disabled_algorithms"] == netmiko_client._LEGACY_SSH_DISABLED_ALGORITHMS
+        return fake_conn
+
+    monkeypatch.setattr(netmiko_client, "ConnectHandler", fake_connect_handler)
+
+    result = runner(
+        host="10.0.0.10",
+        port=22,
+        platform="ruijie_os",
+        login_method="ssh",
+        username="admin",
+        password="password",
+        enable_password="enable",
+        **kwargs,
+    )
+
+    assert len(connect_calls) == 2
+    assert "disabled_algorithms" not in connect_calls[0]
+    if runner is netmiko_client.run_netmiko_commands:
+        assert result == "RG#show running-config\ncurrent configuration\n"
+    else:
+        assert result == "RG#"

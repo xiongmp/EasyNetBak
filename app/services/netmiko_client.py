@@ -66,6 +66,21 @@ _LEGACY_SSH_DISABLED_ALGORITHMS = {
     ],
 }
 
+_SSH_ALGO_MISMATCH_KEYWORDS = (
+    "incompatible ssh peer",
+    "no acceptable host key",
+    "no acceptable key exchange",
+    "no acceptable kex algorithm",
+    "no matching host key",
+    "host key type",
+    "no matching key exchange",
+    "no matching kex",
+    "no matching cipher",
+    "no matching mac",
+    "algorithm negotiation failed",
+    "no common algorithms",
+)
+
 
 @unique
 class NetmikoErrorCode(Enum):
@@ -113,19 +128,7 @@ class NetmikoClientError(RuntimeError):
 
 def _is_ssh_algo_mismatch_error(exc: Exception) -> bool:
     err_msg = str(exc).lower()
-    keywords = (
-        "incompatible ssh peer",
-        "no acceptable host key",
-        "no matching host key",
-        "host key type",
-        "no matching key exchange",
-        "no matching kex",
-        "no matching cipher",
-        "no matching mac",
-        "algorithm negotiation failed",
-        "no common algorithms",
-    )
-    return any(keyword in err_msg for keyword in keywords)
+    return any(keyword in err_msg for keyword in _SSH_ALGO_MISMATCH_KEYWORDS)
 
 
 def _merge_disabled_algorithms(
@@ -203,6 +206,8 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
         ("network is unreachable", NetmikoErrorCode.NETWORK_UNREACHABLE),
         ("kex error", NetmikoErrorCode.ALGO_MISMATCH),
         ("kex_exchange_identification", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no acceptable key exchange", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no acceptable kex algorithm", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching key exchange", NetmikoErrorCode.ALGO_MISMATCH),
         ("no common algorithms", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching cipher", NetmikoErrorCode.ALGO_MISMATCH),
