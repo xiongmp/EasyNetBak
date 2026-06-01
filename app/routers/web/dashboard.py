@@ -14,6 +14,16 @@ from app.services import task_observability_service
 
 
 router = APIRouter(tags=["仪表盘 (Dashboard)"])
+_DASHBOARD_WINDOW_OPTIONS: dict[str, dict[str, int | str]] = {
+    "24h": {"label": "最近24小时", "hours": 24, "days": 1},
+    "7d": {"label": "最近7天", "hours": 24 * 7, "days": 7},
+    "30d": {"label": "最近30天", "hours": 24 * 30, "days": 30},
+}
+
+
+def _resolve_dashboard_window(raw_window: str | None) -> dict[str, int | str]:
+    key = (raw_window or "7d").strip().lower()
+    return _DASHBOARD_WINDOW_OPTIONS.get(key, _DASHBOARD_WINDOW_OPTIONS["7d"])
 
 
 @router.get("/", summary="重定向至仪表盘", description="根路径自动重定向到 /dashboard")
@@ -22,19 +32,26 @@ def root() -> RedirectResponse:
 
 
 @router.get("/dashboard", summary="仪表盘页面", description="展示系统运行概览、平台统计、备份趋势、设备健康状态及最近备份记录")
-def dashboard_page(request: Request, session: Session = Depends(get_session)):
+def dashboard_page(request: Request, session: Session = Depends(get_session), window: str = "7d"):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     _require_permission(request, "dashboard.view")
 
-    summary = crud.get_dashboard_summary(session)
+    selected_key = (window or "7d").strip().lower()
+    if selected_key not in _DASHBOARD_WINDOW_OPTIONS:
+        selected_key = "7d"
+    selected_window = _resolve_dashboard_window(selected_key)
+    summary = crud.get_dashboard_summary(session, window_hours=int(selected_window["hours"]))
     platform_stats = crud.get_device_platform_stats(session)
-    trend_stats = crud.get_backup_trend_stats(session, days=30)
-    change_heatmap = crud.get_config_change_heatmap_stats(session, days=90)
-    health_stats = crud.get_group_health_stats(session)
+    trend_stats = crud.get_backup_trend_stats(session, window_key=selected_key)
+    change_heatmap = crud.get_config_change_heatmap_stats(session, window_key=selected_key)
+    health_stats = crud.get_group_health_stats(session, window_days=int(selected_window["days"]))
     recent_backups = crud.get_latest_backups_per_device(session)
-    task_health = task_observability_service.get_task_health_snapshot(session)
+    task_health = task_observability_service.get_task_health_snapshot(
+        session,
+        window_hours=int(selected_window["hours"]),
+    )
 
     device_ids = {r.device_id for r in recent_backups}
     device_map = {}
@@ -59,6 +76,16 @@ def dashboard_page(request: Request, session: Session = Depends(get_session)):
             "recent_backups": recent_backups,
             "device_map": device_map,
             "task_health": task_health,
+            "dashboard_window": {
+                "key": selected_key,
+                "label": str(selected_window["label"]),
+                "hours": int(selected_window["hours"]),
+                "days": int(selected_window["days"]),
+            },
+            "dashboard_window_options": [
+                {"key": key, **value}
+                for key, value in _DASHBOARD_WINDOW_OPTIONS.items()
+            ],
         },
     )
 

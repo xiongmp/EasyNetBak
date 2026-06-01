@@ -10,14 +10,17 @@ from typing import Any
 from netmiko import ConnectHandler, NetmikoTimeoutException, NetmikoAuthenticationException
 
 logger = logging.getLogger(__name__)
-_ENABLE_LEGACY_HOSTKEY_FALLBACK = os.getenv("NETMIKO_ENABLE_LEGACY_HOSTKEY_FALLBACK", "1").lower() not in {
+_ENABLE_LEGACY_SSH_FALLBACK = os.getenv(
+    "NETMIKO_ENABLE_LEGACY_SSH_FALLBACK",
+    os.getenv("NETMIKO_ENABLE_LEGACY_HOSTKEY_FALLBACK", "1"),
+).lower() not in {
     "0",
     "false",
     "no",
 }
 
-# Disable modern host-key algorithms so legacy devices can negotiate ssh-rsa/ssh-dss.
-_LEGACY_HOSTKEY_DISABLED_ALGORITHMS = {
+# Disable modern SSH algorithms so older devices can fall back to ssh-rsa/group1-sha1/cbc/hmac-sha1.
+_LEGACY_SSH_DISABLED_ALGORITHMS = {
     "keys": [
         "ssh-ed25519",
         "ecdsa-sha2-nistp256",
@@ -25,7 +28,42 @@ _LEGACY_HOSTKEY_DISABLED_ALGORITHMS = {
         "ecdsa-sha2-nistp521",
         "rsa-sha2-256",
         "rsa-sha2-512",
-    ]
+    ],
+    "kex": [
+        "curve25519-sha256",
+        "curve25519-sha256@libssh.org",
+        "ecdh-sha2-nistp256",
+        "ecdh-sha2-nistp384",
+        "ecdh-sha2-nistp521",
+        "diffie-hellman-group-exchange-sha256",
+        "diffie-hellman-group14-sha256",
+        "diffie-hellman-group16-sha512",
+        "diffie-hellman-group18-sha512",
+        "sntrup761x25519-sha512",
+        "sntrup761x25519-sha512@openssh.com",
+        "kex-strict-s-v00@openssh.com",
+        "kex-strict-c-v00@openssh.com",
+    ],
+    "ciphers": [
+        "aes128-ctr",
+        "aes192-ctr",
+        "aes256-ctr",
+        "aes128-gcm@openssh.com",
+        "aes256-gcm@openssh.com",
+        "chacha20-poly1305@openssh.com",
+    ],
+    "macs": [
+        "hmac-sha2-256",
+        "hmac-sha2-512",
+        "hmac-sha2-256-etm@openssh.com",
+        "hmac-sha2-512-etm@openssh.com",
+        "hmac-sha1-etm@openssh.com",
+        "hmac-md5-etm@openssh.com",
+        "umac-64@openssh.com",
+        "umac-128@openssh.com",
+        "umac-64-etm@openssh.com",
+        "umac-128-etm@openssh.com",
+    ],
 }
 
 
@@ -73,20 +111,27 @@ class NetmikoClientError(RuntimeError):
         return self.error_code.code
 
 
-def _is_hostkey_algo_mismatch_error(exc: Exception) -> bool:
+def _is_ssh_algo_mismatch_error(exc: Exception) -> bool:
     err_msg = str(exc).lower()
     keywords = (
         "incompatible ssh peer",
         "no acceptable host key",
         "no matching host key",
         "host key type",
+        "no matching key exchange",
+        "no matching kex",
+        "no matching cipher",
+        "no matching mac",
+        "algorithm negotiation failed",
+        "no common algorithms",
     )
     return any(keyword in err_msg for keyword in keywords)
 
 
-def _legacy_hostkey_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
-    legacy_device = dict(device)
-    existing = legacy_device.get("disabled_algorithms")
+def _merge_disabled_algorithms(
+    existing: dict[str, Any] | None,
+    extra: dict[str, list[str]],
+) -> dict[str, list[str]]:
     merged: dict[str, list[str]] = {}
 
     if isinstance(existing, dict):
@@ -94,13 +139,27 @@ def _legacy_hostkey_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
             if isinstance(value, list):
                 merged[key] = value.copy()
 
-    legacy_keys = merged.setdefault("keys", [])
-    for algo in _LEGACY_HOSTKEY_DISABLED_ALGORITHMS["keys"]:
-        if algo not in legacy_keys:
-            legacy_keys.append(algo)
+    for key, values in extra.items():
+        merged_values = merged.setdefault(key, [])
+        for algo in values:
+            if algo not in merged_values:
+                merged_values.append(algo)
 
-    legacy_device["disabled_algorithms"] = merged
+    return merged
+
+
+def _legacy_ssh_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
+    legacy_device = dict(device)
+    legacy_device["disabled_algorithms"] = _merge_disabled_algorithms(
+        legacy_device.get("disabled_algorithms"),
+        _LEGACY_SSH_DISABLED_ALGORITHMS,
+    )
     return legacy_device
+
+
+def _requires_enable_mode(device_type: str) -> bool:
+    normalized = (device_type or "").lower()
+    return normalized.startswith(("cisco", "ruijie"))
 
 
 def _clean_backspaces(text: str) -> str:
@@ -215,7 +274,7 @@ def run_netmiko_commands(
     banner_timeout: int = 60,
     global_delay_factor: float = 2.0,
     auth_timeout: int = 45,
-    read_timeout_override: int = 60,
+    read_timeout_override: int = 120,
     command_read_timeout: int = 240,
     command_max_loops: int = 120,
 ) -> str:
@@ -252,7 +311,7 @@ def run_netmiko_commands(
         output_parts: list[str] = []
         with ConnectHandler(**conn_device) as conn:
             conn.ansi_escape_codes = False
-            if device_type.startswith("cisco") and enable_password:
+            if _requires_enable_mode(device_type) and enable_password:
                 conn.enable()
             prompt = conn.find_prompt().rstrip()
             
@@ -342,10 +401,14 @@ def run_netmiko_commands(
     try:
         output_parts = _execute(device)
     except Exception as exc:
-        if _ENABLE_LEGACY_HOSTKEY_FALLBACK and _is_hostkey_algo_mismatch_error(exc):
-            logger.warning("Detected host key algorithm mismatch for %s:%s, retrying with legacy hostkey compatibility mode", host, port)
+        if _ENABLE_LEGACY_SSH_FALLBACK and _is_ssh_algo_mismatch_error(exc):
+            logger.warning(
+                "Detected SSH algorithm mismatch for %s:%s, retrying with legacy SSH compatibility mode",
+                host,
+                port,
+            )
             try:
-                output_parts = _execute(_legacy_hostkey_compatible_device(device))
+                output_parts = _execute(_legacy_ssh_compatible_device(device))
             except Exception as retry_exc:
                 duration = time.time() - start_time
                 logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {retry_exc}")
@@ -405,17 +468,21 @@ def test_netmiko_connection(
 
     def _probe(conn_device: dict[str, Any]) -> str:
         with ConnectHandler(**conn_device) as conn:
-            if device_type.startswith("cisco") and enable_password:
+            if _requires_enable_mode(device_type) and enable_password:
                 conn.enable()
             return conn.find_prompt()
 
     try:
         return _probe(device)
     except Exception as exc:
-        if _ENABLE_LEGACY_HOSTKEY_FALLBACK and _is_hostkey_algo_mismatch_error(exc):
-            logger.warning("Detected host key algorithm mismatch for %s:%s, retrying test connection with legacy hostkey compatibility mode", host, port)
+        if _ENABLE_LEGACY_SSH_FALLBACK and _is_ssh_algo_mismatch_error(exc):
+            logger.warning(
+                "Detected SSH algorithm mismatch for %s:%s, retrying test connection with legacy SSH compatibility mode",
+                host,
+                port,
+            )
             try:
-                return _probe(_legacy_hostkey_compatible_device(device))
+                return _probe(_legacy_ssh_compatible_device(device))
             except Exception as retry_exc:
                 _raise_netmiko_error(retry_exc, "连接失败")
         _raise_netmiko_error(exc, "连接失败")

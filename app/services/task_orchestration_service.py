@@ -331,7 +331,7 @@ def plan_schedule_run(
 ) -> tuple[UUID, list[BackupDispatchJob]]:
     schedule = crud.get_schedule(session, schedule_id)
     if schedule is None:
-        raise RuntimeError("Schedule not found")
+        raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     return plan_device_batch_run(
         session,
         device_ids=device_ids,
@@ -391,7 +391,7 @@ def enqueue_schedule_run(
     run_id: UUID,
     jobs: list[BackupDispatchJob],
     skip_email: bool = True,
-) -> bool:
+) -> tuple[str, list[UUID]]:
     from app.celery_tasks import backup_record_task, celery_enabled, finalize_schedule_run_task
 
     crud.update_schedule_run_status(
@@ -422,7 +422,7 @@ def enqueue_schedule_run(
             fail_count=len(jobs),
             error_payload={"enqueue_error": "CELERY_UNAVAILABLE"},
         )
-        return False
+        return "none", []
 
     backup_ids = [str(backup_id) for _, backup_id, __ in jobs]
     enqueued_backup_ids: set[str] = set()
@@ -454,7 +454,7 @@ def enqueue_schedule_run(
             run_id=run_id,
             status=task_state_service.SCHEDULE_RUN_STATUS_RUNNING,
         )
-        return True
+        return "all", [backup_id for _, backup_id, __ in jobs]
     except (CeleryError, OperationalError, OSError, TypeError, ValueError) as exc:
         for _, backup_id, __ in jobs:
             if str(backup_id) in enqueued_backup_ids:
@@ -472,13 +472,15 @@ def enqueue_schedule_run(
                 fail_count=len(jobs),
                 error_payload={"enqueue_error": str(exc)},
             )
+            return "none", []
         else:
             crud.update_schedule_run_status(
                 session,
                 run_id=run_id,
                 status=task_state_service.SCHEDULE_RUN_STATUS_RUNNING,
             )
-        return False
+            enqueued_ids = [backup_id for _, backup_id, __ in jobs if str(backup_id) in enqueued_backup_ids]
+            return "partial", enqueued_ids
 
 
 def finalize_schedule_run(

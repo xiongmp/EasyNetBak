@@ -1,320 +1,342 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row g-3 mb-3">
-  <div class="col-6 col-md-3">
-    <div class="card h-100 border-0 shadow-sm hover-lift">
-      <div class="card-body py-3 px-4 d-flex align-items-center">
-        <div class="d-flex align-items-center w-100">
-          <div class="flex-shrink-0 bg-primary bg-gradient bg-opacity-10 text-primary p-3 rounded-3">
-            <i class="bi bi-hdd-network fs-4"></i>
-          </div>
-          <div class="flex-grow-1 ms-3">
-            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">设备总数</h6>
-            <h4 class="card-title mb-0 fw-bold">{{ summary.total_devices }}</h4>
-          </div>
-        </div>
+<div class="dashboard-layout d-flex flex-column h-100">
+  <div class="dashboard-header flex-shrink-0 mb-2">
+    <div class="dashboard-title-group d-flex align-items-baseline">
+      <h4 class="mb-0">运行统计概览</h4>
+      <div class="stats-info ms-3 d-flex align-items-center">
+        <span class="me-3"><i class="bi bi-calendar-check me-1"></i>统计周期：{{ dashboard_window.label }}</span>
+        
       </div>
     </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card h-100 border-0 shadow-sm hover-lift">
-      <div class="card-body py-3 px-4 d-flex align-items-center">
-        <div class="d-flex align-items-center w-100">
-          <div class="flex-shrink-0 bg-success bg-gradient bg-opacity-10 text-success p-3 rounded-3">
-            <i class="bi bi-diagram-3 fs-4"></i>
-          </div>
-          <div class="flex-grow-1 ms-3">
-            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">设备分组</h6>
-            <h4 class="card-title mb-0 fw-bold">{{ summary.total_groups }}</h4>
-          </div>
-        </div>
-      </div>
+    <div class="time-selector-pill">
+      {% for option in dashboard_window_options %}
+      <a
+        href="/dashboard?window={{ option.key }}"
+        class="nav-link {% if dashboard_window.key == option.key %}active{% endif %}"
+        title="切换为{{ option.label }}"
+      >
+        {{ option.label }}
+      </a>
+      {% endfor %}
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card h-100 border-0 shadow-sm hover-lift">
-      <div class="card-body py-3 px-4 d-flex align-items-center">
-        <div class="d-flex align-items-center w-100">
-          <div class="flex-shrink-0 bg-info bg-gradient bg-opacity-10 text-info p-3 rounded-3">
-            <i class="bi bi-cloud-arrow-up fs-4"></i>
-          </div>
-          <div class="flex-grow-1 ms-3">
-            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">24h 备份任务</h6>
-            <h4 class="card-title mb-0 fw-bold">{{ summary.backup_24h_total }}</h4>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card h-100 border-0 shadow-sm hover-lift">
-      <div class="card-body py-3 px-4 d-flex align-items-center">
-        <div class="d-flex align-items-center w-100">
-          <div class="flex-shrink-0 bg-warning bg-gradient bg-opacity-10 text-warning p-3 rounded-3">
-            <i class="bi bi-check2-circle fs-4"></i>
-          </div>
-          <div class="flex-grow-1 ms-3">
-            <h6 class="card-subtitle mb-1 text-muted small text-uppercase tracking-wider">24h 成功率</h6>
-            <h4 class="card-title mb-0 fw-bold">{{ summary.success_rate }}%</h4>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-3">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-transparent border-0 pt-3 px-3">
-        <ul class="nav nav-tabs card-header-tabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active py-2" id="health-overview-tab" data-bs-toggle="tab" data-bs-target="#health-overview-pane" type="button" role="tab" aria-controls="health-overview-pane" aria-selected="true">备份耗时</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link py-2" id="health-details-tab" data-bs-toggle="tab" data-bs-target="#health-details-pane" type="button" role="tab" aria-controls="health-details-pane" aria-selected="false">上传统计</button>
-          </li>
-        </ul>
-      </div>
-      <div class="card-body px-3 pb-3">
-        {% if task_health.degraded_components %}
-        <div class="alert alert-warning py-2 px-3 small mb-3" role="alert">
-          <div class="fw-semibold mb-1">任务链路存在降级</div>
-          {% for item in task_health.degraded_components %}
-          <div>{{ item.component }}: {{ item.message }}</div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        <div class="tab-content">
-          <!-- 概览 Tab -->
-          <div class="tab-pane fade show active" id="health-overview-pane" role="tabpanel" aria-labelledby="health-overview-tab" tabindex="0">
-            <div class="d-flex align-items-center justify-content-center mt-3 mb-2">
-              <i class="bi bi-clock-history text-muted opacity-25" style="font-size: 2.2rem;"></i>
+  <div class="row g-2 mb-2 flex-shrink-0">
+    <div class="col-6 col-md-3">
+      <div class="card h-100 border-0 shadow-sm hover-lift">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+          <div class="d-flex align-items-center w-100">
+            <div class="flex-shrink-0 bg-primary bg-gradient bg-opacity-10 text-primary p-2 rounded-3">
+              <i class="bi bi-hdd-network fs-5"></i>
             </div>
-            <div class="text-center text-muted small mb-3">最近 24 小时耗时分布</div>
-            <div class="row g-2 mb-2">
-              <div class="col-4">
-                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
-                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">平均</div>
-                  <div class="fs-5 fw-bold text-primary">{{ task_health.avg_duration_seconds }}s</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
-                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">最小</div>
-                  <div class="fs-5 fw-bold text-success">{{ task_health.min_duration_seconds }}s</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="rounded-3 bg-body-tertiary p-2 h-100 text-center hover-lift transition-all">
-                  <div class="text-muted small mb-1" style="font-size: 0.7rem;">最大</div>
-                  <div class="fs-5 fw-bold text-danger">{{ task_health.max_duration_seconds }}s</div>
-                </div>
-              </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备总数</h6>
+              <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.total_devices }}</h5>
             </div>
           </div>
-          
-          <!-- 详细统计 Tab -->
-          <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="max-height: 250px; overflow-y: auto; overflow-x: hidden;">
-            <div class="mt-2 mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between">
-              <div class="text-muted small">24h 成功率</div>
-              <div class="d-flex align-items-baseline">
-                <div class="fw-bold me-2 {% if task_health.upload_success_rate >= 90 %}text-success{% elif task_health.upload_success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
-                  {{ task_health.upload_success_rate }}%
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100 border-0 shadow-sm hover-lift">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+          <div class="d-flex align-items-center w-100">
+            <div class="flex-shrink-0 bg-success bg-gradient bg-opacity-10 text-success p-2 rounded-3">
+              <i class="bi bi-diagram-3 fs-5"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备分组</h6>
+              <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.total_groups }}</h5>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100 border-0 shadow-sm hover-lift">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+          <div class="d-flex align-items-center w-100">
+            <div class="flex-shrink-0 bg-info bg-gradient bg-opacity-10 text-info p-2 rounded-3">
+              <i class="bi bi-cloud-arrow-up fs-5"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}备份任务</h6>
+              <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.backup_window_total }}</h5>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card h-100 border-0 shadow-sm hover-lift">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+          <div class="d-flex align-items-center w-100">
+            <div class="flex-shrink-0 bg-warning bg-gradient bg-opacity-10 text-warning p-2 rounded-3">
+              <i class="bi bi-check2-circle fs-5"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}成功率</h6>
+              <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.success_rate }}%</h5>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-2 mb-2 flex-grow-1 min-height-0">
+    <div class="col-md-3 d-flex flex-column">
+      <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
+        <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
+          <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active py-1" id="health-overview-tab" data-bs-toggle="tab" data-bs-target="#health-overview-pane" type="button" role="tab" aria-controls="health-overview-pane" aria-selected="true">备份耗时</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link py-1" id="health-details-tab" data-bs-toggle="tab" data-bs-target="#health-details-pane" type="button" role="tab" aria-controls="health-details-pane" aria-selected="false">上传统计</button>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body px-3 pb-2 pt-2 d-flex flex-column min-height-0">
+          {% if task_health.degraded_components %}
+          <div class="alert alert-warning py-1 px-2 small mb-2 flex-shrink-0" role="alert">
+            <div class="fw-semibold mb-1">任务链路存在降级</div>
+            {% for item in task_health.degraded_components %}
+            <div>{{ item.component }}: {{ item.message }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="tab-content">
+            <!-- 概览 Tab -->
+            <div class="tab-pane fade show active justify-content-center" id="health-overview-pane" role="tabpanel" aria-labelledby="health-overview-tab" tabindex="0">
+              <div class="d-flex align-items-center justify-content-center mb-2">
+                <i class="bi bi-clock-history text-muted opacity-25" style="font-size: 2rem;"></i>
+              </div>
+              <div class="text-center text-muted small mb-2" style="font-size: 0.75rem;">{{ dashboard_window.label }}耗时分布</div>
+              <div class="row g-2">
+                <div class="col-4">
+                  <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">平均</div>
+                    <div class="fs-6 fw-bold text-primary">{{ task_health.avg_duration_seconds }}s</div>
+                  </div>
                 </div>
-                <div class="text-muted" style="font-size: 0.7rem;">{{ task_health.upload_success_total }}/{{ task_health.upload_attempt_total }}</div>
+                <div class="col-4">
+                  <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">最小</div>
+                    <div class="fs-6 fw-bold text-success">{{ task_health.min_duration_seconds }}s</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">最大</div>
+                    <div class="fs-6 fw-bold text-danger">{{ task_health.max_duration_seconds }}s</div>
+                  </div>
+                </div>
               </div>
             </div>
             
-            <div class="table-responsive" style="overflow-x: hidden;">
-              <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.75rem; table-layout: fixed;">
-                <thead class="table-light">
-                  <tr>
-                    <th class="ps-1" style="width: 35%;">存储类型</th>
-                    <th class="text-center" style="width: 35%;">成功/尝试</th>
-                    <th class="text-end pe-1" style="width: 30%;">率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for item in task_health.storage_uploads %}
-                  <tr>
-                    <td class="ps-1 text-secondary text-truncate" title="{{ item.storage_type }}">
-                      {{ item.storage_type }}
-                    </td>
-                    <td class="text-center text-muted text-nowrap">{{ item.success_count }}/{{ item.attempt_count }}</td>
-                    <td class="text-end pe-1 fw-semibold text-nowrap {% if item.success_rate >= 90 %}text-success{% elif item.success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
-                      {{ item.success_rate }}%
-                    </td>
-                  </tr>
-                  {% else %}
-                  <tr>
-                    <td colspan="3" class="text-center text-muted py-2">
-                      <div style="font-size: 0.7rem;">无上传事件</div>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-transparent border-0 pt-3 px-3">
-        <ul class="nav nav-tabs card-header-tabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 (最近30天)</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率热力图</button>
-          </li>
-        </ul>
-      </div>
-      <div class="card-body px-3 pb-3">
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="trend-pane" role="tabpanel" aria-labelledby="trend-tab" tabindex="0">
-            <div id="backup-trend-chart" style="min-height: 200px;">
-              <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">加载中...</span>
+            <!-- 详细统计 Tab -->
+            <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="overflow-y: auto; overflow-x: hidden;">
+              <div class="mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between flex-shrink-0">
+                <div class="text-muted small" style="font-size: 0.75rem;">{{ dashboard_window.label }}成功率</div>
+                <div class="d-flex align-items-baseline">
+                  <div class="fw-bold me-2 {% if task_health.upload_success_rate >= 90 %}text-success{% elif task_health.upload_success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 0.85rem;">
+                    {{ task_health.upload_success_rate }}%
+                  </div>
+                  <div class="text-muted" style="font-size: 0.7rem;">{{ task_health.upload_success_total }}/{{ task_health.upload_attempt_total }}</div>
                 </div>
               </div>
-            </div>
-          </div>
-          <div class="tab-pane fade" id="change-heatmap-pane" role="tabpanel" aria-labelledby="change-heatmap-tab" tabindex="0">
-            <div id="change-heatmap-chart" style="min-height: 200px;">
-              <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">加载中...</span>
-                </div>
+              
+              <div class="table-responsive flex-grow-1" style="overflow-x: hidden;">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.7rem; table-layout: fixed;">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th class="ps-1 py-1" style="width: 35%;">存储类型</th>
+                      <th class="text-center py-1" style="width: 35%;">成功/尝试</th>
+                      <th class="text-end pe-1 py-1" style="width: 30%;">率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for item in task_health.storage_uploads %}
+                    <tr>
+                      <td class="ps-1 py-1 text-secondary text-truncate" title="{{ item.storage_type }}">
+                        {{ item.storage_type }}
+                      </td>
+                      <td class="text-center py-1 text-muted text-nowrap">{{ item.success_count }}/{{ item.attempt_count }}</td>
+                      <td class="text-end py-1 pe-1 fw-semibold text-nowrap {% if item.success_rate >= 90 %}text-success{% elif item.success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ item.success_rate }}%
+                      </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-2">
+                        <div style="font-size: 0.7rem;">无上传事件</div>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-transparent border-0 pt-3 px-3">
-        <h6 class="card-title mb-0 fw-bold">设备平台分布</h6>
+    <div class="col-md-6 d-flex flex-column">
+      <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
+        <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
+          <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active py-1" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 ({{ dashboard_window.label }}，{{ trend_stats.granularity_label }})</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link py-1" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率 ({{ change_heatmap.range_label }})</button>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body px-3 pb-2 pt-2 d-flex flex-column min-height-0">
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="trend-pane" role="tabpanel" aria-labelledby="trend-tab" tabindex="0">
+              <div id="backup-trend-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
+                <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
+                  <div class="spinner-border text-primary spinner-border-sm" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="change-heatmap-pane" role="tabpanel" aria-labelledby="change-heatmap-tab" tabindex="0">
+              <div id="change-heatmap-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
+                <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
+                  <div class="spinner-border text-primary spinner-border-sm" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card-body px-3 pb-3">
-        <div id="platform-pie-chart" style="min-height: 220px;">
-          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 220px;">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">加载中...</span>
+    </div>
+    <div class="col-md-3 d-flex flex-column">
+      <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
+        <div class="card-header bg-transparent border-0 pt-2 px-3 pb-1 flex-shrink-0">
+          <h6 class="card-title mb-0 fw-bold">设备平台分布</h6>
+        </div>
+        <div class="card-body px-3 pb-2 pt-1 d-flex flex-column min-height-0">
+          <div id="platform-pie-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
+            <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
+              <div class="spinner-border text-primary spinner-border-sm" role="status">
+                <span class="visually-hidden">加载中...</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="row g-3">
-  <div class="col-md-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-transparent border-0 pt-3 px-3 d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0 fw-bold">最近备份活动</h6>
-        <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-primary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="all">全部</button>
-          <button type="button" class="btn btn-outline-secondary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="success">成功</button>
-          <button type="button" class="btn btn-outline-secondary py-1 px-3 small" style="font-size: 0.75rem;" data-filter="failed">失败</button>
+  <div class="row g-2 flex-grow-1 min-height-0">
+    <div class="col-md-6 d-flex flex-column">
+      <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
+        <div class="card-header bg-transparent border-0 pt-2 px-3 pb-2 flex-shrink-0 d-flex justify-content-between align-items-center">
+          <h6 class="card-title mb-0 fw-bold">最近备份活动<span class="text-muted small" style="font-size: 0.7rem;">（所有设备最近一次备份记录）</span></h6>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-primary py-1 px-3" style="font-size: 0.8rem;" data-filter="all">全部</button>
+            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="success">成功</button>
+            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="failed">失败</button>
+          </div>
         </div>
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive custom-scroll" style="max-height: 310px;">
-          <table class="table table-hover align-middle mb-0 table-sm" id="backup-activity-table">
-            <thead class="bg-body-tertiary sticky-top">
-              <tr>
-                <th class="ps-3 py-2">设备</th>
-                <th class="py-2">开始时间</th>
-                <th class="text-center py-2">状态</th>
-                <th class="pe-3 py-2 text-end">操作</th>
-              </tr>
-            </thead>
-            <tbody id="backup-table-body">
-              {% if recent_backups %}
-              {% for record in recent_backups %}
-              <tr class="backup-row" data-status="{% if record.success %}success{% elif record.finished_at %}failed{% else %}running{% endif %}">
-                <td class="ps-3">
-                  <div class="d-flex align-items-center">
-                    <div class="bg-body-tertiary rounded-circle p-1 me-2">
-                      <i class="bi bi-router text-primary small"></i>
+        <div class="card-body p-0 flex-grow-1 min-height-0 d-flex flex-column">
+          <div class="table-responsive custom-scroll flex-grow-1 min-height-0" style="overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0 table-sm" id="backup-activity-table">
+              <thead class="bg-body-tertiary sticky-top">
+                <tr>
+                  <th class="ps-3 py-1" style="font-size: 0.75rem;">设备</th>
+                  <th class="py-1" style="font-size: 0.75rem;">开始时间</th>
+                  <th class="text-center py-1" style="font-size: 0.75rem;">状态</th>
+                  <th class="pe-3 py-1 text-end" style="font-size: 0.75rem;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="backup-table-body">
+                {% if recent_backups %}
+                {% for record in recent_backups %}
+                <tr class="backup-row" data-status="{% if record.success %}success{% elif record.finished_at %}failed{% else %}running{% endif %}">
+                  <td class="ps-3 py-1">
+                    <div class="d-flex align-items-center">
+                      <div class="bg-body-tertiary rounded-circle p-1 me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
+                        <i class="bi bi-router text-primary" style="font-size: 0.75rem;"></i>
+                      </div>
+                      <div>
+                        <div class="fw-semibold" style="font-size: 0.75rem;">{{ (device_map.get(record.device_id) or {}).name | default('未知设备', true) }}</div>
+                        <div class="text-muted" style="font-size: 0.7rem;">{{ (device_map.get(record.device_id) or {}).host | default('-', true) }}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div class="fw-semibold small">{{ (device_map.get(record.device_id) or {}).name | default('未知设备', true) }}</div>
-                      <div class="text-muted" style="font-size: 0.75rem;">{{ (device_map.get(record.device_id) or {}).host | default('-', true) }}</div>
+                  </td>
+                  <td class="py-1" style="font-size: 0.75rem;">{{ record.started_at | dt_local }}</td>
+                  <td class="text-center py-1">
+                    {% if record.success %}
+                    <div class="backup-status backup-status-success" style="font-size: 0.65rem; padding: 2px 6px;">
+                      <i class="bi bi-check-circle" style="font-size: 0.65rem;"></i>成功
                     </div>
-                  </div>
-                </td>
-                <td class="small">{{ record.started_at | dt_local }}</td>
-                <td class="text-center">
-                  {% if record.success %}
-                  <div class="backup-status backup-status-success">
-                    <i class="bi bi-check-circle"></i>成功
-                  </div>
-                  {% elif record.finished_at %}
-                  <div class="backup-status backup-status-failed">
-                    <i class="bi bi-x-circle"></i>失败
-                  </div>
-                  {% else %}
-                  <div class="backup-status backup-status-running">
-                    <i class="bi bi-arrow-repeat"></i>运行中
-                  </div>
-                  {% endif %}
-                </td>
-                <td class="pe-3 text-end">
-                    {% if record.finished_at %}
-                    <div class="btn-group btn-group-sm">
-                        <a href="#" class="btn btn-sm btn-outline-secondary border nb-backup-link p-1" data-backup-id="{{ record.id }}" title="查看详情">
-                          <i class="bi bi-file-text"></i>
-                        </a>
-                        <a href="/backups/{{ record.id }}/download" class="btn btn-sm btn-outline-secondary border p-1" title="下载">
-                          <i class="bi bi-download"></i>
-                        </a>
+                    {% elif record.finished_at %}
+                    <div class="backup-status backup-status-failed" style="font-size: 0.65rem; padding: 2px 6px;">
+                      <i class="bi bi-x-circle" style="font-size: 0.65rem;"></i>失败
+                    </div>
+                    {% else %}
+                    <div class="backup-status backup-status-running" style="font-size: 0.65rem; padding: 2px 6px;">
+                      <i class="bi bi-arrow-repeat" style="font-size: 0.65rem;"></i>运行中
                     </div>
                     {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-              {% else %}
-              <tr id="empty-state-row">
-                <td colspan="4" class="text-center py-5">
-                  <div class="text-muted">
-                    <i class="bi bi-inbox fs-1 mb-2 d-block"></i>
-                    <p class="mb-0">暂无备份记录</p>
-                  </div>
-                </td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
+                  </td>
+                  <td class="pe-3 py-1 text-end">
+                      {% if record.finished_at %}
+                      <div class="btn-group btn-group-sm">
+                          <a href="#" class="btn btn-sm btn-outline-secondary border nb-backup-link py-0 px-1" data-backup-id="{{ record.id }}" title="查看详情">
+                            <i class="bi bi-file-text" style="font-size: 0.75rem;"></i>
+                          </a>
+                          <a href="/backups/{{ record.id }}/download" class="btn btn-sm btn-outline-secondary border py-0 px-1" title="下载">
+                            <i class="bi bi-download" style="font-size: 0.75rem;"></i>
+                          </a>
+                      </div>
+                      {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr id="empty-state-row">
+                  <td colspan="4" class="text-center py-4">
+                    <div class="text-muted">
+                      <i class="bi bi-inbox fs-3 mb-1 d-block"></i>
+                      <p class="mb-0" style="font-size: 0.75rem;">暂无备份记录</p>
+                    </div>
+                  </td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-transparent border-0 py-1 d-flex justify-content-end align-items-center flex-shrink-0">
+          <a href="/backups" class="btn btn-sm btn-link text-decoration-none py-0 small" style="font-size: 0.7rem;">
+            查看全部 <i class="bi bi-arrow-right"></i>
+          </a>
         </div>
       </div>
-      <div class="card-footer bg-transparent border-0 py-2 d-flex justify-content-between align-items-center">
-        <span class="text-muted small">显示所有设备最近一次备份记录</span>
-        <a href="/backups" class="btn btn-sm btn-link text-decoration-none py-0 small">
-          查看全部 <i class="bi bi-arrow-right"></i>
-        </a>
-      </div>
     </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-transparent border-0 pt-3 px-3">
-        <h6 class="card-title mb-0 fw-bold">分组备份健康度 (成功率 %)</h6>
-      </div>
-      <div class="card-body px-3 pb-3">
-        <div id="group-health-chart" style="min-height: 200px;">
-          <div class="chart-loading text-center d-flex align-items-center justify-content-center" style="min-height: 200px;">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">加载中...</span>
+    <div class="col-md-6 d-flex flex-column">
+      <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
+        <div class="card-header bg-transparent border-0 pt-2 px-3 pb-1 flex-shrink-0">
+          <h6 class="card-title mb-0 fw-bold">分组备份健康度 ({{ dashboard_window.label }})</h6>
+        </div>
+        <div class="card-body px-3 pb-2 pt-1 d-flex flex-column min-height-0">
+          <div id="group-health-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
+            <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
+              <div class="spinner-border text-primary spinner-border-sm" role="status">
+                <span class="visually-hidden">加载中...</span>
+              </div>
             </div>
           </div>
         </div>
@@ -344,105 +366,122 @@ document.addEventListener('DOMContentLoaded', function() {
     // 备份趋势图
     const trendChart = echarts.init(document.getElementById('backup-trend-chart'));
     const trendData = {{ trend_stats | tojson }};
-    
-    trendChart.setOption({
-        animation: true,
-        animationDuration: 1000,
-        animationEasing: 'cubicOut',
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: { 
-                type: 'shadow',
-                shadowStyle: {
-                    color: 'rgba(59, 130, 246, 0.1)'
+    const isHourlyTrend = trendData.granularity === 'hour';
+
+    function setTrendChartOption(textColor, splitLineColor, tooltipBg, tooltipBorder, tooltipText, borderColor) {
+        trendChart.setOption({
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow',
+                    shadowStyle: {
+                        color: 'rgba(59, 130, 246, 0.1)'
+                    }
+                },
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                borderWidth: 1,
+                textStyle: {
+                    color: tooltipText
                 }
             },
-            backgroundColor: chartTooltipBg,
-            borderColor: chartTooltipBorder,
-            borderWidth: 1,
-            textStyle: {
-                color: chartTooltipText
-            }
-        },
-        legend: {
-            data: ['成功', '失败'],
-            bottom: 0,
-            itemWidth: 12,
-            itemHeight: 12,
-            textStyle: { fontSize: 11, color: chartTextColor }
-        },
-        grid: {
-            left: '2%',
-            right: '3%',
-            bottom: '15%',
-            top: '5%',
-            containLabel: true
-        },
-        xAxis: {
-            type: 'category',
-            data: trendData.dates,
-            axisLine: { lineStyle: { color: chartBorderColor } },
-            axisLabel: { color: chartTextColor, fontSize: 11 },
-            axisTick: { show: false }
-        },
-        yAxis: {
-            type: 'value',
-            splitLine: { 
-                lineStyle: { 
-                    color: chartSplitLineColor,
-                    type: 'dashed'
-                } 
+            legend: {
+                data: ['成功', '失败'],
+                bottom: 0,
+                itemWidth: 12,
+                itemHeight: 12,
+                textStyle: { fontSize: 12, color: textColor }
             },
-            axisLabel: { color: chartTextColor, fontSize: 11 },
-            axisLine: { show: false }
-        },
-        series: [
-            {
-                name: '成功',
-                type: 'bar',
-                stack: 'total',
-                itemStyle: { 
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: '#22c55e' },
-                        { offset: 1, color: '#16a34a' }
-                    ]),
-                    borderRadius: [4, 4, 0, 0]
+            grid: {
+                left: '2%',
+                right: '3%',
+                bottom: isHourlyTrend ? 60 : 40,
+                top: '5%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: trendData.labels,
+                axisLine: { lineStyle: { color: borderColor } },
+                axisLabel: {
+                    color: textColor,
+                    fontSize: 11,
+                    rotate: isHourlyTrend ? 45 : 0,
+                    hideOverlap: !isHourlyTrend
                 },
-                data: trendData.success,
-                barWidth: '60%',
-                emphasis: {
+                axisTick: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: {
+                    lineStyle: {
+                        color: splitLineColor,
+                        type: 'dashed'
+                    }
+                },
+                axisLabel: { color: textColor, fontSize: 11 },
+                axisLine: { show: false }
+            },
+            series: [
+                {
+                    name: '成功',
+                    type: 'bar',
+                    stack: 'total',
                     itemStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#4ade80' },
-                            { offset: 1, color: '#22c55e' }
-                        ])
+                            { offset: 0, color: '#22c55e' },
+                            { offset: 1, color: '#16a34a' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    },
+                    data: trendData.success,
+                    barWidth: isHourlyTrend ? '70%' : '60%',
+                    emphasis: {
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#4ade80' },
+                                { offset: 1, color: '#22c55e' }
+                            ])
+                        }
                     }
-                }
-            },
-            {
-                name: '失败',
-                type: 'bar',
-                stack: 'total',
-                itemStyle: { 
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: '#ef4444' },
-                        { offset: 1, color: '#dc2626' }
-                    ]),
-                    borderRadius: [4, 4, 0, 0]
                 },
-                data: trendData.fail,
-                barWidth: '60%',
-                emphasis: {
+                {
+                    name: '失败',
+                    type: 'bar',
+                    stack: 'total',
                     itemStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#f87171' },
-                            { offset: 1, color: '#ef4444' }
-                        ])
+                            { offset: 0, color: '#ef4444' },
+                            { offset: 1, color: '#dc2626' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    },
+                    data: trendData.fail,
+                    barWidth: isHourlyTrend ? '70%' : '60%',
+                    emphasis: {
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#f87171' },
+                                { offset: 1, color: '#ef4444' }
+                            ])
+                        }
                     }
                 }
-            }
-        ]
-    });
+            ]
+        });
+    }
+
+    setTrendChartOption(
+        chartTextColor,
+        chartSplitLineColor,
+        chartTooltipBg,
+        chartTooltipBorder,
+        chartTooltipText,
+        chartBorderColor
+    );
     
     // 移除趋势图加载状态
     document.querySelector('#backup-trend-chart .chart-loading')?.remove();
@@ -468,10 +507,10 @@ document.addEventListener('DOMContentLoaded', function() {
         legend: {
             bottom: '5',
             left: 'center',
-            itemWidth: 10,
-            itemHeight: 10,
+            itemWidth: 12,
+            itemHeight: 12,
             padding: [0, 5],
-            textStyle: { fontSize: 10, color: chartTextColor }
+            textStyle: { fontSize: 12, color: chartTextColor }
         },
         series: [
             {
@@ -516,91 +555,186 @@ document.addEventListener('DOMContentLoaded', function() {
     const heatmapData = {{ change_heatmap | tojson }};
     const heatmapValues = Array.isArray(heatmapData.data) ? heatmapData.data : [];
     const heatmapMax = heatmapData.max || 0;
+    const isMatrixHeatmap = heatmapData.mode === 'matrix';
 
-    heatmapChart.setOption({
-        animation: true,
-        animationDuration: 1000,
-        animationEasing: 'cubicOut',
-        tooltip: {
-            position: 'top',
-            formatter: function (params) {
-                const label = params.value && params.value.length > 1 ? params.value[0] : '';
-                const val = params.value && params.value.length > 1 ? params.value[1] : 0;
-                return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
-            },
-            backgroundColor: chartTooltipBg,
-            borderColor: chartTooltipBorder,
-            borderWidth: 1,
-            padding: [8, 12],
-            textStyle: {
-                color: chartTooltipText,
-                fontSize: 12
-            },
-            extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
-        },
-        visualMap: {
-            type: 'continuous',
-            min: 0,
-            max: Math.max(5, heatmapMax), // 稍微提高默认最大值，避免颜色过于单一
-            calculable: false,
-            orient: 'horizontal',
-            left: 'center',
-            bottom: 0,
-            inRange: {
-                color: heatmapColorList
-            },
-            text: ['多', '少'], // 文本，默认为数值文本
-            textStyle: { fontSize: 11, color: chartTextColor },
-            itemWidth: 16,
-            itemHeight: 200 // 调长图例
-        },
-        calendar: {
-            top: 25,
-            left: 30,
-            right: 10,
-            cellSize: ['auto', 16],
-            range: heatmapData.range,
-            itemStyle: {
-                borderWidth: 2,
-                borderColor: chartBorderColor,
-                color: chartEmptyColor
-            },
-            splitLine: {
-                show: false
-            },
-            dayLabel: {
-                nameMap: ['日', '一', '二', '三', '四', '五', '六'],
-                firstDay: 1, // 从周一开始
-                color: chartTextColor,
-                fontSize: 10
-            },
-            monthLabel: {
-                nameMap: 'cn',
-                color: chartTextColor,
-                fontSize: 11,
-                margin: 6
-            },
-            yearLabel: { show: false }
-        },
-        series: [
-            {
-                type: 'heatmap',
-                coordinateSystem: 'calendar',
-                data: heatmapValues,
-                itemStyle: {
-                    borderRadius: 3,
+    function setHeatmapChartOption(textColor, tooltipBg, tooltipBorder, tooltipText, borderColor, emptyColor, colorList) {
+        const baseOption = {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+            visualMap: {
+                type: 'continuous',
+                min: 0,
+                max: Math.max(5, heatmapMax),
+                calculable: false,
+                orient: 'horizontal',
+                left: 'center',
+                bottom: 0,
+                inRange: {
+                    color: colorList
                 },
-                emphasis: {
+                text: ['多', '少'],
+                textStyle: { fontSize: 12, color: textColor },
+                itemWidth: 16,
+                itemHeight: 200
+            }
+        };
+
+        if (isMatrixHeatmap) {
+            heatmapChart.setOption({
+                ...baseOption,
+                tooltip: {
+                    position: 'top',
+                    formatter: function (params) {
+                        const xIndex = params.value && params.value.length > 2 ? params.value[0] : 0;
+                        const yIndex = params.value && params.value.length > 2 ? params.value[1] : 0;
+                        const val = params.value && params.value.length > 2 ? params.value[2] : 0;
+                        const xLabel = (heatmapData.x_labels || [])[xIndex] || '';
+                        const yLabel = (heatmapData.y_labels || [])[yIndex] || '';
+                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                    },
+                    backgroundColor: tooltipBg,
+                    borderColor: tooltipBorder,
+                    borderWidth: 1,
+                    padding: [8, 12],
+                    textStyle: {
+                        color: tooltipText,
+                        fontSize: 12
+                    },
+                    extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
+                },
+                grid: {
+                    left: '4%',
+                    right: '3%',
+                    top: '10%',
+                    bottom: 40,
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: heatmapData.x_labels || [],
+                    splitArea: { show: true },
+                    splitLine: { show: false },
+                    axisLine: { lineStyle: { color: borderColor } },
+                    axisLabel: {
+                        color: textColor,
+                        fontSize: 12,
+                        rotate: (heatmapData.y_labels || []).length === 1 ? 45 : 0,
+                        hideOverlap: false
+                    },
+                    axisTick: { show: false }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: heatmapData.y_labels || [],
+                    splitArea: { show: true },
+                    splitLine: { show: false },
+                    axisLine: { lineStyle: { color: borderColor } },
+                    axisLabel: { color: textColor, fontSize: 12 },
+                    axisTick: { show: false }
+                },
+                series: [
+                    {
+                        type: 'heatmap',
+                        data: heatmapValues,
+                        label: { show: false },
+                        itemStyle: {
+                            borderRadius: 4,
+                            borderColor: borderColor,
+                            borderWidth: 1
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 6,
+                                shadowColor: 'rgba(0, 0, 0, 0.12)',
+                                borderColor: '#3b82f6',
+                                borderWidth: 1
+                            }
+                        }
+                    }
+                ]
+            }, true);
+            return;
+        }
+
+        heatmapChart.setOption({
+            ...baseOption,
+            tooltip: {
+                position: 'top',
+                formatter: function (params) {
+                    const label = params.value && params.value.length > 1 ? params.value[0] : '';
+                    const val = params.value && params.value.length > 1 ? params.value[1] : 0;
+                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                },
+                backgroundColor: tooltipBg,
+                borderColor: tooltipBorder,
+                borderWidth: 1,
+                padding: [8, 12],
+                textStyle: {
+                    color: tooltipText,
+                    fontSize: 12
+                },
+                extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
+            },
+            calendar: {
+                top: 25,
+                left: 30,
+                right: 10,
+                bottom: 40,
+                cellSize: ['auto', 16],
+                range: heatmapData.range,
+                itemStyle: {
+                    borderWidth: 2,
+                    borderColor: borderColor,
+                    color: emptyColor
+                },
+                splitLine: {
+                    show: false
+                },
+                dayLabel: {
+                    nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+                    firstDay: 1,
+                    color: textColor,
+                    fontSize: 10
+                },
+                monthLabel: {
+                    nameMap: 'cn',
+                    color: textColor,
+                    fontSize: 11,
+                    margin: 6
+                },
+                yearLabel: { show: false }
+            },
+            series: [
+                {
+                    type: 'heatmap',
+                    coordinateSystem: 'calendar',
+                    data: heatmapValues,
                     itemStyle: {
-                        shadowBlur: 4,
-                        shadowColor: 'rgba(0, 0, 0, 0.1)',
-                        borderColor: '#3b82f6',
-                        borderWidth: 1
+                        borderRadius: 3,
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 4,
+                            shadowColor: 'rgba(0, 0, 0, 0.1)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
+                        }
                     }
                 }
-            }
-        ]
-    });
+            ]
+        }, true);
+    }
+
+    setHeatmapChartOption(
+        chartTextColor,
+        chartTooltipBg,
+        chartTooltipBorder,
+        chartTooltipText,
+        chartBorderColor,
+        chartEmptyColor,
+        heatmapColorList
+    );
 
     document.querySelector('#change-heatmap-chart .chart-loading')?.remove();
 
@@ -626,8 +760,8 @@ document.addEventListener('DOMContentLoaded', function() {
         grid: {
             left: '1%',
             right: '8%',
-            bottom: '0%',
-            top: '0%',
+            bottom: 20,
+            top: '2%',
             containLabel: true
         },
         xAxis: {
@@ -639,14 +773,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     type: 'dashed'
                 } 
             },
-            axisLabel: { formatter: '{value}%', color: chartTextColor, fontSize: 11 },
+            axisLabel: { formatter: '{value}%', color: chartTextColor, fontSize: 12 },
             axisLine: { show: false }
         },
         yAxis: {
             type: 'category',
             data: healthData.map(item => item.name),
             axisLine: { lineStyle: { color: chartBorderColor } },
-            axisLabel: { color: chartTextColor, fontSize: 11 },
+            axisLabel: { color: chartTextColor, fontSize: 12 },
             axisTick: { show: false }
         },
         series: [
@@ -676,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     show: true,
                     position: 'right',
                     formatter: '{c}%',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 500,
                     color: chartTitleColor
                 },
@@ -716,22 +850,14 @@ document.addEventListener('DOMContentLoaded', function() {
             : ['#f1f5f9', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
 
         // 更新趋势图
-        trendChart.setOption({
-            tooltip: {
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                textStyle: { color: tooltipText }
-            },
-            legend: { textStyle: { color: textColor } },
-            xAxis: {
-                axisLine: { lineStyle: { color: borderColor } },
-                axisLabel: { color: textColor }
-            },
-            yAxis: {
-                splitLine: { lineStyle: { color: splitLineColor } },
-                axisLabel: { color: textColor }
-            }
-        });
+        setTrendChartOption(
+            textColor,
+            splitLineColor,
+            tooltipBg,
+            tooltipBorder,
+            tooltipText,
+            borderColor
+        );
 
         // 更新饼图
         pieChart.setOption({
@@ -747,25 +873,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // 更新热力图
-        heatmapChart.setOption({
-            tooltip: {
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                textStyle: { color: tooltipText }
-            },
-            visualMap: {
-                inRange: { color: heatmapColors },
-                textStyle: { color: textColor }
-            },
-            calendar: {
-                itemStyle: {
-                    borderColor: borderColor,
-                    color: emptyColor
-                },
-                dayLabel: { color: textColor },
-                monthLabel: { color: textColor }
-            }
-        });
+        setHeatmapChartOption(
+            textColor,
+            tooltipBg,
+            tooltipBorder,
+            tooltipText,
+            borderColor,
+            emptyColor,
+            heatmapColors
+        );
 
         // 更新健康度图
         healthChart.setOption({

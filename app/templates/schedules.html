@@ -387,8 +387,8 @@
               </div>
               <div class="mb-2">
                 <div class="input-group input-group-sm shadow-sm">
-                  <span class="input-group-text border-end-0 text-secondary bg-body"><i class="bi bi-search"></i></span>
-                  <input type="text" id="group-search" class="form-control border-start-0 ps-0 shadow-none" placeholder="搜索分组名称...">
+                  <span class="input-group-text border-end-0 text-secondary bg-body filter-control-sm"><i class="bi bi-search"></i></span>
+                  <input type="text" id="group-search" class="form-control border-start-0 ps-0 shadow-none filter-control-sm" placeholder="搜索分组名称...">
                 </div>
               </div>
               <div id="group-selection" class="p-2 border rounded-3 bg-body shadow-sm overflow-y-auto custom-scrollbar" style="height: 250px;">
@@ -408,8 +408,8 @@
               </div>
               <div class="mb-2">
                 <div class="input-group input-group-sm shadow-sm">
-                  <span class="input-group-text border-end-0 text-secondary bg-body"><i class="bi bi-search"></i></span>
-                  <input type="text" id="device-search" class="form-control border-start-0 ps-0 shadow-none" placeholder="搜索设备名称、IP、平台或分组...">
+                  <span class="input-group-text border-end-0 text-secondary bg-body filter-control-sm"><i class="bi bi-search"></i></span>
+                  <input type="text" id="device-search" class="form-control border-start-0 ps-0 shadow-none filter-control-sm" placeholder="搜索设备名称、IP、平台或分组...">
                 </div>
               </div>
               <div id="device-selection" class="border rounded-3 bg-body overflow-y-auto shadow-sm custom-scrollbar" style="height: 300px;">
@@ -634,9 +634,17 @@
 
           try {
             const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/toggle`, { method: "POST" });
-            if (!resp.ok) throw new Error("Toggle failed");
+            if (!resp.ok) {
+              let detail = "";
+              try {
+                const data = await resp.json();
+                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+              } catch (e) {
+                detail = "";
+              }
+              throw new Error(detail || "切换失败");
+            }
             const data = await resp.json();
-            if (!data.success) throw new Error(data.message || "Toggle failed");
             
             checkbox.checked = data.enabled;
             if (label) {
@@ -1483,12 +1491,26 @@
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
           try {
             const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
-            if (!resp.ok) throw new Error("run failed");
+            if (!resp.ok) {
+              let detail = "";
+              try {
+                const data = await resp.json();
+                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+              } catch (e) {
+                detail = "";
+              }
+              throw new Error(detail || "执行失败");
+            }
             const data = await resp.json();
             const records = (data && data.records) || [];
+            const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
             if (records.length && window.NB && typeof window.NB.trackBackups === "function") {
               window.NB.trackBackups(records);
-              window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+              if (enqueueStatus === "partial") {
+                window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
+              } else {
+                window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+              }
             } else if (records.length === 0) {
               window.NB.showToast("没有找到需要备份的设备", "warning");
             }
@@ -1516,8 +1538,12 @@
             previewLoading.classList.toggle("d-none", !loading);
           }
 
-          function setError(hasError) {
+          function setError(hasError, message) {
             previewError.classList.toggle("d-none", !hasError);
+            const msgEl = previewError.querySelector(".small");
+            if (msgEl) {
+              msgEl.textContent = message || "预览加载失败，请重试";
+            }
           }
 
           function renderPreview(data) {
@@ -1592,7 +1618,16 @@
               const fd = new FormData();
               fd.set("targets", targets);
               const resp = await fetch("/api/schedules/preview", { method: "POST", body: fd });
-              if (!resp.ok) throw new Error("preview failed");
+              if (!resp.ok) {
+                let detail = "";
+                try {
+                  const data = await resp.json();
+                  detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+                } catch (e) {
+                  detail = "";
+                }
+                throw new Error(detail || "预览加载失败，请重试");
+              }
               const data = await resp.json();
               if (reqId !== inflight) return;
               renderPreview(data);
@@ -1601,7 +1636,7 @@
               previewSummary.textContent = "";
               previewCounts.innerHTML = "";
               previewDevices.innerHTML = "";
-              setError(true);
+              setError(true, e && e.message ? String(e.message) : "预览加载失败，请重试");
             } finally {
               if (reqId === inflight) setLoading(false);
             }

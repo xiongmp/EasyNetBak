@@ -246,6 +246,8 @@ def sync_scheduler_from_db() -> None:
                 if schedule is None:
                     return
                 device_ids = resolve_schedule_device_ids(session, schedule=schedule)
+                if not device_ids:
+                    return
                 run_id, jobs = task_orchestration_service.plan_schedule_run(
                     session,
                     schedule_id=schedule_id,

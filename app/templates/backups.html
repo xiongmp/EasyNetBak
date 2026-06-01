@@ -11,14 +11,14 @@
 
           <div class="d-flex gap-2 align-items-center mb-3">
             <div class="input-group input-group-sm nb-device-search">
-              <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
-              <input class="form-control border-start-0 ps-0" id="device-search" placeholder="搜索设备名或IP..." />
+              <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+              <input class="form-control border-start-0 ps-0 filter-control-sm" id="device-search" placeholder="搜索设备名或IP..." />
             </div>
-            <button class="btn btn-outline-primary btn-sm px-2" id="multi-device-btn" title="点击切换多设备对比模式">
+            <button class="btn btn-outline-primary btn-sm px-2 filter-control-sm" id="multi-device-btn" title="点击切换多设备对比模式">
               <i class="bi bi-intersect me-1"></i>多设备对比
             </button>
             {% if has_permission('devices.backup') %}
-            <button class="btn btn-primary btn-sm ms-auto px-3" id="backup-now-btn" disabled>
+            <button class="btn btn-primary btn-sm ms-auto px-3 filter-control-sm" id="backup-now-btn" disabled>
               <i class="bi bi-play-fill me-1"></i>立即备份
             </button>
             {% endif %}
@@ -368,8 +368,12 @@
             const checked = selectedBackups.includes(b.id) ? "checked" : "";
             const status = getStatusBadge(b);
             const err = b.error_message ? escapeText(b.error_message) : "";
+            const isActive = window.NB && typeof window.NB.isActiveBackupStatus === "function"
+              ? window.NB.isActiveBackupStatus(b.status)
+              : !b.finished_at;
+            const deleteTitle = isActive ? "执行中的备份任务无法删除" : "删除";
             const opCell = CAN_DELETE_BACKUP
-              ? `<td><button class="btn btn-outline-danger btn-sm py-0 px-2 backup-delete-row" title="删除" data-backup-id="${escapeText(b.id)}"><i class="bi bi-trash"></i></button></td>`
+              ? `<td><button class="btn btn-outline-danger btn-sm py-0 px-2 backup-delete-row" title="${escapeText(deleteTitle)}" data-backup-id="${escapeText(b.id)}" ${isActive ? "disabled" : ""}><i class="bi bi-trash"></i></button></td>`
               : "";
             html += `
               <tr class="backup-row" data-backup-id="${escapeText(b.id)}">
@@ -405,7 +409,23 @@
 
     async function fetchDeviceBackups(deviceId, page = 1, limit = BACKUP_PAGE_LIMIT) {
        const resp = await fetch(`/api/devices/${deviceId}/backups?page=${page}&limit=${limit}`);
-       if (!resp.ok) return null;
+       if (!resp.ok) {
+         let detail = "";
+         try {
+           const data = await resp.json();
+           detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+         } catch (e) {
+           detail = "";
+         }
+         if (polling.timer) {
+           stopPolling();
+           setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || selectedDeviceIds.length === 0);
+         }
+         if (window.NB && typeof window.NB.showToast === "function") {
+           window.NB.showToast(detail || "加载备份记录失败", "error");
+         }
+         return null;
+       }
        return await resp.json();
     }
 
@@ -605,8 +625,15 @@
         try {
           const resp = await fetch(`/api/backups/${backupId}/delete`, { method: "POST" });
           if (!resp.ok) {
+            let detail = "";
+            try {
+              const data = await resp.json();
+              detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+            } catch (e) {
+              detail = "";
+            }
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("删除失败，请稍后重试", "error");
+              window.NB.showToast(detail || "删除失败，请稍后重试", "error");
             }
             updateActionButtons();
             return;
@@ -812,7 +839,14 @@
       const resp = await fetch(url);
       els.diffLoading.classList.add("d-none");
       if (!resp.ok) {
-        els.diffRender.innerHTML = '<div class="text-danger small p-3">Diff 加载失败</div>';
+        let detail = "";
+        try {
+          const data = await resp.json();
+          detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+        } catch (e) {
+          detail = "";
+        }
+        els.diffRender.innerHTML = `<div class="text-danger small p-3">${escapeText(detail || "差异加载失败")}</div>`;
         return;
       }
       const data = await resp.json();
@@ -915,8 +949,15 @@
               const resp = await fetch(`/api/devices/${selectedDeviceId}/backup`, { method: "POST", body: fd });
               
               if (!resp.ok) {
+                let detail = "";
+                try {
+                  const data = await resp.json();
+                  detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+                } catch (e) {
+                  detail = "";
+                }
                 if (window.NB && typeof window.NB.showToast === "function") {
-                  window.NB.showToast("备份任务提交失败", "error");
+                  window.NB.showToast(detail || "备份任务提交失败", "error");
                 }
                 setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
                 return;

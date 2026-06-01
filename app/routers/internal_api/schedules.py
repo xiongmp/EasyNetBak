@@ -22,28 +22,42 @@ def api_run_schedule(request: Request, schedule_id: int, session: Session = Depe
     _require_permission(request, "devices.backup")
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="定时任务不存在")
     allowed_group_ids = get_user_allowed_group_ids(_current_user(request), session=session)
     device_ids = resolve_schedule_device_ids(
         session,
         schedule=schedule,
         allowed_group_ids=allowed_group_ids,
     )
-    run_id, jobs = task_orchestration_service.plan_schedule_run(
-        session,
-        schedule_id=int(schedule_id),
-        trigger="manual",
-        device_ids=device_ids,
-    )
+    if not device_ids:
+        return {
+            "run_id": None,
+            "records": [],
+            "enqueue_status": "none",
+            "reason": "no_devices",
+        }
+    try:
+        run_id, jobs = task_orchestration_service.plan_schedule_run(
+            session,
+            schedule_id=int(schedule_id),
+            trigger="manual",
+            device_ids=device_ids,
+        )
+    except task_orchestration_service.ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     _log_action(request, session, "TRIGGER_SCHEDULE_API", "schedule", schedule_id, f"Run ID: {run_id}, Jobs: {len(jobs)}")
     enqueue_result = backup_service.enqueue_schedule_jobs(
         session,
         run_id=run_id,
         jobs=jobs,
     )
-    if not enqueue_result.enqueued:
+    if enqueue_result.enqueue_status == "none":
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
-    return {"run_id": str(run_id), "records": [str(record_id) for _, record_id, __ in jobs]}
+    return {
+        "run_id": str(run_id),
+        "records": [str(record_id) for record_id in enqueue_result.enqueued_record_ids],
+        "enqueue_status": enqueue_result.enqueue_status,
+    }
 
 
 @router.post("/api/schedules/{schedule_id}/toggle", summary="启停定时任务", description="启用或禁用指定的定时任务")
@@ -51,13 +65,16 @@ def api_toggle_schedule(request: Request, schedule_id: int, session: Session = D
     _require_permission(request, "schedules.update")
     try:
         new_status = schedule_service.toggle_schedule(session, schedule_id)
-    except schedule_service.ServiceError:
-        return {"success": False, "message": "定时任务不存在"}
+    except schedule_service.ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     _log_action(request, session, "TOGGLE_SCHEDULE", "schedule", schedule_id, f"Enabled: {new_status}")
 
     session.commit()
     sync_scheduler_from_db()
-    next_run = schedule_service.get_schedule_next_run_payload(session, schedule_id=int(schedule_id))
+    try:
+        next_run = schedule_service.get_schedule_next_run_payload(session, schedule_id=int(schedule_id))
+    except schedule_service.ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return {"success": True, "enabled": new_status, "next_run": next_run}
 
 
@@ -68,12 +85,15 @@ def api_schedule_stats_runs(request: Request, schedule_id: int, session: Session
         ["schedules.view", "schedules.create", "schedules.update", "schedules.delete"],
     )
     offset_minutes = int(getattr(request.state, "tz_offset_minutes", 0))
-    return schedule_service.get_schedule_runs_live_payload(
-        session,
-        schedule_id=int(schedule_id),
-        offset_minutes=offset_minutes,
-        limit=30,
-    )
+    try:
+        return schedule_service.get_schedule_runs_live_payload(
+            session,
+            schedule_id=int(schedule_id),
+            offset_minutes=offset_minutes,
+            limit=30,
+        )
+    except schedule_service.ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @router.post("/api/schedules/runs/{run_id}/terminate", summary="终止未运行任务", description="仅终止指定运行中尚未开始执行的子任务")
@@ -84,7 +104,7 @@ def api_terminate_schedule_run(request: Request, run_id: UUID, session: Session 
             session,
             run_id=run_id,
         )
-    except schedule_service.ServiceError as exc:
+    except task_orchestration_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     _log_action(

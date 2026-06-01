@@ -182,7 +182,7 @@ class BackupScheduleRunItem(SQLModel, table=True):
 class Device(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("name", name="uq_device_name"),
-        UniqueConstraint("host", name="uq_device_host"),
+        UniqueConstraint("host", "port", name="uq_device_host_port"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

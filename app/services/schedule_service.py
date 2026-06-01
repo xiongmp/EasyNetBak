@@ -99,6 +99,7 @@ def summarize_schedule_run_error(error_message: str | None) -> str:
 def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) -> dict[str, Any]:
     started_at = getattr(run, "started_at", None)
     finished_at = getattr(run, "finished_at", None)
+    status = getattr(run, "status", None)
     started_at_text = format_local_datetime(started_at, offset_minutes=offset_minutes) if started_at else ""
     finished_at_text = format_local_datetime(finished_at, offset_minutes=offset_minutes) if finished_at else None
 
@@ -110,8 +111,8 @@ def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) 
             duration_text = f"{duration_seconds}s"
         else:
             duration_text = f"{duration_seconds // 60}m {duration_seconds % 60}s"
-    elif task_state_service.is_schedule_run_active_status(getattr(run, "status", None)):
-        duration_text = "运行中"
+    elif task_state_service.is_schedule_run_active_status(status):
+        duration_text = task_state_service.get_schedule_run_status_label(status)
 
     return {
         "id": str(run.id),
@@ -123,9 +124,9 @@ def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) 
         "total_devices": int(getattr(run, "total_devices", 0) or 0),
         "success_count": int(getattr(run, "success_count", 0) or 0),
         "fail_count": int(getattr(run, "fail_count", 0) or 0),
-        "status": str(getattr(run, "status", "") or ""),
-        "status_label": task_state_service.get_schedule_run_status_label(getattr(run, "status", None)),
-        "status_tone": task_state_service.get_schedule_run_status_tone(getattr(run, "status", None)),
+        "status": str(status or ""),
+        "status_label": task_state_service.get_schedule_run_status_label(status),
+        "status_tone": task_state_service.get_schedule_run_status_tone(status),
         "error_message": str(getattr(run, "error_message", "") or ""),
         "error_summary": summarize_schedule_run_error(getattr(run, "error_message", None)),
     }
@@ -238,6 +239,15 @@ def list_legacy_group_name_targets(session: Session) -> list[dict[str, Any]]:
 
 def delete_schedule(session: Session, schedule_id: int) -> str:
     schedule = crud.get_schedule(session, schedule_id)
+    if schedule is None:
+        raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
+    if schedule and crud.has_active_runs_for_schedule(session, int(schedule_id)):
+        raise ServiceError(
+            "Schedule has active runs",
+            code="SCHEDULE_DELETE_ACTIVE_RUNS",
+            status_code=409,
+            context={"schedule_id": int(schedule_id)},
+        )
     name = schedule.name if schedule else f"ID: {schedule_id}"
     crud.delete_schedule(session, int(schedule_id))
     return name
@@ -379,6 +389,8 @@ def get_schedule_stats_payload(
     offset_minutes: int = 0,
 ) -> dict[str, Any]:
     schedule = crud.get_schedule(session, int(schedule_id))
+    if schedule is None:
+        raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     runs = crud.list_schedule_runs(session, int(schedule_id), limit=120)
     run_ids = [run.id for run in runs if run.id]
     items = (
@@ -510,6 +522,9 @@ def get_schedule_runs_live_payload(
     offset_minutes: int = 0,
     limit: int = 30,
 ) -> dict[str, Any]:
+    schedule = crud.get_schedule(session, int(schedule_id))
+    if schedule is None:
+        raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     runs = crud.list_schedule_runs(session, int(schedule_id), limit=max(1, int(limit or 30)))
     items = [_serialize_schedule_run(run, offset_minutes=offset_minutes) for run in runs]
     has_active_runs = any(task_state_service.is_schedule_run_active_status(item.get("status")) for item in items)

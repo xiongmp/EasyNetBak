@@ -121,11 +121,17 @@ def flush_task_event_buffer(*, logger: logging.Logger | None = None, force: bool
     return len(pending_events)
 
 
-def get_task_health_snapshot(session: Session, *, now: datetime | None = None) -> dict[str, Any]:
+def get_task_health_snapshot(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    window_hours: int = 24,
+) -> dict[str, Any]:
     flush_task_event_buffer(logger=_MODULE_LOGGER, force=True)
 
     current = now or datetime.utcnow()
-    recent_threshold = current - timedelta(hours=24)
+    normalized_window_hours = max(1, int(window_hours))
+    recent_threshold = current - timedelta(hours=normalized_window_hours)
     stale_threshold = current - timedelta(minutes=30)
 
     backup_counts = session.exec(
@@ -310,7 +316,7 @@ def get_task_health_snapshot(session: Session, *, now: datetime | None = None) -
     success_rate = round(((recent_total - recent_failed) / recent_total) * 100, 1) if recent_total else 100.0
 
     return {
-        "window_hours": 24,
+        "window_hours": normalized_window_hours,
         "recent_total": recent_total,
         "recent_failed": recent_failed,
         "recent_success_rate": success_rate,

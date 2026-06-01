@@ -1,7 +1,7 @@
 """optimize_config_search_indexes
 
 Revision ID: p4q5r6s7t8u9
-Revises: n3o4p5q6r7s8
+Revises: n3o4p5q6r7s8, z9y8x7w6v5u4, y6z7a8b9c0d1
 Create Date: 2026-03-16 00:00:00.000000
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = "p4q5r6s7t8u9"
-down_revision: Union[str, Sequence[str], None] = "n3o4p5q6r7s8"
+down_revision: Union[str, Sequence[str], None] = ("n3o4p5q6r7s8", "z9y8x7w6v5u4", "y6z7a8b9c0d1")
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

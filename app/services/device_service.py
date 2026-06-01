@@ -29,8 +29,8 @@ _DEVICE_INTEGRITY_RULES = (
         code="DEVICE_NAME_EXISTS",
     ),
     IntegrityRule(
-        tokens=("device.host", "uq_device_host"),
-        message="Device host already exists",
+        tokens=("device.host, device.port", "uq_device_host_port"),
+        message="Device host and port already exist",
         code="DEVICE_HOST_EXISTS",
     ),
 )
@@ -223,25 +223,32 @@ def _ensure_unique_name(session: Session, name: str, *, exclude_device_id: int |
         )
 
 
-def _ensure_unique_host(session: Session, host: str, *, exclude_device_id: int | None = None) -> None:
-    stmt = select(Device).where(Device.host == host)
+def _ensure_unique_host_port(
+    session: Session,
+    host: str,
+    port: int,
+    *,
+    exclude_device_id: int | None = None,
+) -> None:
+    stmt = select(Device).where(Device.host == host, Device.port == port)
     if exclude_device_id is not None:
         stmt = stmt.where(Device.id != exclude_device_id)
     existing = session.exec(stmt).first()
     if existing:
         raise ServiceError(
-            f"Host already exists: {host}",
+            f"Host and port already exist: {host}:{port}",
             code="DEVICE_HOST_EXISTS",
             status_code=400,
-            context={"host": host},
+            context={"host": host, "port": int(port)},
         )
 
 
 def _normalize_create_payload(session: Session, data: DeviceCreateInput) -> NormalizedDevicePayload:
     normalized_name = (data.name or "").strip()
     normalized_host = (data.host or "").strip()
+    normalized_port = int(data.port)
     _ensure_unique_name(session, normalized_name)
-    _ensure_unique_host(session, normalized_host)
+    _ensure_unique_host_port(session, normalized_host, normalized_port)
 
     login_method = _normalize_login_method(data.login_method)
     encoding = _normalize_device_encoding(data.encoding)
@@ -256,7 +263,7 @@ def _normalize_create_payload(session: Session, data: DeviceCreateInput) -> Norm
     return NormalizedDevicePayload(
         name=normalized_name,
         host=normalized_host,
-        port=int(data.port),
+        port=normalized_port,
         login_method=login_method,
         encoding=encoding,
         platform=platform,
@@ -275,8 +282,14 @@ def _normalize_update_payload(
 ) -> NormalizedDevicePayload:
     normalized_name = (data.name if data.name is not None else current_device.name).strip()
     normalized_host = (data.host if data.host is not None else current_device.host).strip()
+    normalized_port = int(data.port if data.port is not None else current_device.port)
     _ensure_unique_name(session, normalized_name, exclude_device_id=device_id)
-    _ensure_unique_host(session, normalized_host, exclude_device_id=device_id)
+    _ensure_unique_host_port(
+        session,
+        normalized_host,
+        normalized_port,
+        exclude_device_id=device_id,
+    )
 
     login_method = _normalize_login_method(data.login_method if data.login_method is not None else current_device.login_method)
     encoding = _normalize_device_encoding(data.encoding if data.encoding is not None else current_device.encoding)
@@ -304,7 +317,7 @@ def _normalize_update_payload(
     return NormalizedDevicePayload(
         name=normalized_name,
         host=normalized_host,
-        port=int(data.port if data.port is not None else current_device.port),
+        port=normalized_port,
         login_method=login_method,
         encoding=encoding,
         platform=platform,
@@ -387,19 +400,46 @@ def delete_device(session: Session, *, device_id: int, allowed_group_ids: list[i
         raise ServiceError("Device not found", code="DEVICE_NOT_FOUND", status_code=404)
 
     validate_device_access(device, allowed_group_ids, action="delete")
+    if crud.has_active_backups_for_device(session, device_id):
+        raise ServiceError(
+            "Device has active backup tasks",
+            code="DEVICE_DELETE_ACTIVE_BACKUPS",
+            status_code=409,
+            context={"device_id": int(device_id)},
+        )
     device_name = device.name or f"ID: {device_id}"
     crud.delete_device(session, device_id)
     return device_name
 
 
-def bulk_delete_devices(session: Session, *, device_ids: list[int]) -> list[dict[str, Any]]:
-    deleted: list[dict[str, Any]] = []
+def bulk_delete_devices(
+    session: Session,
+    *,
+    device_ids: list[int],
+    allowed_group_ids: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    devices_to_delete: list[Device] = []
     for device_id in device_ids:
         device = crud.get_device(session, device_id)
         if device is None:
             continue
-        deleted.append({"device_id": int(device_id), "name": device.name})
-        crud.delete_device(session, device_id, commit=False)
+
+        validate_device_access(device, allowed_group_ids, action="delete")
+        if crud.has_active_backups_for_device(session, int(device_id)):
+            raise ServiceError(
+                "One or more devices have active backup tasks",
+                code="DEVICE_BULK_DELETE_ACTIVE_BACKUPS",
+                status_code=409,
+                context={"device_id": int(device_id)},
+            )
+        devices_to_delete.append(device)
+
+    deleted: list[dict[str, Any]] = []
+    for device in devices_to_delete:
+        if device.id is None:
+            continue
+        deleted.append({"device_id": int(device.id), "name": device.name})
+        crud.delete_device(session, int(device.id), commit=False)
     return deleted
 
 
@@ -850,9 +890,9 @@ def import_devices_from_csv(
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
         raise ServiceError("CSV缺少必要列", code="DEVICE_IMPORT_INVALID_COLUMNS")
 
-    normalized_match_by = (match_by or "host").strip()
-    if normalized_match_by not in {"host", "name"}:
-        normalized_match_by = "host"
+    normalized_match_by = (match_by or "host_port").strip()
+    if normalized_match_by not in {"host_port", "name"}:
+        normalized_match_by = "host_port"
 
     created = 0
     updated = 0
@@ -971,16 +1011,16 @@ def import_devices_from_csv(
 
         if mode == "insert":
             duplicated_name = session.exec(select(Device).where(Device.name == name)).first()
-            duplicated_host = session.exec(select(Device).where(Device.host == host)).first()
+            duplicated_host = session.exec(select(Device).where(Device.host == host, Device.port == int(port_raw))).first()
             if duplicated_name or duplicated_host:
                 skipped += 1
-                duplicate_message = "重复：设备名称或管理地址已存在"
+                duplicate_message = "重复：设备名称或管理地址(IP+端口)已存在"
                 if duplicated_name and duplicated_host:
-                    duplicate_message = "重复：设备名称和管理地址已存在"
+                    duplicate_message = "重复：设备名称和管理地址(IP+端口)已存在"
                 elif duplicated_name:
                     duplicate_message = "重复：设备名称已存在"
                 elif duplicated_host:
-                    duplicate_message = "重复：管理地址已存在"
+                    duplicate_message = "重复：管理地址(IP+端口)已存在"
                 report.append(
                     {
                         "row": str(idx),
@@ -994,8 +1034,8 @@ def import_devices_from_csv(
 
         existing = None
         if mode == "upsert":
-            if normalized_match_by == "host":
-                existing = session.exec(select(Device).where(Device.host == host)).first()
+            if normalized_match_by == "host_port":
+                existing = session.exec(select(Device).where(Device.host == host, Device.port == int(port_raw))).first()
             else:
                 existing = session.exec(select(Device).where(Device.name == name)).first()
 

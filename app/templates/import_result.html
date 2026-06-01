@@ -9,7 +9,7 @@
         <div>
           <div class="fw-semibold">导入完成</div>
           <div class="text-secondary small mt-1">
-            模式：{{ mode }} · 匹配：{{ match_by }} · 创建 {{ created }} · 更新 {{ updated }} · 跳过 {{ skipped }}
+            模式：{{ mode }} · 匹配：{{ "Host IP + 端口" if match_by == "host_port" else "设备名称" if match_by == "name" else match_by }} · 创建 {{ created }} · 更新 {{ updated }} · 跳过 {{ skipped }}
           </div>
         </div>
         <a class="btn btn-outline-secondary btn-sm" href="/devices">返回设备管理</a>
@@ -59,4 +59,3 @@
     </div>
   </div>
 {% endblock %}
-

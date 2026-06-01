@@ -269,8 +269,14 @@
                           {% else %}
                             {{ (seconds // 60) }}m {{ (seconds % 60) }}s
                           {% endif %}
+                        {% elif not r.finished_at and r.status == 'running' %}
+                          <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>{{ run_status_labels.get(r.id|string, '运行中') }}</span>
+                        {% elif not r.finished_at and r.status == 'finalizing' %}
+                          <span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>{{ run_status_labels.get(r.id|string, '收尾中') }}</span>
+                        {% elif not r.finished_at and r.status == 'cancelling' %}
+                          <span class="text-warning"><i class="bi bi-slash-circle me-1"></i>{{ run_status_labels.get(r.id|string, '终止中') }}</span>
                         {% elif not r.finished_at %}
-                          <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>
+                          <span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>{{ run_status_labels.get(r.id|string, r.status) }}</span>
                         {% else %}
                           —
                         {% endif %}
@@ -371,15 +377,27 @@
             const statusHtml = window.NB && typeof window.NB.renderTaskStatusBadge === "function"
               ? window.NB.renderTaskStatusBadge("schedule_run", { status: r.status, success: null })
               : escapeText(r.status_label || r.status || "");
+            const statusMeta = window.NB && typeof window.NB.scheduleRunStatusMeta === "function"
+              ? window.NB.scheduleRunStatusMeta(r.status)
+              : null;
             const successCount = r.finished_at ? Number(r.success_count || 0) : "—";
             const failCount = r.finished_at ? Number(r.fail_count || 0) : "—";
             const isTerminating = terminatingRunIds.has(String(r.id || ""));
             const finishedAtHtml = r.finished_at
               ? `<div class="fw-medium text-dark">${escapeText(r.finished_at)}</div>`
               : '<span class="text-secondary opacity-50">—</span>';
-            const durationHtml = r.duration_text === "运行中"
-              ? '<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>运行中</span>'
-              : escapeText(r.duration_text || "—");
+            let durationHtml = escapeText(r.duration_text || "—");
+            if (!r.finished_at && statusMeta) {
+              if (r.status === "running") {
+                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "运行中")}</span>`;
+              } else if (r.status === "finalizing") {
+                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "收尾中")}</span>`;
+              } else if (r.status === "cancelling") {
+                durationHtml = `<span class="text-warning"><i class="bi bi-slash-circle me-1"></i>${escapeText(statusMeta.label || r.duration_text || "终止中")}</span>`;
+              } else if (window.NB && typeof window.NB.isActiveScheduleRunStatus === "function" && window.NB.isActiveScheduleRunStatus(r.status)) {
+                durationHtml = `<span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>${escapeText(statusMeta.label || r.duration_text || r.status || "")}</span>`;
+              }
+            }
             const actionHtml = canTerminateRuns && canTerminateRun(r.status)
               ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${isTerminating ? "处理中..." : "终止未运行任务"}</button>`
               : '<span class="text-secondary opacity-50 text-xs">—</span>';
@@ -416,7 +434,22 @@
           if (!scheduleId) return;
           try {
             const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/stats/runs`);
-            if (!resp.ok) return;
+            if (!resp.ok) {
+              let detail = "";
+              try {
+                const data = await resp.json();
+                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+              } catch (e) {
+                detail = "";
+              }
+              if (resp.status === 404) {
+                stopPolling();
+                if (window.NB && typeof window.NB.showToast === "function") {
+                  window.NB.showToast(detail || "定时任务不存在", "warning");
+                }
+              }
+              return;
+            }
             const data = await resp.json();
             renderRuns(data.items || []);
             if (!data.has_active_runs) {
@@ -472,12 +505,26 @@
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
           try {
             const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
-            if (!resp.ok) throw new Error("run failed");
+            if (!resp.ok) {
+              let detail = "";
+              try {
+                const data = await resp.json();
+                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+              } catch (e) {
+                detail = "";
+              }
+              throw new Error(detail || "执行失败");
+            }
             const data = await resp.json();
             const records = (data && data.records) || [];
+            const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
             if (records.length) {
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+                if (enqueueStatus === "partial") {
+                  window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
+                } else {
+                  window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+                }
               }
               ensurePolling();
               refreshRuns();

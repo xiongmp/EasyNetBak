@@ -83,7 +83,7 @@
               <div class="list-group-item d-flex align-items-center justify-content-between py-2">
                 <div class="me-3">
                   <span class="fw-bold d-block small">配置变更提醒</span>
-                  <span class="text-secondary" style="font-size: 0.75rem;">当检测到设备配置发生变更时，发送包含变更差异对比的提醒邮件</span>
+                  <span class="text-secondary" style="font-size: 0.75rem;">（先按diff忽略规则过滤）当检测到设备配置发生变更时，发送包含变更差异对比的提醒邮件</span>
                 </div>
                 <div class="form-check form-switch mb-0">
                   <input class="form-check-input" type="checkbox" name="alert_on_config_change" id="alert_on_config_change" {% if alert_on_config_change == '1' %}checked{% endif %}>

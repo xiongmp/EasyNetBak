@@ -32,6 +32,14 @@ def api_trigger_backup(request: Request, device_id: int, template_id: int = Form
         allowed_group_ids=get_user_allowed_group_ids(_current_user(request), session=session),
         )
     except backup_service.ServiceError as exc:
+        if exc.code == "BACKUP_DEVICE_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="设备不存在")
+        if exc.code == "BACKUP_TEMPLATE_NOT_FOUND":
+            raise HTTPException(status_code=400, detail="备份模板不存在")
+        if exc.code == "BACKUP_TEMPLATE_PLATFORM_MISMATCH":
+            raise HTTPException(status_code=400, detail="备份模板与设备平台不兼容")
+        if int(getattr(exc, "status_code", 400)) == 403:
+            raise HTTPException(status_code=403, detail="无权访问该设备")
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "TRIGGER_BACKUP_API", "device", device_id, f"Backup Record ID: {result.record_id}")
     if not result.enqueued:
@@ -73,9 +81,12 @@ def api_bulk_backup(
         None,
         f"Run ID: {result.run_id}, Jobs: {len(result.jobs)}",
     )
-    if not result.enqueued:
+    if result.enqueue_status == "none":
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
-    return {"records": [str(record_id) for _, record_id, __ in result.jobs]}
+    return {
+        "records": [str(record_id) for record_id in result.enqueued_record_ids],
+        "enqueue_status": result.enqueue_status,
+    }
 
 
 @router.post("/api/devices/bulk_reachability", summary="批量测试连通性", description="异步批量测试多个设备的连通状态")

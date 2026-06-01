@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ipaddress import ip_address
 from typing import Any, Iterable, NoReturn, Union
 
 from fastapi import HTTPException, Request, WebSocket
@@ -117,19 +118,70 @@ def get_remote_ip(request: Union[Request, WebSocket]) -> str | None:
     """
     从请求中获取真实 IP 地址，支持反向代理请求头。
     """
-    # 尝试从 X-Forwarded-For 获取 (通常是第一个)
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # X-Forwarded-For 可能包含多个 IP，取第一个
-        return forwarded_for.split(",")[0].strip()
-    
-    # 尝试从 X-Real-IP 获取
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip
-    
+    def _normalize_ip_candidate(value: str | None) -> str | None:
+        if not value:
+            return None
+        candidate = value.strip().strip('"').strip("'")
+        if not candidate or candidate.lower() == "unknown":
+            return None
+        if candidate.startswith("[") and "]" in candidate:
+            candidate = candidate[1:candidate.index("]")]
+        try:
+            ip_address(candidate)
+            return candidate
+        except ValueError:
+            return None
+
+    def _extract_from_x_forwarded_for(value: str | None) -> str | None:
+        if not value:
+            return None
+        for part in value.split(","):
+            candidate = _normalize_ip_candidate(part)
+            if candidate:
+                return candidate
+        return None
+
+    def _extract_from_forwarded(value: str | None) -> str | None:
+        if not value:
+            return None
+        for item in value.split(","):
+            for segment in item.split(";"):
+                key, sep, raw = segment.partition("=")
+                if sep != "=" or key.strip().lower() != "for":
+                    continue
+                candidate = raw.strip()
+                if candidate.startswith('"') and candidate.endswith('"'):
+                    candidate = candidate[1:-1]
+                candidate = candidate.strip()
+                if candidate.lower() == "unknown":
+                    continue
+                if candidate.startswith("[") and "]" in candidate:
+                    candidate = candidate[1:candidate.index("]")]
+                elif candidate.count(":") == 1 and "." in candidate:
+                    host, _, port = candidate.partition(":")
+                    if port.isdigit():
+                        candidate = host
+                normalized = _normalize_ip_candidate(candidate)
+                if normalized:
+                    return normalized
+        return None
+
+    header_extractors = (
+        ("CF-Connecting-IP", _normalize_ip_candidate),
+        ("True-Client-IP", _normalize_ip_candidate),
+        ("X-Original-Forwarded-For", _extract_from_x_forwarded_for),
+        ("X-Forwarded-For", _extract_from_x_forwarded_for),
+        ("X-Real-IP", _normalize_ip_candidate),
+        ("Forwarded", _extract_from_forwarded),
+    )
+
+    for header_name, extractor in header_extractors:
+        ip = extractor(request.headers.get(header_name))
+        if ip:
+            return ip
+
     # 最后回退到直接连接的 client host
-    return request.client.host if request.client else None
+    return _normalize_ip_candidate(request.client.host) if request.client else None
 
 
 def _log_action(

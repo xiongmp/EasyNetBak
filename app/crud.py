@@ -537,8 +537,12 @@ def delete_device(session: Session, device_id: int, commit: bool = True) -> None
     session.exec(stmt_backups)
     
     # 2. 删除关联的计划运行明细 (BackupScheduleRunItem)
+    affected_run_ids = session.exec(
+        select(BackupScheduleRunItem.run_id).where(BackupScheduleRunItem.device_id == device_id)
+    ).all()
     stmt_run_items = delete(BackupScheduleRunItem).where(BackupScheduleRunItem.device_id == device_id)
     session.exec(stmt_run_items)
+    _delete_empty_schedule_runs(session, affected_run_ids)
     
     # 3. 删除设备本身
     session.delete(device)
@@ -986,6 +990,16 @@ def count_device_backups(session: Session, device_id: int) -> int:
     return int(session.exec(stmt).one())
 
 
+def has_active_backups_for_device(session: Session, device_id: int) -> bool:
+    stmt = (
+        select(BackupRecord.id)
+        .where(BackupRecord.device_id == device_id)
+        .where(BackupRecord.status.in_(task_state_service.BACKUP_RECORD_ACTIVE_STATUSES))
+        .limit(1)
+    )
+    return session.exec(stmt).first() is not None
+
+
 def get_backup(session: Session, backup_id: UUID) -> BackupRecord | None:
     return session.get(BackupRecord, backup_id)
 
@@ -1238,6 +1252,19 @@ def delete_schedule(session: Session, schedule_id: int) -> None:
     _flush(session)
 
 
+def has_active_runs_for_schedule(session: Session, schedule_id: int) -> bool:
+    active_statuses = tuple(task_state_service.SCHEDULE_RUN_ACTIVE_STATUSES)
+    if not active_statuses:
+        return False
+    stmt = (
+        select(BackupScheduleRun.id)
+        .where(BackupScheduleRun.schedule_id == int(schedule_id))
+        .where(BackupScheduleRun.status.in_(active_statuses))
+        .limit(1)
+    )
+    return session.exec(stmt).first() is not None
+
+
 def create_schedule_run(
     session: Session,
     *,
@@ -1351,17 +1378,53 @@ def list_schedule_run_items(session: Session, run_id: UUID) -> list[BackupSchedu
     return list(session.exec(stmt))
 
 
+def _delete_empty_schedule_runs(session: Session, run_ids: Iterable[UUID]) -> None:
+    candidate_run_ids = list({run_id for run_id in run_ids if run_id})
+    if not candidate_run_ids:
+        return
+
+    candidate_runs = session.exec(
+        select(BackupScheduleRun).where(BackupScheduleRun.id.in_(candidate_run_ids))
+    ).all()
+    terminal_run_ids = {
+        run.id
+        for run in candidate_runs
+        if getattr(run, "id", None) and task_state_service.is_schedule_run_terminal_status(run.status)
+    }
+    if not terminal_run_ids:
+        return
+
+    remaining_run_ids = set(
+        session.exec(
+            select(BackupScheduleRunItem.run_id)
+            .where(BackupScheduleRunItem.run_id.in_(terminal_run_ids))
+            .group_by(BackupScheduleRunItem.run_id)
+        ).all()
+    )
+    run_ids_to_delete = [run_id for run_id in terminal_run_ids if run_id not in remaining_run_ids]
+    if run_ids_to_delete:
+        stmt_del_runs = delete(BackupScheduleRun).where(BackupScheduleRun.id.in_(run_ids_to_delete))
+        session.exec(stmt_del_runs)
+
+
 def bulk_delete_backups(session: Session, backup_ids: Iterable[UUID]) -> int:
     count = 0
+    affected_run_ids: set[UUID] = set()
     for bid in backup_ids:
         record = session.get(BackupRecord, bid)
         if record is None:
             continue
         # 同时删除关联的 run items
+        affected_run_ids.update(
+            session.exec(
+                select(BackupScheduleRunItem.run_id).where(BackupScheduleRunItem.backup_id == bid)
+            ).all()
+        )
         stmt = delete(BackupScheduleRunItem).where(BackupScheduleRunItem.backup_id == bid)
         session.exec(stmt)
         session.delete(record)
         count += 1
+    _delete_empty_schedule_runs(session, affected_run_ids)
     _flush(session)
     return count
 
@@ -1377,9 +1440,6 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     stmt_records = select(BackupRecord.id, BackupRecord.device_id, BackupRecord.started_at, BackupRecord.success).where(BackupRecord.started_at < threshold)
     records_to_check = session.exec(stmt_records).all()
     
-    if not records_to_check:
-        return 0
-
     # 兜底保护：确保每台设备至少保留一份最近的成功备份
     # 策略：
     # 1. 找出所有涉及的 device_id
@@ -1387,7 +1447,7 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     # 3. 如果该 ID 在待删除列表中，将其移除
 
     device_ids = {r.device_id for r in records_to_check}
-    latest_success_map = {} # device_id -> backup_id
+    latest_success_map = {}  # device_id -> backup_id
 
     for did in device_ids:
         # 查询该设备最近一次成功的备份
@@ -1405,7 +1465,7 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     record_ids_to_delete = []
     for r in records_to_check:
         # 如果是该设备最新的成功备份，则跳过删除
-        if r.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED and latest_success_map.get(r.device_id) == r.id:
+        if r.success and latest_success_map.get(r.device_id) == r.id:
             continue
         record_ids_to_delete.append(r.id)
     
@@ -1419,19 +1479,10 @@ def cleanup_old_backups(session: Session, days: int) -> int:
         session.exec(stmt_del_records)
     
     # 4. 清理过期的运行记录 (BackupScheduleRun)
-    # 注意：这里可能需要更精细的逻辑，因为如果某个 run 包含被保留的备份，可能不应该完全删除 run
-    # 但为了简化，假设 run 记录本身过期可以删除，只要备份内容还在即可（或者如果 run 关联的 items 还在，可能需要保留 run）
-    # 改进策略：只删除那些没有任何 item 关联的过期 run，或者直接删除过期 run (因为 run 主要是日志性质)
-    # 现有逻辑是直接删除过期 run，这通常是可以接受的，因为 run 主要是为了查看执行历史
+    # 只删除那些已经没有任何 run item 的过期 run，避免把仍关联保留备份的运行历史删掉。
     stmt_runs = select(BackupScheduleRun.id).where(BackupScheduleRun.started_at < threshold)
     run_ids = list(session.exec(stmt_runs))
-    if run_ids:
-        # 删除对应的 run items (如果有遗漏)
-        stmt_del_run_items = delete(BackupScheduleRunItem).where(BackupScheduleRunItem.run_id.in_(run_ids))
-        session.exec(stmt_del_run_items)
-        # 删除 run
-        stmt_del_runs = delete(BackupScheduleRun).where(BackupScheduleRun.id.in_(run_ids))
-        session.exec(stmt_del_runs)
+    _delete_empty_schedule_runs(session, run_ids)
 
     _flush(session)
     return len(record_ids_to_delete)
@@ -1676,34 +1727,34 @@ def authenticate_user(session: Session, *, username: str, password: str) -> User
     return user
 
 
-def get_dashboard_summary(session: Session) -> dict[str, Any]:
+def get_dashboard_summary(session: Session, *, window_hours: int = 24) -> dict[str, Any]:
     now = datetime.utcnow()
-    day_ago = now - timedelta(days=1)
+    window_start = now - timedelta(hours=max(1, int(window_hours)))
 
     total_devices = session.exec(select(func.count()).select_from(Device)).one()
     total_groups = session.exec(select(func.count()).select_from(DeviceGroup)).one()
 
-    # 近24小时备份情况
-    backup_24h_total = session.exec(
-        select(func.count()).select_from(BackupRecord).where(BackupRecord.started_at >= day_ago)
+    backup_window_total = session.exec(
+        select(func.count()).select_from(BackupRecord).where(BackupRecord.started_at >= window_start)
     ).one()
-    backup_24h_success = session.exec(
+    backup_window_success = session.exec(
         select(func.count())
         .select_from(BackupRecord)
-        .where(BackupRecord.started_at >= day_ago)
+        .where(BackupRecord.started_at >= window_start)
         .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
     ).one()
 
     success_rate = 0
-    if backup_24h_total > 0:
-        success_rate = round((backup_24h_success / backup_24h_total) * 100, 1)
+    if backup_window_total > 0:
+        success_rate = round((backup_window_success / backup_window_total) * 100, 1)
 
     return {
         "total_devices": total_devices,
         "total_groups": total_groups,
-        "backup_24h_total": backup_24h_total,
-        "backup_24h_success": backup_24h_success,
-        "backup_24h_fail": backup_24h_total - backup_24h_success,
+        "window_hours": max(1, int(window_hours)),
+        "backup_window_total": backup_window_total,
+        "backup_window_success": backup_window_success,
+        "backup_window_fail": backup_window_total - backup_window_success,
         "success_rate": success_rate,
     }
 
@@ -1715,62 +1766,58 @@ def get_device_platform_stats(session: Session) -> list[dict[str, Any]]:
     return [{"name": r[0], "value": r[1]} for r in results]
 
 
-def get_backup_trend_stats(session: Session, days: int = 7) -> dict[str, list]:
+def get_backup_trend_stats(session: Session, *, window_key: str = "30d") -> dict[str, Any]:
+    normalized_key = (window_key or "30d").strip().lower()
+    if normalized_key not in {"24h", "7d", "30d"}:
+        normalized_key = "30d"
+
     now = datetime.utcnow()
-    start_day = datetime(now.year, now.month, now.day) - timedelta(days=days - 1)
-    end_day = datetime(now.year, now.month, now.day) + timedelta(days=1)
+    if normalized_key == "24h":
+        current_hour = now.replace(minute=0, second=0, microsecond=0)
+        start_at = current_hour - timedelta(hours=23)
+        end_at = current_hour + timedelta(hours=1)
+        labels = [(start_at + timedelta(hours=i)).strftime("%m-%d %H:00") for i in range(24)]
+        grouped_counts = {label: {"success": 0, "fail": 0} for label in labels}
+        granularity_label = "按小时"
+    else:
+        window_days = 7 if normalized_key == "7d" else 30
+        start_at = datetime(now.year, now.month, now.day) - timedelta(days=window_days - 1)
+        end_at = datetime(now.year, now.month, now.day) + timedelta(days=1)
+        labels = [(start_at + timedelta(days=i)).strftime("%m-%d") for i in range(window_days)]
+        grouped_counts = {label: {"success": 0, "fail": 0} for label in labels}
+        granularity_label = "按天"
 
     rows = session.exec(
-        select(
-            func.date(BackupRecord.started_at).label("day"),
-            func.sum(
-                case((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED, 1), else_=0)
-            ).label("success_count"),
-            func.sum(
-                case(
-                    ((BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_FAILED), 1),
-                    else_=0,
-                )
-            ).label("fail_count"),
-        )
+        select(BackupRecord.started_at, BackupRecord.status)
         .where(
-            BackupRecord.started_at >= start_day,
-            BackupRecord.started_at < end_day,
+            BackupRecord.started_at >= start_at,
+            BackupRecord.started_at < end_at,
         )
-        .group_by(func.date(BackupRecord.started_at))
-        .order_by(func.date(BackupRecord.started_at))
+        .order_by(BackupRecord.started_at)
     ).all()
 
-    grouped_counts = {
-        str(day): {
-            "success": int(success_count or 0),
-            "fail": int(fail_count or 0),
-        }
-        for day, success_count, fail_count in rows
-        if day is not None
-    }
-
-    dates = []
-    success_counts = []
-    fail_counts = []
-    for i in range(days):
-        current_day = start_day + timedelta(days=i)
-        day_key = current_day.strftime("%Y-%m-%d")
-        date_str = current_day.strftime("%m-%d")
-        counts = grouped_counts.get(day_key, {"success": 0, "fail": 0})
-        dates.append(date_str)
-        success_counts.append(counts["success"])
-        fail_counts.append(counts["fail"])
+    for started_at, status in rows:
+        if started_at is None:
+            continue
+        bucket = started_at.strftime("%m-%d %H:00") if normalized_key == "24h" else started_at.strftime("%m-%d")
+        if bucket not in grouped_counts:
+            continue
+        if status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED:
+            grouped_counts[bucket]["success"] += 1
+        elif status == task_state_service.BACKUP_RECORD_STATUS_FAILED:
+            grouped_counts[bucket]["fail"] += 1
 
     return {
-        "dates": dates,
-        "success": success_counts,
-        "fail": fail_counts,
+        "labels": labels,
+        "success": [grouped_counts[label]["success"] for label in labels],
+        "fail": [grouped_counts[label]["fail"] for label in labels],
+        "granularity": "hour" if normalized_key == "24h" else "day",
+        "granularity_label": granularity_label,
     }
 
 
-def get_group_health_stats(session: Session) -> list[dict[str, Any]]:
-    rows = session.exec(
+def get_group_health_stats(session: Session, *, window_days: int | None = None) -> list[dict[str, Any]]:
+    stmt = (
         select(
             DeviceGroup.name,
             func.count(BackupRecord.id).label("total"),
@@ -1780,7 +1827,12 @@ def get_group_health_stats(session: Session) -> list[dict[str, Any]]:
         )
         .join(Device, Device.group_id == DeviceGroup.id)
         .join(BackupRecord, BackupRecord.device_id == Device.id)
-        .group_by(DeviceGroup.id, DeviceGroup.name)
+    )
+    if window_days is not None:
+        window_start = datetime.utcnow() - timedelta(days=max(1, int(window_days)))
+        stmt = stmt.where(BackupRecord.started_at >= window_start)
+    rows = session.exec(
+        stmt.group_by(DeviceGroup.id, DeviceGroup.name)
         .having(func.count(BackupRecord.id) > 0)
         .order_by(
             (
@@ -1802,21 +1854,21 @@ def get_group_health_stats(session: Session) -> list[dict[str, Any]]:
     ]
 
 
-def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[str, Any]:
-    end = datetime.utcnow()
-    start = end - timedelta(days=days - 1)
-    start_day = datetime(start.year, start.month, start.day)
-    end_day = datetime(end.year, end.month, end.day) + timedelta(days=1)
-
+def _list_config_change_timestamps(
+    session: Session,
+    *,
+    start_at: datetime,
+    end_at: datetime,
+) -> list[datetime]:
     devices = session.exec(select(Device.id)).all()
-    counts: dict[str, int] = {}
+    change_timestamps: list[datetime] = []
 
     for did in devices:
         prev = session.exec(
             select(BackupRecord)
             .where(BackupRecord.device_id == did)
             .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
-            .where(BackupRecord.started_at < start_day)
+            .where(BackupRecord.started_at < start_at)
             .order_by(BackupRecord.started_at.desc())
             .limit(1)
         ).first()
@@ -1824,20 +1876,83 @@ def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[st
             select(BackupRecord)
             .where(BackupRecord.device_id == did)
             .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
-            .where(BackupRecord.started_at >= start_day)
-            .where(BackupRecord.started_at < end_day)
+            .where(BackupRecord.started_at >= start_at)
+            .where(BackupRecord.started_at < end_at)
             .order_by(BackupRecord.started_at.asc())
         ).all()
         for row in rows:
             if prev and prev.config_text and row.config_text and prev.config_text != row.config_text:
-                key = row.started_at.strftime("%Y-%m-%d")
-                counts[key] = counts.get(key, 0) + 1
+                change_timestamps.append(row.started_at)
             prev = row
+
+    return change_timestamps
+
+
+def get_config_change_heatmap_stats(session: Session, *, window_key: str = "30d") -> dict[str, Any]:
+    normalized_key = (window_key or "30d").strip().lower()
+    if normalized_key not in {"24h", "7d", "30d"}:
+        normalized_key = "30d"
+
+    now = datetime.utcnow()
+    if normalized_key == "24h":
+        current_hour = now.replace(minute=0, second=0, microsecond=0)
+        start_at = current_hour - timedelta(hours=23)
+        end_at = current_hour + timedelta(hours=1)
+        x_labels = [(start_at + timedelta(hours=i)).strftime("%m-%d %H:00") for i in range(24)]
+        y_labels = ["配置变更"]
+        counts = {label: 0 for label in x_labels}
+        for ts in _list_config_change_timestamps(session, start_at=start_at, end_at=end_at):
+            key = ts.strftime("%m-%d %H:00")
+            counts[key] = counts.get(key, 0) + 1
+        data = [[idx, 0, counts[label]] for idx, label in enumerate(x_labels)]
+        max_val = max((item[2] for item in data), default=0)
+        return {
+            "mode": "matrix",
+            "x_labels": x_labels,
+            "y_labels": y_labels,
+            "data": data,
+            "max": max_val,
+            "range_label": "最近24小时",
+        }
+
+    if normalized_key == "7d":
+        start_at = datetime(now.year, now.month, now.day) - timedelta(days=6)
+        end_at = datetime(now.year, now.month, now.day) + timedelta(days=1)
+        x_labels = [f"{hour:02d}:00" for hour in range(24)]
+        y_labels = [(start_at + timedelta(days=i)).strftime("%m-%d") for i in range(7)]
+        counts = {(day_label, hour_label): 0 for day_label in y_labels for hour_label in x_labels}
+        for ts in _list_config_change_timestamps(session, start_at=start_at, end_at=end_at):
+            day_label = ts.strftime("%m-%d")
+            hour_label = ts.strftime("%H:00")
+            counts[(day_label, hour_label)] = counts.get((day_label, hour_label), 0) + 1
+        data = []
+        max_val = 0
+        for y_index, day_label in enumerate(y_labels):
+            for x_index, hour_label in enumerate(x_labels):
+                value = counts[(day_label, hour_label)]
+                if value > max_val:
+                    max_val = value
+                data.append([x_index, y_index, value])
+        return {
+            "mode": "matrix",
+            "x_labels": x_labels,
+            "y_labels": y_labels,
+            "data": data,
+            "max": max_val,
+            "range_label": "最近7天",
+        }
+
+    start_at = datetime(now.year, now.month, now.day) - timedelta(days=29)
+    end_at = datetime(now.year, now.month, now.day) + timedelta(days=1)
+    counts: dict[str, int] = {}
+    for ts in _list_config_change_timestamps(session, start_at=start_at, end_at=end_at):
+        key = ts.strftime("%Y-%m-%d")
+        counts[key] = counts.get(key, 0) + 1
 
     data: list[list[Any]] = []
     max_val = 0
-    for i in range(days):
-        d = start_day + timedelta(days=i)
+    for i in range(30):
+        d = start_at + timedelta(days=i)
         key = d.strftime("%Y-%m-%d")
         val = counts.get(key, 0)
         if val > max_val:
@@ -1845,9 +1960,11 @@ def get_config_change_heatmap_stats(session: Session, days: int = 30) -> dict[st
         data.append([key, val])
 
     return {
-        "range": [start_day.strftime("%Y-%m-%d"), (end_day - timedelta(days=1)).strftime("%Y-%m-%d")],
+        "mode": "calendar",
+        "range": [start_at.strftime("%Y-%m-%d"), (end_at - timedelta(days=1)).strftime("%Y-%m-%d")],
         "data": data,
         "max": max_val,
+        "range_label": "最近30天",
     }
 
 

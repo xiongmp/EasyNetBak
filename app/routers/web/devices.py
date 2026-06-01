@@ -589,19 +589,31 @@ def bulk_backup(
         return RedirectResponse(url="/devices", status_code=303)
     if not result.jobs:
         return RedirectResponse(url="/devices?err=未找到有效设备", status_code=303)
-    if not result.enqueued:
+    if result.enqueue_status == "none":
         return RedirectResponse(url="/devices?err=Celery 未启用或不可用", status_code=303)
+    if result.enqueue_status == "partial":
+        started = len(result.enqueued_record_ids)
+        return RedirectResponse(
+            url=f"/devices?msg=已启动 {started} 个备份任务，部分任务入队失败",
+            status_code=303,
+        )
     return RedirectResponse(url="/backups", status_code=303)
 
 
 
 @router.post("/devices/bulk_delete", summary="批量删除设备", description="批量删除选中的网络设备")
 def bulk_delete_devices(request: Request, session: Session = Depends(get_session), device_ids: str = Form("")):
-    _require_permission(request, "devices.delete")
+    user = _require_permission(request, "devices.delete")
+    allowed_ids = get_user_allowed_group_ids(user, session=session)
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     if not ids:
         return RedirectResponse(url=_get_redirect_url(request, "/devices"), status_code=303)
-    deleted = device_service.bulk_delete_devices(session, device_ids=ids)
+    try:
+        deleted = device_service.bulk_delete_devices(session, device_ids=ids, allowed_group_ids=allowed_ids)
+    except device_service.ServiceError as exc:
+        if exc.code == "DEVICE_BULK_DELETE_ACTIVE_BACKUPS":
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="存在执行中的备份任务，无法删除设备"), status_code=303)
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     for item in deleted:
         _log_action(
             request,
@@ -764,7 +776,7 @@ async def import_devices_csv(
     session: Session = Depends(get_session),
     file: UploadFile = File(...),
     mode: str = Form("insert"),
-    match_by: str = Form("host"),
+    match_by: str = Form("host_port"),
 ):
     mode = (mode or "insert").strip()
     if mode not in {"insert", "upsert"}:
@@ -864,7 +876,7 @@ def create_device(
             )
         if exc.code == "DEVICE_HOST_EXISTS":
             return RedirectResponse(
-                url=_get_redirect_url(request, "/devices", err=f"管理地址已存在：{(host or '').strip()}"),
+                url=_get_redirect_url(request, "/devices", err=f"管理地址(IP+端口)已存在：{(host or '').strip()}:{port}"),
                 status_code=303,
             )
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
@@ -886,6 +898,8 @@ def delete_device(request: Request, device_id: int, session: Session = Depends(g
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_NOT_FOUND":
             return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+        if exc.code == "DEVICE_DELETE_ACTIVE_BACKUPS":
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="设备存在执行中的备份任务，无法删除"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_DEVICE", "device", device_id, f"Name: {name}")
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
@@ -969,7 +983,7 @@ def update_device(
             )
         if exc.code == "DEVICE_HOST_EXISTS":
             return RedirectResponse(
-                url=_get_redirect_url(request, f"/devices/{device_id}", err=f"管理地址已存在：{(host or '').strip()}"),
+                url=_get_redirect_url(request, f"/devices/{device_id}", err=f"管理地址(IP+端口)已存在：{(host or '').strip()}:{port}"),
                 status_code=303,
             )
         raise HTTPException(status_code=exc.status_code, detail=exc.message)

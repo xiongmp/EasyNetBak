@@ -42,6 +42,8 @@ class TriggerBulkBackupResult:
     run_id: UUID | None
     jobs: list[tuple[int, UUID, int | None]]
     enqueued: bool
+    enqueue_status: str
+    enqueued_record_ids: list[UUID]
 
 
 @dataclass(slots=True)
@@ -55,6 +57,8 @@ class EnqueueScheduleRunResult:
     run_id: UUID
     jobs: list[tuple[int, UUID, int | None]]
     enqueued: bool
+    enqueue_status: str
+    enqueued_record_ids: list[UUID]
 
 
 DEFAULT_NOISE_RULES = [
@@ -603,6 +607,8 @@ def trigger_bulk_backup(
             run_id=None,
             jobs=[],
             enqueued=False,
+            enqueue_status="none",
+            enqueued_record_ids=[],
         )
 
     valid_ids: list[int] = []
@@ -621,6 +627,8 @@ def trigger_bulk_backup(
             run_id=None,
             jobs=[],
             enqueued=False,
+            enqueue_status="none",
+            enqueued_record_ids=[],
         )
 
     run_id, jobs = task_orchestration_service.plan_device_batch_run(
@@ -636,6 +644,8 @@ def trigger_bulk_backup(
         run_id=run_id,
         jobs=jobs,
         enqueued=enqueue_result.enqueued,
+        enqueue_status=enqueue_result.enqueue_status,
+        enqueued_record_ids=enqueue_result.enqueued_record_ids,
     )
 
 
@@ -650,6 +660,13 @@ def delete_backup(
         allowed_group_ids=allowed_group_ids,
         backup_id=backup_id,
     )
+    if task_state_service.is_backup_record_active_status(detail.record.status):
+        raise ServiceError(
+            "Active backup task cannot be deleted",
+            code="BACKUP_DELETE_ACTIVE_RECORD",
+            status_code=409,
+            context={"backup_id": str(backup_id), "device_id": int(detail.record.device_id or 0)},
+        )
     deleted = crud.bulk_delete_backups(session, [backup_id])
     if deleted <= 0:
         raise ServiceError(
@@ -667,7 +684,7 @@ def enqueue_schedule_jobs(
     run_id: UUID,
     jobs: list[tuple[int, UUID, int | None]],
 ) -> EnqueueScheduleRunResult:
-    enqueued = task_orchestration_service.enqueue_schedule_run(
+    enqueue_status, enqueued_record_ids = task_orchestration_service.enqueue_schedule_run(
         session,
         run_id=run_id,
         jobs=jobs,
@@ -677,7 +694,9 @@ def enqueue_schedule_jobs(
     return EnqueueScheduleRunResult(
         run_id=run_id,
         jobs=jobs,
-        enqueued=bool(enqueued),
+        enqueued=enqueue_status != "none",
+        enqueue_status=enqueue_status,
+        enqueued_record_ids=enqueued_record_ids,
     )
 
 
@@ -742,6 +761,93 @@ def load_diff_rules(session: Session) -> list[dict[str, Any]]:
         return DEFAULT_DIFF_RULES
     normalized = normalize_diff_rules(data)
     return normalized or DEFAULT_DIFF_RULES
+
+
+def has_meaningful_config_change(
+    session: Session,
+    *,
+    current_text: str | None,
+    previous_text: str | None,
+    current_device: Device | None = None,
+    previous_device: Device | None = None,
+) -> bool:
+    summary = summarize_meaningful_config_change(
+        session,
+        current_text=current_text,
+        previous_text=previous_text,
+        current_device=current_device,
+        previous_device=previous_device,
+    )
+    return bool(summary.get("changed"))
+
+
+def summarize_meaningful_config_change(
+    session: Session,
+    *,
+    current_text: str | None,
+    previous_text: str | None,
+    current_device: Device | None = None,
+    previous_device: Device | None = None,
+    sample_limit: int | None = None,
+    context_lines: int = 2,
+) -> dict[str, Any]:
+    diff_rules = load_diff_rules(session)
+    noise_patterns = _build_noise_patterns(diff_rules, current_device, previous_device)
+    current_lines = _normalize_lines(
+        current_text,
+        ignore_noise_lines=True,
+        noise_patterns=noise_patterns,
+    )
+    previous_lines = _normalize_lines(
+        previous_text,
+        ignore_noise_lines=True,
+        noise_patterns=noise_patterns,
+    )
+    changed = current_lines != previous_lines
+    samples: list[dict[str, str | int]] = []
+    added_count = 0
+    deleted_count = 0
+    total_sample_rows = 0
+
+    if changed:
+        diff_lines = _build_unified_diff_payload(
+            current_lines,
+            previous_lines,
+            only_changed_lines=True,
+            context_lines=max(0, int(context_lines or 0)),
+        )
+        limit = max(1, int(sample_limit)) if sample_limit is not None else len(diff_lines) or 1
+        for row in diff_lines:
+            row_type = row.get("type")
+            if row_type == "add":
+                added_count += 1
+                total_sample_rows += 1
+                if len(samples) < limit:
+                    samples.append({"kind": "add", "prefix": "+", "text": str(row.get("text") or "")})
+            elif row_type == "del":
+                deleted_count += 1
+                total_sample_rows += 1
+                if len(samples) < limit:
+                    samples.append({"kind": "del", "prefix": "-", "text": str(row.get("text") or "")})
+            elif row_type == "context":
+                total_sample_rows += 1
+                if len(samples) < limit:
+                    samples.append({"kind": "context", "prefix": " ", "text": str(row.get("text") or "")})
+            elif row_type == "skip":
+                total_sample_rows += 1
+                if len(samples) < limit:
+                    samples.append({"kind": "skip", "prefix": "...", "text": f"省略 {int(row.get('count') or 0)} 行"})
+
+    return {
+        "changed": changed,
+        "added_count": added_count,
+        "deleted_count": deleted_count,
+        "sample_lines": samples,
+        "sample_limit": limit if changed else (max(1, int(sample_limit)) if sample_limit is not None else 0),
+        "total_diff_lines": added_count + deleted_count,
+        "context_lines": max(0, int(context_lines or 0)),
+        "total_sample_rows": total_sample_rows,
+    }
 
 
 def build_backup_diff(

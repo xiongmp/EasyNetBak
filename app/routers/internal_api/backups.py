@@ -87,6 +87,10 @@ def api_device_backups(request: Request, device_id: int, page: int = 1, limit: i
             allowed_group_ids=allowed_group_ids,
         )
     except backup_service.ServiceError as exc:
+        if exc.code == "BACKUP_DEVICE_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="设备不存在")
+        if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
+            raise HTTPException(status_code=403, detail="无权访问该设备")
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -103,6 +107,10 @@ def api_backup_view(request: Request, backup_id: UUID, session: Session = Depend
             allowed_group_ids=allowed_group_ids,
         )
     except backup_service.ServiceError as exc:
+        if exc.code == "BACKUP_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="备份记录不存在")
+        if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
+            raise HTTPException(status_code=403, detail="无权访问该备份记录")
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -135,6 +143,10 @@ def api_backup_diff(
             allowed_group_ids=allowed_group_ids,
         )
     except backup_service.ServiceError as exc:
+        if exc.code == "BACKUP_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="备份记录不存在")
+        if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
+            raise HTTPException(status_code=403, detail="无权访问该备份记录")
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -147,6 +159,8 @@ def api_delete_backup(request: Request, backup_id: UUID, session: Session = Depe
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":
             raise HTTPException(status_code=404, detail="备份记录不存在")
+        if exc.code == "BACKUP_DELETE_ACTIVE_RECORD":
+            raise HTTPException(status_code=409, detail="执行中的备份任务无法删除")
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     record = detail.record
     device = detail.device

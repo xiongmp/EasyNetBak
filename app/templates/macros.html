@@ -4,7 +4,7 @@
        共 {{ pagination.total }} {{ total_label }}
     </div>
     <div class="d-flex align-items-center gap-2">
-        <select class="form-select form-select-sm" style="width: 105px; height: 28px; font-size: 12px; padding-top: 2px; padding-bottom: 2px;" onchange="location.href='{{ pagination_base }}1&limit=' + this.value">
+        <select class="form-select form-select-sm pagination-control-sm" style="width: 105px;" onchange="location.href='{{ pagination_base }}1&limit=' + this.value">
             <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 条/页</option>
             <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 条/页</option>
             <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 条/页</option>
@@ -29,8 +29,8 @@
         </ul>
         <div class="d-flex align-items-center gap-1 ms-1 small text-secondary">
             <span>前往</span>
-            <input type="number" class="form-control form-control-sm text-center px-1" 
-                   style="width: 40px; height: 28px; font-size: 12px;" 
+            <input type="number" class="form-control form-control-sm text-center px-1 pagination-control-sm" 
+                   style="width: 40px;" 
                    value="{{ pagination.page }}" 
                    min="1" max="{{ pagination.total_pages }}"
                    onkeydown="if(event.keyCode==13) { let p=parseInt(this.value); if(p>=1 && p<={{ pagination.total_pages }}) location.href='{{ pagination_base }}' + p; }">

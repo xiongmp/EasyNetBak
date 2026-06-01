@@ -10,20 +10,20 @@
             <form method="get" action="/login-logs" class="d-flex flex-wrap gap-2 align-items-center">
                 <div style="width: 250px;">
                     <div class="input-group input-group-sm">
-                        <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
-                        <input name="q" class="form-control border-start-0 ps-0" placeholder="搜索用户名或IP地址" value="{{ q }}" />
+                        <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索用户名或IP地址" value="{{ q }}" />
                     </div>
                 </div>
                 <div style="width: 180px;">
-                    <select name="status" class="form-select form-select-sm">
+                    <select name="status" class="form-select form-select-sm filter-control-sm">
                         <option value="">状态: 全部</option>
                         <option value="success" {% if status == 'success' %}selected{% endif %}>登录成功</option>
                         <option value="fail" {% if status == 'fail' %}selected{% endif %}>登录失败</option>
                         <option value="logout" {% if status == 'logout' %}selected{% endif %}>登出</option>
                     </select>
                 </div>
-                <button class="btn btn-sm btn-outline-primary px-3" type="submit">筛选</button>
-                <a href="/login-logs" class="btn btn-sm btn-outline-secondary">重置</a>
+                <button class="btn btn-sm btn-outline-primary px-3 filter-control-sm" type="submit">筛选</button>
+                <a href="/login-logs" class="btn btn-sm btn-outline-secondary filter-control-sm">重置</a>
             </form>
 
             <div class="d-flex gap-2">

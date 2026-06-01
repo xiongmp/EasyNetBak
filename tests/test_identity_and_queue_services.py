@@ -8,11 +8,12 @@ import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
 from app import crud
-from app.models import BackupSchedule, Device, User
+from app.models import BackupSchedule, Credential, Device, User
 from app.schemas.inputs import (
     AuditLogListQueryInput,
     BaseListQueryInput,
     ConfigSearchListQueryInput,
+    DeviceCreateInput,
     DeviceListQueryInput,
     EditableListQueryInput,
 )
@@ -482,6 +483,384 @@ def test_check_and_alert_batch_sends_summary_for_cancelled_records(sqlite_sessio
         assert content_type == "html"
 
 
+def test_check_and_alert_skips_email_when_only_ignored_diff_rules_change(sqlite_session_factory, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": sent.append((subject, content, content_type)),
+    )
+
+    with sqlite_session_factory() as session:
+        crud.set_setting(session, key="alert_on_config_change", value="1")
+        backup_service.save_diff_rules(
+            session,
+            [{"scope": "global", "targets": [], "patterns": [r"^ntp clock-period.*"]}],
+        )
+
+        device = Device(name="edge-noise-only", host="10.0.45.1", platform="cisco_ios")
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+
+        prev_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=prev_record.id,
+            success=True,
+            config_text="hostname edge-noise-only\nntp clock-period 12345\n",
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        current_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=current_record.id,
+            success=True,
+            config_text="hostname edge-noise-only\nntp clock-period 67890\n",
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        alert_service.check_and_alert(session, current_record)
+
+        assert sent == []
+
+
+def test_check_and_alert_includes_meaningful_diff_summary_in_email(sqlite_session_factory, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": sent.append((subject, content, content_type)),
+    )
+
+    with sqlite_session_factory() as session:
+        crud.set_setting(session, key="alert_on_config_change", value="1")
+        backup_service.save_diff_rules(
+            session,
+            [{"scope": "global", "targets": [], "patterns": [r"^ntp clock-period.*"]}],
+        )
+
+        device = Device(name="edge-meaningful", host="10.0.45.3", platform="cisco_ios")
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+
+        prev_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=prev_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-meaningful\n"
+                "interface GigabitEthernet0/1\n"
+                " description to-aaaaaaaa\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                "ntp clock-period 12345\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        current_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=current_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-meaningful\n"
+                "interface GigabitEthernet0/1\n"
+                " description to-bbb\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                "logging host 10.1.1.10\n"
+                "ntp clock-period 67890\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        alert_service.check_and_alert(session, current_record)
+
+        assert len(sent) == 1
+        subject, content, content_type = sent[0]
+        assert "设备配置已变更" in subject
+        assert "已应用 Diff 忽略规则" in content
+        assert "变更片段（含前后各 2 行）" in content
+        assert "interface GigabitEthernet0/1" in content
+        assert "ip address 10.1.1.1 255.255.255.0" in content
+        assert "+ logging host 10.1.1.10" in content
+        assert "+  description to-bbb" in content
+        assert "-  description to-aaaaaaaa" in content
+        assert "ntp clock-period 67890" not in content
+        assert content_type == "html"
+
+
+def test_check_and_alert_includes_all_change_fragments_in_email(sqlite_session_factory, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": sent.append((subject, content, content_type)),
+    )
+
+    with sqlite_session_factory() as session:
+        crud.set_setting(session, key="alert_on_config_change", value="1")
+        backup_service.save_diff_rules(
+            session,
+            [{"scope": "global", "targets": [], "patterns": [r"^ntp clock-period.*"]}],
+        )
+
+        device = Device(name="edge-all-fragments", host="10.0.45.30", platform="cisco_ios")
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+
+        prev_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=prev_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-all-fragments\n"
+                "interface GigabitEthernet0/1\n"
+                " description old-uplink\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                " no shutdown\n"
+                "!\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+                "!\n"
+                "router ospf 1\n"
+                " network 10.1.1.0 0.0.0.255 area 0\n"
+                " passive-interface default\n"
+                " no passive-interface GigabitEthernet0/1\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        current_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=current_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-all-fragments\n"
+                "interface GigabitEthernet0/1\n"
+                " description new-uplink\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                " no shutdown\n"
+                "!\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+                "!\n"
+                "router ospf 1\n"
+                " network 10.1.1.0 0.0.0.255 area 0\n"
+                " network 10.2.2.0 0.0.0.255 area 0\n"
+                " passive-interface default\n"
+                " no passive-interface GigabitEthernet0/1\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        alert_service.check_and_alert(session, current_record)
+
+        assert len(sent) == 1
+        _, content, _ = sent[0]
+        assert "description new-uplink" in content
+        assert "description old-uplink" in content
+        assert "network 10.2.2.0 0.0.0.255 area 0" in content
+        assert "router ospf 1" in content
+        assert "当前仅展示前" not in content
+
+
+def test_check_and_alert_batch_includes_meaningful_diff_summary_in_email(sqlite_session_factory, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": sent.append((subject, content, content_type)),
+    )
+
+    with sqlite_session_factory() as session:
+        crud.set_setting(session, key="alert_on_fail", value="0")
+        crud.set_setting(session, key="alert_on_config_change", value="1")
+        crud.set_setting(session, key="always_send_summary", value="0")
+        backup_service.save_diff_rules(
+            session,
+            [{"scope": "global", "targets": [], "patterns": [r"^ntp clock-period.*"]}],
+        )
+
+        device = Device(name="edge-batch-meaningful", host="10.0.45.4", platform="cisco_ios")
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+
+        prev_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=prev_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-batch-meaningful\n"
+                "interface GigabitEthernet0/1\n"
+                " description to-aaaaaaaa\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                "ntp clock-period 10000\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        run = crud.create_schedule_run(session, schedule_id=0, trigger="manual", total_devices=1)
+        current_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.add_schedule_run_item(
+            session,
+            run_id=run.id,
+            schedule_id=0,
+            backup_id=current_record.id,
+            device_id=int(device.id),
+        )
+        crud.finish_schedule_run(
+            session,
+            run_id=run.id,
+            success_count=1,
+            fail_count=0,
+            cancelled_count=0,
+            error_message=None,
+            status=task_state_service.SCHEDULE_RUN_STATUS_SUCCEEDED,
+            unfinished_count=0,
+        )
+        crud.finish_backup_record(
+            session,
+            record_id=current_record.id,
+            success=True,
+            config_text=(
+                "hostname edge-batch-meaningful\n"
+                "interface GigabitEthernet0/1\n"
+                " description to-bbb\n"
+                " ip address 10.1.1.1 255.255.255.0\n"
+                "logging host 10.1.1.20\n"
+                "ntp clock-period 20000\n"
+                "line vty 0 4\n"
+                " transport input ssh\n"
+            ),
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        alert_service.check_and_alert_batch(session, run.id)
+
+        assert len(sent) == 1
+        subject, content, content_type = sent[0]
+        assert "发现 1 台设备配置变更" in subject
+        assert "配置变更列表" in content
+        assert "edge-batch-meaningful" in content
+        assert "设备名称" in content
+        assert "设备地址" in content
+        assert "变更摘要" in content
+        assert "变更片段（含前后各 2 行）" in content
+        assert "interface GigabitEthernet0/1" in content
+        assert "ip address 10.1.1.1 255.255.255.0" in content
+        assert "+ logging host 10.1.1.20" in content
+        assert "+  description to-bbb" in content
+        assert "-  description to-aaaaaaaa" in content
+        assert "#198754" in content
+        assert "#dc3545" in content
+        assert "#6c757d" in content
+        assert "ntp clock-period 20000" not in content
+        assert content_type == "html"
+
+
+def test_check_and_alert_batch_skips_summary_when_only_ignored_diff_rules_change(sqlite_session_factory, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": sent.append((subject, content, content_type)),
+    )
+
+    with sqlite_session_factory() as session:
+        crud.set_setting(session, key="alert_on_fail", value="0")
+        crud.set_setting(session, key="alert_on_config_change", value="1")
+        crud.set_setting(session, key="always_send_summary", value="0")
+        backup_service.save_diff_rules(
+            session,
+            [{"scope": "global", "targets": [], "patterns": [r"^ntp clock-period.*"]}],
+        )
+
+        device = Device(name="edge-summary-noise", host="10.0.45.2", platform="cisco_ios")
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+
+        prev_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.finish_backup_record(
+            session,
+            record_id=prev_record.id,
+            success=True,
+            config_text="hostname edge-summary-noise\nntp clock-period 11111\n",
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        run = crud.create_schedule_run(session, schedule_id=0, trigger="manual", total_devices=1)
+        current_record = crud.create_backup_record(session, device_id=int(device.id), template_id=None)
+        crud.add_schedule_run_item(
+            session,
+            run_id=run.id,
+            schedule_id=0,
+            backup_id=current_record.id,
+            device_id=int(device.id),
+        )
+        crud.finish_schedule_run(
+            session,
+            run_id=run.id,
+            success_count=1,
+            fail_count=0,
+            cancelled_count=0,
+            error_message=None,
+            status=task_state_service.SCHEDULE_RUN_STATUS_SUCCEEDED,
+            unfinished_count=0,
+        )
+        crud.finish_backup_record(
+            session,
+            record_id=current_record.id,
+            success=True,
+            config_text="hostname edge-summary-noise\nntp clock-period 22222\n",
+            error_message=None,
+            duration_seconds=1.0,
+            failure_type=None,
+        )
+
+        alert_service.check_and_alert_batch(session, run.id)
+
+        assert sent == []
+
+
 def test_list_device_backups_payload_includes_status_metadata(sqlite_session_factory):
     with sqlite_session_factory() as session:
         device = Device(name="edge-status", host="10.0.50.1", platform="cisco_ios")
@@ -820,6 +1199,52 @@ def test_base_list_query_input_supports_custom_default_limit():
     assert query.page == 1
     assert query.limit == 50
     assert query.include_limit_param is False
+
+
+def test_device_host_port_combo_is_unique(sqlite_session_factory):
+    with sqlite_session_factory() as session:
+        credential = Credential(name="cred-host-port", username="admin")
+        session.add(credential)
+        session.commit()
+        session.refresh(credential)
+
+        first = device_service.create_device(
+            session,
+            DeviceCreateInput(
+                name="edge-host-port-1",
+                host="10.0.99.1",
+                port=22,
+                platform="cisco_ios",
+                credential_id=int(credential.id),
+            ),
+        )
+        second = device_service.create_device(
+            session,
+            DeviceCreateInput(
+                name="edge-host-port-2",
+                host="10.0.99.1",
+                port=23,
+                platform="cisco_ios",
+                credential_id=int(credential.id),
+            ),
+        )
+
+        assert first.id is not None
+        assert second.id is not None
+
+        with pytest.raises(device_service.ServiceError) as exc_info:
+            device_service.create_device(
+                session,
+                DeviceCreateInput(
+                    name="edge-host-port-3",
+                    host="10.0.99.1",
+                    port=23,
+                    platform="cisco_ios",
+                    credential_id=int(credential.id),
+                ),
+            )
+
+        assert exc_info.value.code == "DEVICE_HOST_EXISTS"
 
 
 def test_editable_list_query_input_parses_edit_and_pagination():

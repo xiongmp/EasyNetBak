@@ -17,19 +17,19 @@
         <form method="get" action="/devices" class="row g-2 align-items-center">
           <div class="col-md-3 col-sm-6">
             <div class="input-group input-group-sm">
-              <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-secondary"></i></span>
-              <input name="q" class="form-control border-start-0 ps-0" style="height: 31px;" placeholder="搜索设备名称或 IP..." value="{{ filters.q }}" />
+              <span class="input-group-text bg-light border-end-0 py-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+              <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索设备名称或 IP..." value="{{ filters.q }}" />
             </div>
           </div>
           <div class="col-md-2 col-sm-6">
-            <select name="login_method" class="form-select form-select-sm" id="device-filter-login-method" style="height: 31px;">
+            <select name="login_method" class="form-select form-select-sm filter-control-sm" id="device-filter-login-method">
               <option value="">登录方式: 全部</option>
               <option value="ssh" {% if filters.login_method == 'ssh' %}selected{% endif %}>SSH</option>
               <option value="telnet" {% if filters.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
             </select>
           </div>
           <div class="col-md-2 col-sm-6">
-            <select name="platform" class="form-select form-select-sm" id="device-filter-platform" style="height: 31px;">
+            <select name="platform" class="form-select form-select-sm filter-control-sm" id="device-filter-platform">
               <option value="">平台类型: 全部</option>
               {% for p in ssh_platforms %}
                 <option value="{{ p.id }}" data-kind="ssh" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
@@ -41,7 +41,7 @@
           </div>
           <div class="col-md-2 col-sm-6">
             <div class="dropdown custom-tree-select w-100">
-              <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="filterGroupDropdownBtn" style="height: 31px;">
+              <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100 filter-control-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="filterGroupDropdownBtn">
                 <span id="filterGroupSelectedText" class="text-truncate">所属分组: 全部</span>
               </button>
               <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
@@ -51,14 +51,14 @@
             </div>
           </div>
           <div class="col-md-2 col-sm-6">
-            <select name="status" class="form-select form-select-sm" style="height: 31px;">
+            <select name="status" class="form-select form-select-sm filter-control-sm">
               <option value="">连通状态: 全部</option>
               <option value="online" {% if filters.status == 'online' %}selected{% endif %}>在线 (可达)</option>
               <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>离线 (不可达)</option>
             </select>
           </div>
           <div class="col-md-1 col-sm-6">
-            <button class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center" type="submit" style="height: 31px;">
+            <button class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center filter-control-sm" type="submit">
               <i class="bi bi-funnel-fill me-1"></i>筛选
             </button>
           </div>
@@ -181,11 +181,10 @@
               const label = selectedOption ? selectedOption.text : 'Select...';
 
               this.btn = document.createElement('button');
-              this.btn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-body text-truncate';
+              this.btn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-body text-truncate filter-control-sm';
               this.btn.type = 'button';
               this.btn.dataset.bsToggle = 'dropdown';
               this.btn.dataset.bsAutoClose = 'outside';
-              this.btn.style.height = '31px';
               this.btn.style.fontSize = '13px'; // 调整为 13px 以匹配视觉大小
               this.btn.innerHTML = `<span class="text-truncate flex-grow-1">${label}</span>`;
               this.container.appendChild(this.btn);
@@ -883,8 +882,15 @@
           try {
             const resp = await fetch('/api/devices/bulk_backup', { method: 'POST', body: fd });
             if (!resp.ok) {
+              let detail = '';
+              try {
+                const data = await resp.json();
+                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : '';
+              } catch (e) {
+                detail = '';
+              }
               if (window.NB && typeof window.NB.showToast === 'function') {
-                window.NB.showToast('备份请求失败', 'error');
+                window.NB.showToast(detail || '备份请求失败', 'error');
               }
               updateBulkAll();
               if (btnAll) btnAll.disabled = false;
@@ -892,10 +898,15 @@
             }
             const data = await resp.json();
             const records = (data && data.records) ? data.records : [];
+            const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : 'none';
             if (window.NB && typeof window.NB.trackBackups === 'function' && Array.isArray(records) && records.length) {
               window.NB.trackBackups(records);
               if (window.NB && typeof window.NB.showToast === 'function') {
-                window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+                if (enqueueStatus === 'partial') {
+                  window.NB.showToast('已启动 ' + records.length + ' 个备份任务，部分任务入队失败', 'warning');
+                } else {
+                  window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+                }
               }
             } else {
               if (window.NB && typeof window.NB.showToast === 'function') {
@@ -1587,7 +1598,7 @@
                 <div class="col-md-6">
                   <label class="form-label fw-bold text-secondary mb-1">匹配字段</label>
                   <select class="form-select" name="match_by">
-                    <option value="host">Host IP</option>
+                    <option value="host_port">Host IP + 端口</option>
                     <option value="name">设备名称</option>
                   </select>
                 </div>

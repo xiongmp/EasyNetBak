@@ -10,12 +10,12 @@
             <form method="get" action="/audit-logs" class="d-flex flex-wrap gap-2 align-items-center">
                 <div style="width: 250px;">
                     <div class="input-group input-group-sm">
-                        <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
-                        <input name="q" class="form-control border-start-0 ps-0" placeholder="搜索用户、详情或资源ID" value="{{ q }}" />
+                        <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索用户、详情或资源ID" value="{{ q }}" />
                     </div>
                 </div>
                 <div style="width: 180px;">
-                    <select name="action" class="form-select form-select-sm">
+                    <select name="action" class="form-select form-select-sm filter-control-sm">
                         <option value="">操作类型: 全部</option>
                         {% for a in all_actions %}
                             <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ action_map.get(a, a) }}</option>
@@ -23,15 +23,15 @@
                     </select>
                 </div>
                 <div style="width: 180px;">
-                    <select name="resource_type" class="form-select form-select-sm">
+                    <select name="resource_type" class="form-select form-select-sm filter-control-sm">
                         <option value="">资源类型: 全部</option>
                         {% for rt in all_resource_types %}
                             <option value="{{ rt }}" {% if resource_type == rt %}selected{% endif %}>{{ resource_map.get(rt, rt) }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <button class="btn btn-sm btn-outline-primary px-3" type="submit">筛选</button>
-                <a href="/audit-logs" class="btn btn-sm btn-outline-secondary">重置</a>
+                <button class="btn btn-sm btn-outline-primary px-3 filter-control-sm" type="submit">筛选</button>
+                <a href="/audit-logs" class="btn btn-sm btn-outline-secondary filter-control-sm">重置</a>
             </form>
 
             <div class="d-flex gap-2">

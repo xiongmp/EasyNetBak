@@ -21,15 +21,15 @@
             <form method="get" action="/webshell-records" class="row g-2 align-items-center">
                 <div class="col-md-4 col-sm-6">
                     <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-secondary"></i></span>
-                        <input name="q" class="form-control border-start-0 ps-0" style="height: 31px;" placeholder="搜索用户名或设备信息..." value="{{ q }}" />
+                        <span class="input-group-text bg-light border-end-0 py-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索用户名或设备信息..." value="{{ q }}" />
                     </div>
                 </div>
                 <div class="col-md-auto col-sm-6 d-flex gap-2">
-                    <button class="btn btn-sm btn-primary d-flex align-items-center justify-content-center px-3" type="submit" style="height: 31px;">
+                    <button class="btn btn-sm btn-primary d-flex align-items-center justify-content-center px-3 filter-control-sm" type="submit">
                         <i class="bi bi-funnel-fill me-1"></i>筛选
                     </button>
-                    <a href="/webshell-records" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center px-3" style="height: 31px;">
+                    <a href="/webshell-records" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center px-3 filter-control-sm">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>重置
                     </a>
                 </div>

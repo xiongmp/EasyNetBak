@@ -10,22 +10,22 @@
             <div class="col-md-6">
                 <label for="q" class="form-label fw-bold small text-secondary">搜索关键词</label>
                 <div class="input-group">
-                    <span class="input-group-text border-end-0"><i class="bi bi-search text-secondary"></i></span>
-                    <input type="text" class="form-control border-start-0 border-end-0 ps-0" id="q" name="q" value="{{ q }}" placeholder="输入配置关键词，如 'interface', 'vlan', 'ip address'..." required>
-                    <button class="btn btn-outline-secondary border-start-0 text-secondary {% if not q %}d-none{% endif %}" type="button" id="clear-search">
+                    <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
+                    <input type="text" class="form-control border-start-0 border-end-0 ps-0 filter-control-sm" id="q" name="q" value="{{ q }}" placeholder="输入配置关键词，如 'interface', 'vlan', 'ip address'..." required>
+                    <button class="btn btn-outline-secondary border-start-0 text-secondary filter-control-sm {% if not q %}d-none{% endif %}" type="button" id="clear-search">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
             </div>
             <div class="col-md-3">
                 <label for="scope" class="form-label fw-bold small text-secondary">搜索范围</label>
-                <select class="form-select" id="scope" name="scope">
+                <select class="form-select filter-control-sm" id="scope" name="scope">
                     <option value="latest" {% if scope == 'latest' %}selected{% endif %}>仅搜索最新配置</option>
                     <option value="all" {% if scope == 'all' %}selected{% endif %}>搜索所有历史配置</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100" id="search-btn">
+                <button type="submit" class="btn btn-primary w-100 filter-control-sm" id="search-btn">
                     <span class="search-btn-content">
                         <i class="bi bi-search me-1"></i>搜索
                     </span>
