@@ -904,20 +904,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 响应式
-    window.addEventListener('resize', function() {
-        trendChart.resize();
-        pieChart.resize();
-        heatmapChart.resize();
-        healthChart.resize();
+    // 响应式优化：使用 ResizeObserver 监听容器大小变化
+    const chartMap = new Map();
+    if (document.getElementById('backup-trend-chart')) chartMap.set(document.getElementById('backup-trend-chart'), trendChart);
+    if (document.getElementById('platform-pie-chart')) chartMap.set(document.getElementById('platform-pie-chart'), pieChart);
+    if (document.getElementById('change-heatmap-chart')) chartMap.set(document.getElementById('change-heatmap-chart'), heatmapChart);
+    if (document.getElementById('group-health-chart')) chartMap.set(document.getElementById('group-health-chart'), healthChart);
+
+    const resizeObserver = new ResizeObserver(entries => {
+        // 使用 requestAnimationFrame 优化，避免 "ResizeObserver loop limit exceeded" 错误
+        window.requestAnimationFrame(() => {
+            entries.forEach(entry => {
+                const chart = chartMap.get(entry.target);
+                if (chart) chart.resize();
+            });
+        });
     });
 
-    const heatmapTab = document.getElementById('change-heatmap-tab');
-    if (heatmapTab) {
-        heatmapTab.addEventListener('shown.bs.tab', function () {
-            heatmapChart.resize();
-        });
-    }
+    chartMap.forEach((chart, container) => {
+        resizeObserver.observe(container);
+    });
 
     // 备份活动表格过滤
     const filterButtons = document.querySelectorAll('[data-filter]');

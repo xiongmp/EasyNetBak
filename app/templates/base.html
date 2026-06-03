@@ -229,6 +229,11 @@
                 fullscreenIcon.className = 'bi bi-arrows-fullscreen';
                 fullscreenToggle.setAttribute('title', '全屏显示');
               }
+              
+              // 全屏切换后触发 resize 事件，确保图表等组件适配新尺寸
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+              }, 300);
             });
 
             themeToggle.addEventListener('click', function(event) {
@@ -312,6 +317,13 @@
                   label.setAttribute('data-bs-toggle', 'collapse');
                 }
               });
+
+              // 触发 resize 事件以更新图表等组件
+              // 由于侧边栏有 0.3s 的过渡动画，我们在动画开始和结束时都触发一次
+              window.dispatchEvent(new Event('resize'));
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+              }, 350);
             });
 
             // 初始化时也执行一次
