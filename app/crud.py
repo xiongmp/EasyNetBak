@@ -629,6 +629,68 @@ def _depth_from_group_path(path: str) -> int:
     return max(normalized.count("/") - 2, 0)
 
 
+def _group_path_ids_from_path(path: str) -> list[int]:
+    normalized = (path or "").strip().strip("/")
+    if not normalized:
+        return []
+    path_ids: list[int] = []
+    for raw_part in normalized.split("/"):
+        part = raw_part.strip()
+        if not part:
+            continue
+        try:
+            path_ids.append(int(part))
+        except ValueError:
+            return []
+    return path_ids
+
+
+def _build_group_display_paths(groups: Iterable[DeviceGroup]) -> dict[int, str]:
+    group_list = [group for group in groups if group.id is not None]
+    group_map = {int(group.id): group for group in group_list}
+
+    recovered_path_ids: dict[int, list[int]] = {}
+    stack: list[int] = []
+    for group in sorted(group_list, key=lambda item: (item.created_at, int(item.id or 0))):
+        group_id = int(group.id)
+        depth = max(int(group.depth or 0), 0)
+        while len(stack) > depth:
+            stack.pop()
+        recovered = [*stack, group_id] if len(stack) == depth else [group_id]
+        recovered_path_ids[group_id] = recovered
+        stack = recovered[:]
+
+    display_paths: dict[int, str] = {}
+    for group in group_list:
+        group_id = int(group.id)
+        path_ids = _group_path_ids_from_path(group.path)
+        if path_ids and (path_ids[-1] != group_id or any(path_id not in group_map for path_id in path_ids)):
+            path_ids = []
+
+        if len(path_ids) <= 1:
+            chain_ids: list[int] = []
+            seen_ids: set[int] = set()
+            current: DeviceGroup | None = group
+            while current is not None and current.id is not None:
+                current_id = int(current.id)
+                if current_id in seen_ids:
+                    break
+                seen_ids.add(current_id)
+                chain_ids.insert(0, current_id)
+                current = group_map.get(int(current.parent_id)) if current.parent_id else None
+            if len(chain_ids) > len(path_ids):
+                path_ids = chain_ids
+
+        if len(path_ids) <= 1:
+            recovered = recovered_path_ids.get(group_id, [])
+            if len(recovered) > len(path_ids):
+                path_ids = recovered
+
+        display_paths[group_id] = "/".join(group_map[path_id].name for path_id in path_ids) if path_ids else group.name
+
+    return display_paths
+
+
 def expand_group_ids(
     session: Session,
     group_ids: Iterable[int] | None,
@@ -1819,6 +1881,7 @@ def get_backup_trend_stats(session: Session, *, window_key: str = "30d") -> dict
 def get_group_health_stats(session: Session, *, window_days: int | None = None) -> list[dict[str, Any]]:
     stmt = (
         select(
+            DeviceGroup.id,
             DeviceGroup.name,
             func.count(BackupRecord.id).label("total"),
             func.sum(
@@ -1845,13 +1908,16 @@ def get_group_health_stats(session: Session, *, window_days: int | None = None) 
         )
     ).all()
 
-    return [
+    group_paths = _build_group_display_paths(list_groups(session))
+
+    result = [
         {
-            "name": group_name,
+            "name": group_paths.get(int(group_id), group_name),
             "value": round((int(success_count or 0) / int(total or 1)) * 100, 1),
         }
-        for group_name, total, success_count in rows
+        for group_id, group_name, total, success_count in rows
     ]
+    return result
 
 
 def _list_config_change_timestamps(

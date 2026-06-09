@@ -742,6 +742,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const healthChart = echarts.init(document.getElementById('group-health-chart'));
     const healthData = {{ health_stats | tojson }};
     
+    // 动态计算是否需要滚动条
+    const showZoom = healthData.length > 5;
+    
     healthChart.setOption({
         animation: true,
         animationDuration: 1000,
@@ -759,11 +762,34 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         grid: {
             left: '1%',
-            right: '8%',
+            right: showZoom ? '10%' : '8%',
             bottom: 20,
             top: '2%',
             containLabel: true
         },
+        dataZoom: showZoom ? [
+            {
+                type: 'slider',
+                yAxisIndex: 0,
+                width: 6,
+                right: 2,
+                showDataShadow: false,
+                startValue: 0,
+                endValue: 4,
+                borderColor: 'transparent',
+                backgroundColor: 'transparent',
+                fillerColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)',
+                handleSize: 0,
+                showDetail: false
+            },
+            {
+                type: 'inside',
+                yAxisIndex: 0,
+                zoomOnMouseWheel: false,
+                moveOnMouseWheel: true,
+                moveOnMouseMove: true
+            }
+        ] : [],
         xAxis: {
             type: 'value',
             max: 100,
@@ -778,9 +804,15 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         yAxis: {
             type: 'category',
+            inverse: true, // 设置为反向，让第一个数据在上方
             data: healthData.map(item => item.name),
             axisLine: { lineStyle: { color: chartBorderColor } },
-            axisLabel: { color: chartTextColor, fontSize: 12 },
+            axisLabel: { 
+                color: chartTextColor, 
+                fontSize: 12,
+                width: 120, // 为层级分组名称预留更多显示空间
+                overflow: 'truncate' // 文本过长时截断
+            },
             axisTick: { show: false }
         },
         series: [
@@ -890,6 +922,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 borderColor: tooltipBorder,
                 textStyle: { color: tooltipText }
             },
+            dataZoom: showZoom ? [{
+                backgroundColor: 'transparent',
+                fillerColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'
+            }, {
+                type: 'inside'
+            }] : [],
             xAxis: {
                 axisLabel: { color: textColor },
                 splitLine: { lineStyle: { color: splitLineColor } }
