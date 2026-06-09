@@ -100,6 +100,7 @@ def test_legacy_ssh_fallback_retries_on_no_acceptable_kex(monkeypatch, runner, k
                 "Incompatible ssh peer (no acceptable kex algorithm)"
             )
         assert device["disabled_algorithms"] == netmiko_client._LEGACY_SSH_DISABLED_ALGORITHMS
+        assert device["disable_sha2_fix"] is True
         return fake_conn
 
     monkeypatch.setattr(netmiko_client, "ConnectHandler", fake_connect_handler)
@@ -117,6 +118,66 @@ def test_legacy_ssh_fallback_retries_on_no_acceptable_kex(monkeypatch, runner, k
 
     assert len(connect_calls) == 2
     assert "disabled_algorithms" not in connect_calls[0]
+    if runner is netmiko_client.run_netmiko_commands:
+        assert result == "RG#show running-config\ncurrent configuration\n"
+    else:
+        assert result == "RG#"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "A paramiko SSHException occurred during connection creation: "
+        "Incompatible ssh server (no acceptable ciphers)",
+        "A paramiko SSHException occurred during connection creation: "
+        "Incompatible ssh server (no acceptable macs)",
+        "A paramiko SSHException occurred during connection creation: "
+        "Incompatible ssh peer (can't match requested host key type)",
+    ],
+)
+@pytest.mark.parametrize(
+    ("runner", "kwargs"),
+    [
+        (
+            netmiko_client.run_netmiko_commands,
+            {"commands": ["show running-config"]},
+        ),
+        (
+            netmiko_client.test_netmiko_connection,
+            {},
+        ),
+    ],
+)
+def test_legacy_ssh_fallback_retries_on_cipher_mac_and_hostkey_errors(
+    monkeypatch, runner, kwargs, message
+):
+    fake_conn = _FakeConnection()
+    connect_calls: list[dict[str, object]] = []
+
+    def fake_connect_handler(**device):
+        connect_calls.append(device)
+        if len(connect_calls) == 1:
+            raise Exception(message)
+        assert device["disabled_algorithms"] == netmiko_client._LEGACY_SSH_DISABLED_ALGORITHMS
+        assert device["disable_sha2_fix"] is True
+        return fake_conn
+
+    monkeypatch.setattr(netmiko_client, "ConnectHandler", fake_connect_handler)
+
+    result = runner(
+        host="10.0.0.10",
+        port=22,
+        platform="ruijie_os",
+        login_method="ssh",
+        username="admin",
+        password="password",
+        enable_password="enable",
+        **kwargs,
+    )
+
+    assert len(connect_calls) == 2
+    assert "disabled_algorithms" not in connect_calls[0]
+    assert "disable_sha2_fix" not in connect_calls[0]
     if runner is netmiko_client.run_netmiko_commands:
         assert result == "RG#show running-config\ncurrent configuration\n"
     else:

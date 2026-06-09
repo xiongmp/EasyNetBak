@@ -19,7 +19,8 @@ _ENABLE_LEGACY_SSH_FALLBACK = os.getenv(
     "no",
 }
 
-# Disable modern SSH algorithms so older devices can fall back to ssh-rsa/group1-sha1/cbc/hmac-sha1.
+# Disable modern SSH algorithms so older devices can fall back to
+# ssh-rsa/group1-sha1/cbc/hmac-sha1 when Paramiko still supports them.
 _LEGACY_SSH_DISABLED_ALGORITHMS = {
     "keys": [
         "ssh-ed25519",
@@ -66,18 +67,29 @@ _LEGACY_SSH_DISABLED_ALGORITHMS = {
     ],
 }
 
+_LEGACY_SSH_COMPATIBILITY_OPTIONS = {
+    "disabled_algorithms": _LEGACY_SSH_DISABLED_ALGORITHMS,
+    "disable_sha2_fix": True,
+}
+
 _SSH_ALGO_MISMATCH_KEYWORDS = (
     "incompatible ssh peer",
+    "incompatible ssh server",
     "no acceptable host key",
     "no acceptable key exchange",
     "no acceptable kex algorithm",
+    "no acceptable ciphers",
+    "no acceptable macs",
     "no matching host key",
+    "can't match requested host key type",
     "host key type",
     "no matching key exchange",
     "no matching kex",
     "no matching cipher",
+    "no matching encryption algorithm",
     "no matching mac",
     "algorithm negotiation failed",
+    "negotiation failed",
     "no common algorithms",
 )
 
@@ -155,7 +167,10 @@ def _legacy_ssh_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
     legacy_device = dict(device)
     legacy_device["disabled_algorithms"] = _merge_disabled_algorithms(
         legacy_device.get("disabled_algorithms"),
-        _LEGACY_SSH_DISABLED_ALGORITHMS,
+        _LEGACY_SSH_COMPATIBILITY_OPTIONS["disabled_algorithms"],
+    )
+    legacy_device["disable_sha2_fix"] = bool(
+        _LEGACY_SSH_COMPATIBILITY_OPTIONS["disable_sha2_fix"]
     )
     return legacy_device
 
@@ -185,6 +200,9 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
     
     # Mapping of partial string matches to ErrorCode
     mapping = [
+        ("incompatible ssh peer", NetmikoErrorCode.ALGO_MISMATCH),
+        ("incompatible ssh server", NetmikoErrorCode.ALGO_MISMATCH),
+        ("negotiation failed", NetmikoErrorCode.ALGO_MISMATCH),
         ("connection refused", NetmikoErrorCode.REFUSED),
         ("authentication failed", NetmikoErrorCode.AUTH_FAILED),
         ("timed out", NetmikoErrorCode.TIMEOUT),
@@ -208,12 +226,16 @@ def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
         ("kex_exchange_identification", NetmikoErrorCode.ALGO_MISMATCH),
         ("no acceptable key exchange", NetmikoErrorCode.ALGO_MISMATCH),
         ("no acceptable kex algorithm", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no acceptable ciphers", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no acceptable macs", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching key exchange", NetmikoErrorCode.ALGO_MISMATCH),
         ("no common algorithms", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching cipher", NetmikoErrorCode.ALGO_MISMATCH),
+        ("no matching encryption algorithm", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching mac", NetmikoErrorCode.ALGO_MISMATCH),
         ("no acceptable host key", NetmikoErrorCode.ALGO_MISMATCH),
         ("no matching host key", NetmikoErrorCode.ALGO_MISMATCH),
+        ("can't match requested host key type", NetmikoErrorCode.ALGO_MISMATCH),
         ("host key type", NetmikoErrorCode.ALGO_MISMATCH),
         ("incompatible version", NetmikoErrorCode.ALGO_MISMATCH),
         ("max sessions", NetmikoErrorCode.SESSION_LIMIT),
@@ -408,9 +430,10 @@ def run_netmiko_commands(
     except Exception as exc:
         if _ENABLE_LEGACY_SSH_FALLBACK and _is_ssh_algo_mismatch_error(exc):
             logger.warning(
-                "Detected SSH algorithm mismatch for %s:%s, retrying with legacy SSH compatibility mode",
+                "Detected SSH algorithm mismatch for %s:%s, retrying with legacy SSH compatibility mode: %s",
                 host,
                 port,
+                exc,
             )
             try:
                 output_parts = _execute(_legacy_ssh_compatible_device(device))
@@ -482,9 +505,10 @@ def test_netmiko_connection(
     except Exception as exc:
         if _ENABLE_LEGACY_SSH_FALLBACK and _is_ssh_algo_mismatch_error(exc):
             logger.warning(
-                "Detected SSH algorithm mismatch for %s:%s, retrying test connection with legacy SSH compatibility mode",
+                "Detected SSH algorithm mismatch for %s:%s, retrying test connection with legacy SSH compatibility mode: %s",
                 host,
                 port,
+                exc,
             )
             try:
                 return _probe(_legacy_ssh_compatible_device(device))
