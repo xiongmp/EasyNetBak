@@ -1794,6 +1794,7 @@ def get_dashboard_summary(session: Session, *, window_hours: int = 24) -> dict[s
     window_start = now - timedelta(hours=max(1, int(window_hours)))
 
     total_devices = session.exec(select(func.count()).select_from(Device)).one()
+    offline_devices = session.exec(select(func.count()).select_from(Device).where(Device.reachability_status == False)).one()
     total_groups = session.exec(select(func.count()).select_from(DeviceGroup)).one()
 
     backup_window_total = session.exec(
@@ -1812,6 +1813,7 @@ def get_dashboard_summary(session: Session, *, window_hours: int = 24) -> dict[s
 
     return {
         "total_devices": total_devices,
+        "offline_devices": offline_devices,
         "total_groups": total_groups,
         "window_hours": max(1, int(window_hours)),
         "backup_window_total": backup_window_total,

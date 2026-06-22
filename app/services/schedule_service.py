@@ -402,7 +402,6 @@ def get_schedule_stats_payload(
     devices = list(session.exec(select(Device).where(Device.id.in_(device_ids))).all()) if device_ids else []
     groups = crud.list_groups(session)
     all_devices = crud.list_devices(session)
-    all_groups = groups
 
     runs_sorted = sorted(runs, key=lambda run: run.started_at, reverse=False)
     finished_runs = [
@@ -425,21 +424,8 @@ def get_schedule_stats_payload(
     by_backup_id = {str(record.id): record for record in records}
     by_device_id = {int(device.id): device for device in devices if device.id}
     
-    # 建立全路径映射
-    def _get_full_path_local(group_id: int) -> str:
-        path = []
-        curr_id = group_id
-        visited = set()
-        while curr_id and curr_id not in visited:
-            visited.add(curr_id)
-            g = next((x for x in all_groups if int(x.id) == curr_id), None)
-            if not g:
-                break
-            path.append(g.name)
-            curr_id = int(g.parent_id) if g.parent_id else 0
-        return "/".join(reversed(path)) if path else "未分组"
-
-    full_path_by_id = {int(group.id): _get_full_path_local(int(group.id)) for group in groups if group.id}
+    # 建立全路径映射（复用与仪表盘一致的路径构建逻辑）
+    full_path_by_id = crud._build_group_display_paths(groups)
 
     fail_by_device: dict[int, int] = {}
     total_by_group: dict[str, int] = {}

@@ -863,6 +863,7 @@
               
               const content = document.createElement('div');
               content.className = 'tree-node-content';
+              content.style.setProperty('--tree-depth', String(Math.max(0, Number(node.depth || 0))));
               
               const hasChildren = node.children && node.children.length > 0;
               
@@ -915,7 +916,6 @@
               if (hasChildren) {
                   childrenUl = renderGroupTreeNodes(node.children, null);
                   childrenUl.className = 'tree-view tree-children collapsed';
-                  childrenUl.style.paddingLeft = '2rem';
                   li.appendChild(childrenUl);
                   
                   toggle.addEventListener('click', (e) => {

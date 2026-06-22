@@ -198,6 +198,7 @@
                   
                   const content = document.createElement('div');
                   content.className = 'tree-node-content' + (options.selectedId == node.id ? ' selected' : '');
+                  content.style.setProperty('--tree-depth', String(Math.max(0, Number(node.depth || 0))));
                   
                   const isRoot = node.depth === 0 || node.id === 0;
                   const hasChildren = node.children && node.children.length > 0;

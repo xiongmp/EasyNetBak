@@ -23,8 +23,8 @@
     </div>
   </div>
 
-  <div class="row g-2 mb-2 flex-shrink-0">
-    <div class="col-6 col-md-3">
+  <div class="row g-2 mb-2 flex-shrink-0 row-cols-2 row-cols-md-5">
+    <div class="col">
       <div class="card h-100 border-0 shadow-sm hover-lift">
         <div class="card-body py-2 px-3 d-flex align-items-center">
           <div class="d-flex align-items-center w-100">
@@ -39,7 +39,22 @@
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col">
+      <div class="card h-100 border-0 shadow-sm hover-lift">
+        <div class="card-body py-2 px-3 d-flex align-items-center">
+          <div class="d-flex align-items-center w-100">
+            <div class="flex-shrink-0 bg-danger bg-gradient bg-opacity-10 text-danger p-2 rounded-3">
+              <i class="bi bi-hdd-network-fill fs-5"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备离线数</h6>
+              <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.offline_devices }}</h5>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
       <div class="card h-100 border-0 shadow-sm hover-lift">
         <div class="card-body py-2 px-3 d-flex align-items-center">
           <div class="d-flex align-items-center w-100">
@@ -54,7 +69,7 @@
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col">
       <div class="card h-100 border-0 shadow-sm hover-lift">
         <div class="card-body py-2 px-3 d-flex align-items-center">
           <div class="d-flex align-items-center w-100">
@@ -69,7 +84,7 @@
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col">
       <div class="card h-100 border-0 shadow-sm hover-lift">
         <div class="card-body py-2 px-3 d-flex align-items-center">
           <div class="d-flex align-items-center w-100">

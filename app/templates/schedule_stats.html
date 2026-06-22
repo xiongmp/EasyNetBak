@@ -121,7 +121,7 @@
         <!-- 成功率趋势 -->
         <div class="card card-stat card-stat-trend">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>成功率趋势</h6>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>成功率趋势（最近30次）</h6>
             {% if trend %}
               {% set last = trend|last %}
               <div class="text-primary fw-bold">{{ (last.rate * 100)|round(0) }}% <span class="text-secondary text-xs fw-normal ms-1">最新</span></div>
@@ -129,7 +129,7 @@
           </div>
           <div class="card-body">
             <div class="chart-wrapper">
-              <svg id="trend-svg" viewBox="0 0 600 160" width="100%" height="100%" preserveAspectRatio="none" class="trend-svg"></svg>
+              <div id="trend-chart" style="width: 100%; height: 180px;"></div>
             </div>
           </div>
         </div>
@@ -192,7 +192,7 @@
                   {% for g in group_summary %}
                     {% set rate = g.rate or 0 %}
                     <tr>
-                      <td class="fw-bold text-xs">{{ g.group }}</td>
+                      <td class="fw-bold" style="font-size: 0.75rem;">{{ g.group }}</td>
                       <td>
                         <div class="d-flex align-items-center gap-2">
                           <div class="progress flex-grow-1 progress-sm-custom">
@@ -578,82 +578,118 @@
     </script>
   {% endif %}
 
+  <script src="/static/js/echarts.min.js"></script>
   <script>
     (function () {
       const TREND = {{ trend | tojson }};
-      const svg = document.getElementById("trend-svg");
-      if (!svg) return;
+      const chartDom = document.getElementById("trend-chart");
+      if (!chartDom) return;
 
-      function el(name, attrs) {
-        const n = document.createElementNS("http://www.w3.org/2000/svg", name);
-        Object.keys(attrs || {}).forEach((k) => n.setAttribute(k, String(attrs[k])));
-        return n;
-      }
+      const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+      const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
+      const tooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+      const tooltipBorder = isDark ? '#475569' : '#e2e8f0';
+      const tooltipText = isDark ? '#f1f5f9' : '#334155';
 
-      const w = 600;
-      const h = 160; 
-      const padX = 20;
-      const padY = 8;
-      svg.innerHTML = "";
-
-      const defs = el("defs");
-      const gradient = el("linearGradient", { id: "line-gradient", x1: "0%", y1: "0%", x2: "0%", y2: "100%" });
-      gradient.appendChild(el("stop", { offset: "0%", "stop-color": "#0d6efd", "stop-opacity": "0.2" }));
-      gradient.appendChild(el("stop", { offset: "100%", "stop-color": "#0d6efd", "stop-opacity": "0" }));
-      defs.appendChild(gradient);
-      svg.appendChild(defs);
-
-      const grid = el("g", { stroke: "var(--card-border)", "stroke-width": "1" });
-      [0, 0.5, 1].forEach((t) => {
-        const y = padY + (1 - t) * (h - padY * 2);
-        grid.appendChild(el("line", { x1: padX, y1: y, x2: w - padX, y2: y }));
-        const label = el("text", { x: 0, y: y + 4, fill: "var(--text-color)", opacity: "0.6", "font-size": "10" });
-        label.textContent = Math.round(t * 100) + "%";
-        svg.appendChild(label);
-      });
-      svg.appendChild(grid);
+      const chart = echarts.init(chartDom);
 
       if (!TREND || !TREND.length) {
-        const text = el("text", { x: w / 2, y: h / 2, "text-anchor": "middle", fill: "#94a3b8", "font-size": 12 });
-        text.textContent = "暂无趋势数据";
-        svg.appendChild(text);
+        chart.setOption({
+          title: {
+            text: '暂无趋势数据',
+            left: 'center',
+            top: 'center',
+            textStyle: { color: '#94a3b8', fontSize: 12, fontWeight: 'normal' }
+          }
+        });
         return;
       }
 
-      const points = TREND.map((p, i) => {
-        const x = TREND.length === 1 ? w / 2 : padX + (i * (w - padX * 2)) / (TREND.length - 1);
-        const rate = Math.max(0, Math.min(1, Number(p.rate || 0)));
-        const y = padY + (1 - rate) * (h - padY * 2);
-        return { x, y };
+      const labels = TREND.map(function (p) {
+        var s = p.started_at || '';
+        return s.length > 10 ? s.substr(5) : s;
       });
+      const rateData = TREND.map(function (p) { return Math.round((p.rate || 0) * 100); });
 
-      if (points.length > 1) {
-        let areaD = `M ${points[0].x} ${h - padY}`;
-        points.forEach(p => { areaD += ` L ${p.x} ${p.y}`; });
-        areaD += ` L ${points[points.length - 1].x} ${h - padY} Z`;
-        svg.appendChild(el("path", { d: areaD, fill: "url(#line-gradient)" }));
-      }
+      chart.setOption({
+        animation: true,
+        animationDuration: 800,
+        animationEasing: 'cubicOut',
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: tooltipBg,
+          borderColor: tooltipBorder,
+          borderWidth: 1,
+          padding: [10, 14],
+          textStyle: { color: tooltipText, fontSize: 12 },
+          axisPointer: {
+            type: 'shadow',
+            shadowStyle: { color: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.06)' }
+          },
+          formatter: function (params) {
+            var p = params[0];
+            var idx = p.dataIndex;
+            var item = TREND[idx] || {};
+            var rate = p.value;
+            var rateColor = rate >= 90 ? '#22c55e' : (rate >= 70 ? '#f59e0b' : '#ef4444');
+            return '<div style="font-weight:600;margin-bottom:6px;color:' + (isDark ? '#e2e8f0' : '#1e293b') + '">' + (item.started_at || '') + '</div>'
+              + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+              + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>'
+              + '<span>成功率: <b style="color:' + rateColor + '">' + rate + '%</b></span>'
+              + '</div>'
+              + '<div style="font-size:11px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">'
+              + '<span style="color:#22c55e;">成功 ' + (item.success || 0) + '</span>'
+              + ' / <span style="color:#ef4444;">失败 ' + (item.fail || 0) + '</span>'
+              + ' / 总计 ' + (item.total || 0)
+              + '</div>';
+          }
+        },
+        grid: {
+          left: '0%',
+          right: '3%',
+          top: 8,
+          bottom: 4,
+          containLabel: true
+        },
+        xAxis: {
+          type: 'category',
+          data: labels,
+          boundaryGap: false,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: textColor, fontSize: 10 }
+        },
+        yAxis: {
+          type: 'value',
+          min: 0,
+          max: 100,
+          axisLabel: { color: textColor, fontSize: 10, formatter: '{value}%' },
+          splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } }
+        },
+        series: [{
+          type: 'line',
+          data: rateData,
+          smooth: true,
+          symbol: 'emptyCircle',
+          symbolSize: 6,
+          lineStyle: {
+            color: '#3b82f6',
+            width: 2.5,
+            shadowBlur: 6,
+            shadowColor: 'rgba(59, 130, 246, 0.15)'
+          },
+          itemStyle: {
+            color: '#3b82f6',
+            borderColor: '#3b82f6',
+            borderWidth: 2
+          },
+          emphasis: {
+            focus: 'series',
+            itemStyle: { borderWidth: 4, symbolSize: 10 }
+          },
 
-      let lineD = `M ${points[0].x} ${points[0].y}`;
-      if (points.length > 1) {
-        for (let i = 0; i < points.length - 1; i++) {
-          const p0 = points[i];
-          const p1 = points[i + 1];
-          const cpX = (p0.x + p1.x) / 2;
-          lineD += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
-        }
-      }
-      svg.appendChild(el("path", { d: lineD, fill: "none", stroke: "#0d6efd", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-
-      points.forEach((p, i) => {
-        const g = el("g", { class: "chart-point" });
-        const circle = el("circle", { cx: p.x, cy: p.y, r: 3, fill: "var(--card-bg)", stroke: "#0d6efd", "stroke-width": 2 });
-        g.appendChild(circle);
-        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        const item = TREND[i] || {};
-        title.textContent = `${item.started_at || ""}\n成功率: ${Math.round(Number(item.rate || 0) * 100)}%\n成功: ${item.success || 0} / 失败: ${item.fail || 0} / 总数: ${item.total || 0}`;
-        g.appendChild(title);
-        svg.appendChild(g);
+        }]
       });
     })();
   </script>

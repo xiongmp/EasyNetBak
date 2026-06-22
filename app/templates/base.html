@@ -1191,9 +1191,20 @@
           return true;
         }
 
+        function optionLabel(option) {
+          if (!option) return "";
+          const explicitLabel = option.dataset ? option.dataset.nbLabel : "";
+          if (explicitLabel) return explicitLabel;
+          const rawText = option.textContent == null ? "" : String(option.textContent);
+          return rawText
+            .replace(/\r/g, "")
+            .replace(/\n[ \t]*/g, "")
+            .replace(/^[ \t\n]+|[ \t\n]+$/g, "");
+        }
+
         function selectedLabel(select) {
           const option = select.selectedOptions && select.selectedOptions[0];
-          return option ? option.textContent.trim() : "";
+          return optionLabel(option);
         }
 
         function syncWrapperState(select, wrapper, button) {
@@ -1211,7 +1222,9 @@
             const item = document.createElement("button");
             item.type = "button";
             item.className = "nb-select-option";
-            item.textContent = option.textContent.trim();
+            item.textContent = optionLabel(option);
+            const depth = Math.max(0, Number(option.dataset && option.dataset.depth ? option.dataset.depth : "0"));
+            item.style.setProperty("--nb-option-depth", String(depth));
             item.disabled = option.disabled;
             item.classList.toggle("selected", option.selected);
             item.setAttribute("role", "option");
