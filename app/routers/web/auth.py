@@ -555,6 +555,7 @@ def upsert_user(
     mfa_reset: str | None = Form(None),
     recovery_codes_generate: str | None = Form(None),
     recovery_codes_enabled: str | None = Form(None),
+    enable_watermark: str | None = Form(None),
 ):
     csrf_protect.validate_csrf(request)
     if user_id and int(user_id) > 0:
@@ -565,6 +566,7 @@ def upsert_user(
     reset_mfa = (mfa_reset or "").lower() in {"1", "true", "on", "yes"}
     generate_recovery = (recovery_codes_generate or "").lower() in {"1", "true", "on", "yes"}
     enable_recovery = (recovery_codes_enabled or "").lower() in {"1", "true", "on", "yes"}
+    watermark_enabled = (enable_watermark or "").lower() in {"1", "true", "on", "yes"}
 
     try:
         result = identity_service.upsert_user(
@@ -579,6 +581,7 @@ def upsert_user(
             reset_mfa=reset_mfa,
             generate_recovery=generate_recovery,
             enable_recovery=enable_recovery,
+            enable_watermark=watermark_enabled,
         )
     except identity_service.ServiceError as exc:
         return RedirectResponse(url=f"/users?err={str(exc.message)}", status_code=303)

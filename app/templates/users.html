@@ -260,6 +260,23 @@
               {% endif %}
 
               <div class="col-12">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-droplet-half me-1"></i>背景水印
+                </label>
+                <div class="card bg-light-subtle border-0">
+                  <div class="card-body py-2">
+                    <div class="d-flex align-items-center justify-content-between">
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="enable_watermark" id="enableWatermark" value="1"
+                          {% if not current or current.enable_watermark %}checked{% endif %}>
+                        <label class="form-check-label small fw-medium" for="enableWatermark">显示用户名背景水印</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
                   <label class="form-label small fw-bold text-secondary">
                       <i class="bi bi-diagram-3 me-1"></i>设备分组访问权限
                   </label>

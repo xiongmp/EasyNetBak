@@ -279,6 +279,7 @@ def upsert_user(
     reset_mfa: bool,
     generate_recovery: bool,
     enable_recovery: bool,
+    enable_watermark: bool = True,
 ) -> UserMutationResult:
     ensure_default_roles(session)
     role = (role or "").strip().lower()
@@ -300,10 +301,11 @@ def upsert_user(
             "password": password or None,
             "group_access_type": group_access_type,
             "allowed_group_ids": allowed_ids_str,
+            "enable_watermark": enable_watermark,
         }
 
         if target.username == "admin":
-            update_payload = {"mfa_enabled": enable_mfa}
+            update_payload = {"mfa_enabled": enable_mfa, "enable_watermark": enable_watermark}
             if enable_mfa:
                 if reset_mfa:
                     update_payload["mfa_secret"] = None
@@ -366,6 +368,7 @@ def upsert_user(
         allowed_group_ids=allowed_ids_str,
         mfa_enabled=enable_mfa,
         mfa_secret=None,
+        enable_watermark=enable_watermark,
     )
     return UserMutationResult(user=user, action="create", recovery_codes=[])
 

@@ -1244,12 +1244,33 @@
           if (activeTab && activeTab.activeSession && activeTab.activeSession.terminal) activeTab.activeSession.terminal.focus();
       });
 
-      // Global Keyboard Events
+      // Global Paste Event (handles right-click paste and native Ctrl+V/Cmd+V)
+      document.addEventListener('paste', (e) => {
+          const target = e.target;
+          if (!target) return;
+          const tag = target.tagName.toLowerCase();
+          
+          // xterm uses a hidden textarea for input handling. We want to intercept that.
+          const isXterm = target.classList.contains('xterm-helper-textarea');
+          
+          if (isXterm || (tag !== 'input' && tag !== 'textarea')) {
+              e.preventDefault();
+              e.stopPropagation();
+              const text = (e.clipboardData || window.clipboardData).getData('text');
+              if (text && pasteModal) {
+                  pasteContent.value = text;
+                  pasteModal.show();
+              }
+          }
+      }, true);
+
+      // Global Keyboard Events (fallback for cases where paste event might not fire if no focus)
       document.addEventListener('keydown', (e) => {
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-               // Only intercept if active element is not an input/textarea
-               const tag = document.activeElement.tagName.toLowerCase();
-               if (tag !== 'input' && tag !== 'textarea') {
+               const activeEl = document.activeElement;
+               const tag = activeEl ? activeEl.tagName.toLowerCase() : '';
+               const isXterm = activeEl && activeEl.classList.contains('xterm-helper-textarea');
+               if (!isXterm && tag !== 'input' && tag !== 'textarea') {
                    e.preventDefault();
                    showPasteModal();
                }

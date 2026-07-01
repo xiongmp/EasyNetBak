@@ -170,7 +170,7 @@ def device_webshell_page(
         request=request,
         name="webshell.html",
         context={
-            "request": request,
+            **_layout_context(request=request, active="devices"),
             **payload,
             "webshell_token": token,
             "csrf_token": csrf_token,

@@ -1615,6 +1615,7 @@ def create_user(
     allowed_group_ids: str | None = None,
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
+    enable_watermark: bool = True,
 ) -> User:
     username = username.strip()
     role = (role or "").strip().lower()
@@ -1630,6 +1631,7 @@ def create_user(
         group_access_type=group_access_type,
         allowed_group_ids=allowed_group_ids,
         mfa_enabled=mfa_enabled,
+        enable_watermark=enable_watermark,
     )
     if mfa_secret:
         user.mfa_secret = mfa_secret
@@ -1727,6 +1729,7 @@ def update_user(
     mfa_secret: str | None | object = _UNSET,
     recovery_codes: list[str] | None | object = _UNSET,
     recovery_codes_enabled: bool | None = None,
+    enable_watermark: bool | None = None,
 ) -> User | None:
     user = session.get(User, user_id)
     if user is None:
@@ -1767,6 +1770,9 @@ def update_user(
 
     if recovery_codes_enabled is not None:
         user.recovery_codes_enabled = bool(recovery_codes_enabled)
+
+    if enable_watermark is not None:
+        user.enable_watermark = bool(enable_watermark)
 
     session.add(user)
     return _flush_and_refresh(session, user)

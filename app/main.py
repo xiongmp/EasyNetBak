@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Network Backup 系统 API 接口文档，包含设备管理、分组管理、凭据管理等功能。",
-    version="1.0.0",
+    version=settings.app_version.lstrip("vV"),
     openapi_tags=[
         {"name": "设备管理"},
         {"name": "分组管理"},

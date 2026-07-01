@@ -24,6 +24,7 @@ class User(SQLModel, table=True):
     mfa_secret_encrypted: Optional[str] = None
     recovery_codes_hashed: Optional[str] = None
     recovery_codes_enabled: bool = Field(default=False)
+    enable_watermark: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     @property

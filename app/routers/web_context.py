@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 
 from app import crud
+from app.core.settings import settings
 from app.core.time import format_local_datetime
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 from app.routers.support import _current_user, has_permission, _user_effective_perms
@@ -28,6 +29,7 @@ def _dt_local_filter(ctx, value: datetime | None) -> str:
 
 
 templates.env.filters["dt_local"] = _dt_local_filter
+templates.env.globals["app_version"] = settings.app_version
 
 
 def _layout_context(*, request: Request, active: str) -> dict[str, Any]:

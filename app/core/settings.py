@@ -79,6 +79,8 @@ class Settings(BaseSettings):
 
     # 应用名称
     app_name: str = Field("网络设备备份", alias="APP_NAME")
+    # 应用版本
+    app_version: str = Field("v1.3.2", alias="APP_VERSION")
     # 数据库连接字符串
     database_url: str = Field("", alias="DATABASE_URL")
     db_scheme: str = Field("postgresql", alias="DB_SCHEME")

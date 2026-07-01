@@ -184,7 +184,7 @@
           </nav>
 
           <div class="sidebar-version">
-            <span class="nav-text">v1.3.1</span>
+            <span class="nav-text">{{ app_version }}</span>
           </div>
         </aside>
 
@@ -526,7 +526,7 @@
     {% if current_user %}
           </div>
           <footer class="py-3 text-center text-secondary small mt-auto">
-            Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">v1.3.1</span>
+            Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">{{ app_version }}</span>
           </footer>
         </main>
       </div>
@@ -534,7 +534,7 @@
       </div>
     {% else %}
       <footer class="py-3 text-center text-secondary small mt-4">
-        Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">v1.3.1</span>
+        Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">{{ app_version }}</span>
       </footer>
       </main>
     {% endif %}
@@ -1306,14 +1306,57 @@
           });
         }
 
-        window.NB = window.NB || {};
-        window.NB.refreshSelectDropdowns = refreshAllSelects;
+    window.NB = window.NB || {};
+    window.NB.refreshSelectDropdowns = refreshAllSelects;
 
-        document.addEventListener("DOMContentLoaded", () => {
-          document.querySelectorAll("select.form-select").forEach(enhanceSelect);
-        });
-      })();
-    </script>
-    {% block scripts %}{% endblock %}
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll("select.form-select").forEach(enhanceSelect);
+    });
+  })();
+</script>
+
+{% if current_user and current_user.enable_watermark %}
+<script>
+  (function() {
+    function createWatermark(text) {
+      const canvas = document.createElement('canvas');
+      // 扩大画布尺寸，让水印间距变大，避免文字密集堆叠影响阅读
+      canvas.width = 350;
+      canvas.height = 250;
+      const ctx = canvas.getContext('2d');
+      
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      // 增加倾斜角度，视觉上更有纵深感
+      ctx.rotate(-30 * Math.PI / 180);
+      // 使用更大且加粗的字体，让水印更醒目
+      ctx.font = 'bold 22px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = 'rgba(130, 130, 130, 1)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 0, 0);
+      
+      return canvas.toDataURL('image/png');
+    }
+    
+    const watermarkDiv = document.createElement('div');
+    watermarkDiv.className = 'nb-watermark';
+    watermarkDiv.style.pointerEvents = 'none';
+    watermarkDiv.style.position = 'fixed';
+    watermarkDiv.style.top = '0';
+    watermarkDiv.style.left = '0';
+    watermarkDiv.style.width = '100vw';
+    watermarkDiv.style.height = '100vh';
+    watermarkDiv.style.zIndex = '9999';
+    // 适当提升透明度，结合大号粗体字达到醒目但不遮挡内容的平衡
+    watermarkDiv.style.opacity = '0.15';
+    watermarkDiv.style.backgroundImage = 'url(' + createWatermark("{{ current_user.username }}") + ')';
+    watermarkDiv.style.backgroundRepeat = 'repeat';
+    
+    document.body.appendChild(watermarkDiv);
+  })();
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
   </body>
 </html>

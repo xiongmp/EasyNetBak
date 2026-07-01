@@ -177,7 +177,7 @@ def _legacy_ssh_compatible_device(device: dict[str, Any]) -> dict[str, Any]:
 
 def _requires_enable_mode(device_type: str) -> bool:
     normalized = (device_type or "").lower()
-    return normalized.startswith(("cisco", "ruijie"))
+    return normalized.startswith(("cisco", "ruijie", "zte", "maipu", "huawei_olt"))
 
 
 def _clean_backspaces(text: str) -> str:
@@ -190,6 +190,31 @@ def _clean_backspaces(text: str) -> str:
         else:
             chars.append(char)
     return "".join(chars)
+
+
+def _tail_has_prompt(buffer_tail: str, prompt: str) -> bool:
+    if not prompt:
+        return False
+    return bool(re.search(rf"{re.escape(prompt)}\s*$", buffer_tail))
+
+
+def _tail_has_pagination_marker(buffer_tail: str, pagination_pattern: str) -> bool:
+    if not buffer_tail:
+        return False
+    lines = buffer_tail.splitlines()
+    tail_line = lines[-1] if lines else buffer_tail
+    return bool(re.search(rf"{pagination_pattern}\s*$", tail_line))
+
+
+def _is_meaningful_pagination_chunk(chunk: str, pagination_pattern: str) -> bool:
+    if not chunk:
+        return False
+
+    normalized = _clean_backspaces(chunk)
+    normalized = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", normalized)
+    normalized = re.sub(pagination_pattern, "", normalized)
+    normalized = normalized.strip()
+    return bool(normalized)
 
 
 def _raise_netmiko_error(exc: Exception, default_message: str) -> None:
@@ -338,7 +363,7 @@ def run_netmiko_commands(
         output_parts: list[str] = []
         with ConnectHandler(**conn_device) as conn:
             conn.ansi_escape_codes = False
-            if _requires_enable_mode(device_type) and enable_password:
+            if _requires_enable_mode(device_type):
                 conn.enable()
             prompt = conn.find_prompt().rstrip()
             
@@ -364,16 +389,24 @@ def run_netmiko_commands(
                     logger.info(f"发现分页异常 (设备 {host}:{port})，命令 '{cmd}' 自动切到 send_command_timing() 并手动按空格处理...")
                     full_output = [out]
                     buffer_tail = out
-                    
-                    # 引入整体超时机制，防止死循环 (默认 command_read_timeout 比较大，比如 240s)
-                    start_time_pagination = time.time()
-                    
-                    while prompt not in buffer_tail:
-                        if time.time() - start_time_pagination > command_read_timeout:
-                            logger.error(f"处理分页时超时 ({command_read_timeout}s) - 设备: {host}:{port}")
-                            raise NetmikoTimeoutException(f"处理分页超时，未能找到提示符 '{prompt}'")
-                            
-                        if re.search(pagination_pattern, buffer_tail):
+                    output_size = len(out.encode(device["encoding"], errors="ignore"))
+
+                    # 将超时语义改为空闲超时，避免超大配置在持续输出时被总耗时误杀。
+                    last_data_time = time.monotonic()
+                    pagination_start = last_data_time
+                    absolute_timeout = max(command_read_timeout * 3, command_read_timeout + 120)
+                    max_output_bytes = 10 * 1024 * 1024
+
+                    while not _tail_has_prompt(buffer_tail, prompt):
+                        now = time.monotonic()
+                        if now - last_data_time > command_read_timeout:
+                            logger.error(f"处理分页时空闲超时 ({command_read_timeout}s) - 设备: {host}:{port}")
+                            raise NetmikoTimeoutException(f"处理分页空闲超时，未能找到提示符 '{prompt}'")
+                        if now - pagination_start > absolute_timeout:
+                            logger.error(f"处理分页时绝对超时 ({absolute_timeout}s) - 设备: {host}:{port}")
+                            raise NetmikoTimeoutException(f"处理分页总耗时过长，未能找到提示符 '{prompt}'")
+
+                        if _tail_has_pagination_marker(buffer_tail, pagination_pattern):
                             # 当前处于分页符，发送空格 (注意 normalize=False 防止发送回车)
                             page_out = conn.send_command_timing(
                                 " ",
@@ -391,11 +424,20 @@ def run_netmiko_commands(
                                 normalize=False,
                                 delay_factor=global_delay_factor,
                             )
-                        
+
                         if page_out:
                             full_output.append(page_out)
-                            # 保留尾部用于正则检测
-                            buffer_tail = "".join(full_output)[-1000:]
+                            output_size += len(page_out.encode(device["encoding"], errors="ignore"))
+                            if output_size > max_output_bytes:
+                                logger.error(f"处理分页时输出超限 ({max_output_bytes} bytes) - 设备: {host}:{port}")
+                                raise NetmikoTimeoutException("处理分页时输出过大，已超过安全限制")
+
+                            combined_output = "".join(full_output)
+                            # 保留尾部用于正则检测，避免历史分页标记干扰当前判断。
+                            buffer_tail = combined_output[-1000:]
+
+                            if _is_meaningful_pagination_chunk(page_out, pagination_pattern) or _tail_has_prompt(buffer_tail, prompt):
+                                last_data_time = time.monotonic()
 
                     out = "".join(full_output)
 
@@ -496,7 +538,7 @@ def test_netmiko_connection(
 
     def _probe(conn_device: dict[str, Any]) -> str:
         with ConnectHandler(**conn_device) as conn:
-            if _requires_enable_mode(device_type) and enable_password:
+            if _requires_enable_mode(device_type):
                 conn.enable()
             return conn.find_prompt()
 
