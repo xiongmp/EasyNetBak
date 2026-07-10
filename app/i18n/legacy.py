@@ -54,7 +54,7 @@ LEGACY_EN: dict[str, str] = {
     "备份任务": "Backup tasks",
     "备份设置": "Backup settings",
     "备份时间": "Backup time",
-    "备份命令模板": "Backup command template",
+    "备份命令模板": "Backup template",
     "配置搜索": "Configuration search",
     "配置变更提醒": "Configuration change notifications",
     "定时任务": "Schedules",
