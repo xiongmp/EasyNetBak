@@ -227,22 +227,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
       function renderReachBadge(item) {
         if (item && item.success === true) {
-          return `<div class="status-pill status-online"><span class="status-dot"></span><span>可达</span></div>`;
+          return `<div class="status-pill status-online"><span class="status-dot"></span><span>${window.NB.t('status.device.reachable')}</span></div>`;
         }
         if (item && item.success === null) {
-          return `<div class="status-pill status-unknown"><span class="status-dot"></span><span>未检测</span></div>`;
+          return `<div class="status-pill status-unknown"><span class="status-dot"></span><span>${window.NB.t('status.device.not_tested')}</span></div>`;
         }
         const err = (item && item.error_message) ? item.error_message : '';
-        let label = '不可达';
+        let label = window.NB.t('status.device.unreachable');
         let title = '';
-        if (err.includes('连接超时')) { label = '超时'; title = '连接超时'; }
-        else if (err.includes('认证失败')) { label = '认证失败'; title = '认证失败'; }
-        else if (err.includes('连接被拒绝')) { label = '被拒绝'; title = '连接被拒绝'; }
-        else if (err.includes('特权模式失败')) { label = '特权失败'; title = 'Enable 密码错误'; }
-        else if (err.includes('读取超时')) { label = '读取超时'; title = '设备响应慢'; }
-        else if (err.includes('连接断开')) { label = '连接断开'; title = '网络不稳定或被强制关闭'; }
-        else if (err.includes('密钥错误')) { label = '密钥错误'; title = 'SSH 密钥无效'; }
-        else if (err.includes('未配置凭据')) { label = '无凭据'; title = '未配置凭据'; }
+        if (err.includes('连接超时')) { label = window.NB.t('status.device.timeout'); title = window.NB.t('status.device.connection_timeout'); }
+        else if (err.includes('认证失败')) { label = window.NB.t('status.device.authentication_failed'); title = label; }
+        else if (err.includes('连接被拒绝')) { label = window.NB.t('status.device.refused'); title = window.NB.t('status.device.connection_refused'); }
+        else if (err.includes('特权模式失败')) { label = window.NB.t('status.device.privileged_failed'); title = window.NB.t('status.device.enable_password_error'); }
+        else if (err.includes('读取超时')) { label = window.NB.t('status.device.read_timeout'); title = window.NB.t('status.device.slow_response'); }
+        else if (err.includes('连接断开')) { label = window.NB.t('status.device.disconnected'); title = window.NB.t('status.device.unstable_connection'); }
+        else if (err.includes('密钥错误')) { label = window.NB.t('status.device.key_error'); title = window.NB.t('status.device.invalid_ssh_key'); }
+        else if (err.includes('未配置凭据')) { label = window.NB.t('status.device.no_credentials'); title = window.NB.t('status.device.credentials_not_configured'); }
 
         return `<div class="status-pill status-offline" title="${title}"><span class="status-dot"></span><span>${label}</span></div>`;
       }
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const host = `${escapeText(item.host || '')}`;
           const name = escapeText(item.name || '');
           const lm = (item.login_method || '').toLowerCase() === 'telnet' ? 'Telnet' : 'SSH';
-          const err = escapeText(item.error_message || '');
+          const err = escapeText(window.NB.translateLegacy(item.error_message || ''));
           const duration = item.duration_ms != null ? `${item.duration_ms} ms` : '-';
           const lastChecked = escapeText(item.last_checked || '-');
           return `
@@ -302,8 +302,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
          reachSummary.innerHTML = `
            <div class="backup-status" style="background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color);">共 ${total}</div>
-           <div class="backup-status backup-status-success">可达 ${ok}</div>
-           <div class="backup-status backup-status-failed">不可达 ${bad}</div>
+           <div class="backup-status backup-status-success">${window.NB.t('status.device.reachable')} ${ok}</div>
+           <div class="backup-status backup-status-failed">${window.NB.t('status.device.unreachable')} ${bad}</div>
          `;
       }
 
@@ -328,21 +328,21 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         if (item.success === true) {
           html = `
-            <div class="status-pill status-online" title="检测时间: ${escapeText(item.last_checked)}">
+            <div class="status-pill status-online" title="${window.NB.t('label.test_time')}: ${escapeText(item.last_checked)}">
               <span class="status-dot"></span>
-              <span>在线</span>
+              <span>${window.NB.t('status.device.online')}</span>
             </div>`;
         } else if (item.success === false) {
           html = `
-            <div class="status-pill status-offline" title="检测时间: ${escapeText(item.last_checked)}\n错误: ${escapeText(item.error_message)}">
+            <div class="status-pill status-offline" title="${window.NB.t('label.test_time')}: ${escapeText(item.last_checked)}\n${window.NB.t('label.error')}: ${escapeText(window.NB.translateLegacy(item.error_message))}">
               <span class="status-dot"></span>
-              <span>离线</span>
+              <span>${window.NB.t('status.device.offline')}</span>
             </div>`;
         } else {
           html = `
             <div class="status-pill status-unknown">
               <span class="status-dot"></span>
-              <span>未知</span>
+              <span>${window.NB.t('status.unknown')}</span>
             </div>`;
         }
         cell.innerHTML = html;

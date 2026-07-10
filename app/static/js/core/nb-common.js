@@ -1436,43 +1436,43 @@ window.NB = window.NB || {};
           function backupStatusMeta(status, fallbackSuccess) {
             const normalized = String(status || "").trim();
             const metaMap = {
-              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
-              queued: { label: "已入队", tone: "info", icon: "bi-list-task" },
-              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
-              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
-              succeeded: { label: "成功", tone: "success", icon: "bi-check-circle" },
-              failed: { label: "失败", tone: "failed", icon: "bi-x-circle" },
+              planned: { label: window.NB.t("status.backup.planned"), tone: "info", icon: "bi-hourglass-split" },
+              queued: { label: window.NB.t("status.backup.queued"), tone: "info", icon: "bi-list-task" },
+              running: { label: window.NB.t("status.backup.running"), tone: "running", icon: "bi-arrow-repeat" },
+              cancelled: { label: window.NB.t("status.backup.cancelled"), tone: "warning", icon: "bi-stop-circle" },
+              succeeded: { label: window.NB.t("status.backup.succeeded"), tone: "success", icon: "bi-check-circle" },
+              failed: { label: window.NB.t("status.backup.failed"), tone: "failed", icon: "bi-x-circle" },
             };
             if (metaMap[normalized]) {
               return { ...metaMap[normalized], status: normalized };
             }
             if (fallbackSuccess === true) {
-              return { label: "成功", tone: "success", icon: "bi-check-circle", status: "succeeded" };
+              return { label: window.NB.t("status.backup.succeeded"), tone: "success", icon: "bi-check-circle", status: "succeeded" };
             }
             if (fallbackSuccess === false) {
-              return { label: "失败", tone: "failed", icon: "bi-x-circle", status: "failed" };
+              return { label: window.NB.t("status.backup.failed"), tone: "failed", icon: "bi-x-circle", status: "failed" };
             }
-            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
+            return { label: window.NB.t("status.unknown"), tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
           }
 
           function scheduleRunStatusMeta(status) {
             const normalized = String(status || "").trim();
             const metaMap = {
-              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
-              dispatching: { label: "派发中", tone: "info", icon: "bi-send" },
-              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
-              finalizing: { label: "收尾中", tone: "running", icon: "bi-hourglass-bottom" },
-              cancelling: { label: "终止中", tone: "warning", icon: "bi-slash-circle" },
-              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
-              partial_cancelled: { label: "部分终止", tone: "warning", icon: "bi-exclamation-octagon" },
-              succeeded: { label: "全部成功", tone: "success", icon: "bi-check-all" },
-              partial_failed: { label: "部分失败", tone: "failed", icon: "bi-exclamation-triangle" },
-              failed: { label: "全部失败", tone: "failed", icon: "bi-x-circle" },
+              planned: { label: window.NB.t("status.schedule_run.planned"), tone: "info", icon: "bi-hourglass-split" },
+              dispatching: { label: window.NB.t("status.schedule_run.dispatching"), tone: "info", icon: "bi-send" },
+              running: { label: window.NB.t("status.schedule_run.running"), tone: "running", icon: "bi-arrow-repeat" },
+              finalizing: { label: window.NB.t("status.schedule_run.finalizing"), tone: "running", icon: "bi-hourglass-bottom" },
+              cancelling: { label: window.NB.t("status.schedule_run.cancelling"), tone: "warning", icon: "bi-slash-circle" },
+              cancelled: { label: window.NB.t("status.schedule_run.cancelled"), tone: "warning", icon: "bi-stop-circle" },
+              partial_cancelled: { label: window.NB.t("status.schedule_run.partial_cancelled"), tone: "warning", icon: "bi-exclamation-octagon" },
+              succeeded: { label: window.NB.t("status.schedule_run.succeeded"), tone: "success", icon: "bi-check-all" },
+              partial_failed: { label: window.NB.t("status.schedule_run.partial_failed"), tone: "failed", icon: "bi-exclamation-triangle" },
+              failed: { label: window.NB.t("status.schedule_run.failed"), tone: "failed", icon: "bi-x-circle" },
             };
             if (metaMap[normalized]) {
               return { ...metaMap[normalized], status: normalized };
             }
-            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
+            return { label: window.NB.t("status.unknown"), tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
           }
 
           function taskStatusMeta(kind, status, fallbackSuccess) {

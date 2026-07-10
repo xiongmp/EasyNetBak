@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const t = (value) => window.NB && typeof window.NB.translateLegacy === 'function'
+        ? window.NB.translateLegacy(value)
+        : value;
+    const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
+    const successLabel = isEnglish ? 'Succeeded' : '成功';
+    const failedLabel = isEnglish ? 'Failed' : '失败';
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const chartTextColor = isDark ? '#94a3b8' : '#64748b';
     const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
@@ -79,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             legend: {
-                data: ['成功', '失败'],
+                data: [successLabel, failedLabel],
                 bottom: 0,
                 itemWidth: 12,
                 itemHeight: 12,
@@ -117,7 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             series: [
                 {
-                    name: '成功',
+                    name: successLabel,
                     type: 'bar',
                     stack: 'total',
                     itemStyle: {
@@ -139,7 +145,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 },
                 {
-                    name: '失败',
+                    name: failedLabel,
                     type: 'bar',
                     stack: 'total',
                     itemStyle: {
@@ -325,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 inRange: {
                     color: colorList
                 },
-                text: ['多', '少'],
+                text: isEnglish ? ['High', 'Low'] : ['多', '少'],
                 textStyle: { fontSize: 12, color: textColor },
                 itemWidth: 16,
                 itemHeight: 200
@@ -444,13 +450,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     show: false
                 },
                 dayLabel: {
-                    nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+                    nameMap: isEnglish ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['日', '一', '二', '三', '四', '五', '六'],
                     firstDay: 1,
                     color: textColor,
                     fontSize: 10
                 },
                 monthLabel: {
-                    nameMap: 'cn',
+                    nameMap: isEnglish ? 'en' : 'cn',
                     color: textColor,
                     fontSize: 11,
                     margin: 6
@@ -569,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         series: [
             {
-                name: '成功率',
+                name: t('成功率'),
                 type: 'bar',
                 data: healthData.map(item => item.value),
                 itemStyle: {
@@ -766,11 +772,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 emptyStateRow.style.display = '';
                 const emptyText = emptyStateRow.querySelector('p');
                 if (filter === 'success') {
-                    emptyText.textContent = '暂无成功的备份记录';
+                    emptyText.textContent = t('暂无成功的备份记录');
                 } else if (filter === 'failed') {
-                    emptyText.textContent = '暂无失败的备份记录';
+                    emptyText.textContent = t('暂无失败的备份记录');
                 } else {
-                    emptyText.textContent = '暂无备份记录';
+                    emptyText.textContent = t('暂无备份记录');
                 }
             } else if (emptyStateRow) {
                 emptyStateRow.style.display = 'none';

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.i18n import get_current_locale, reset_current_locale, set_current_locale, translate
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
+from app.i18n.legacy import translate_legacy_text
 from app.i18n.validators import normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
@@ -95,6 +96,43 @@ def test_legacy_template_literals_and_statuses_are_localized():
     assert template.render(locale="zh-CN") == "<button>取消</button><h1>设备管理</h1>"
     assert task_state_service.get_backup_record_status_label("running", "en-US") == "Running"
     assert task_state_service.get_schedule_run_status_label("partial_failed", "en-US") == "Partially failed"
+
+
+def test_navigation_subtitles_and_device_statuses_are_localized():
+    assert translate("en-US", "nav.devices") == "Devices"
+    assert translate("en-US", "page.devices.subtitle").startswith("Manage device inventory")
+    assert translate("en-US", "dashboard.window.7d") == "Last 7 days"
+    assert translate("en-US", "status.device.online") == "Online"
+    assert translate("en-US", "status.device.authentication_failed") == "Authentication failed"
+    assert translate("zh-CN", "status.device.offline") == "离线"
+    assert translate("zh-CN", "status.backup.running") == "运行中"
+    assert translate("zh-CN", "status.schedule_run.partial_failed") == "部分失败"
+
+
+def test_native_legacy_literals_and_mixed_ui_text_are_localized():
+    assert translate_legacy_text("最近7天BACKUP TASKS", "en-US") == "Last 7 days backup tasks"
+    assert translate_legacy_text("请在左侧SelectDevice以View其Backup history", "en-US") == (
+        "Select a device on the left to view backup history"
+    )
+    assert translate_legacy_text("为什么要ConfigurationIgnore rules?", "en-US") == "Why configure ignore rules?"
+
+
+def test_recent_mixed_legacy_ui_text_is_localized():
+    assert translate_legacy_text("成功", "en-US") == "Succeeded"
+    assert translate_legacy_text("失败", "en-US") == "Failed"
+    assert translate_legacy_text("SearchDevice name或IP...", "en-US") == "Search device name or IP..."
+    assert translate_legacy_text("为什么要ConfigurationIgnore rules?", "en-US") == "Why configure ignore rules?"
+    assert translate_legacy_text("规则Configuration notes:", "en-US") == "Rule configuration notes:"
+    assert translate_legacy_text(
+        "示例：Cisco 使用 show running-config；华为/H3C 使用 display current-configuration",
+        "en-US",
+    ) == "Example: Cisco uses show running-config; Huawei/H3C uses display current-configuration"
+    assert translate_legacy_text(
+        "Cron 表达式 (APScheduler: 分 时 日 月 周)",
+        "en-US",
+    ) == "Cron expression (APScheduler: minute hour day month weekday)"
+    assert translate_legacy_text("未选择任何文件", "en-US") == "No file selected"
+    assert translate_legacy_text("请填写此字段。", "en-US") == "Please fill out this field."
 
 
 def test_task_events_return_localized_message_and_stable_payload():

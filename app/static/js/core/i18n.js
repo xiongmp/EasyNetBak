@@ -10,11 +10,24 @@
     legacyEntries.forEach(([source, target]) => {
       text = text.split(source).join(target);
     });
+    text = text
+      .replace(/\b(Last \d+ (?:hours?|days?))(Backup tasks|Success rate|Duration distribution)\b/gi, "$1 $2")
+      .replace(/\b(Last \d+ days),\s*按天\b/gi, "$1, by day")
+      .replace(/，\s*/g, ", ")
+      .replace(/\bConfiguration change frequency\s*\((Last \d+ days?)\)/gi, "Configuration change frequency ($1)")
+      .replace(/\bWhy\s*Configuration\s*Ignore rules[?？]?/gi, "Why configure ignore rules?")
+      .replace(/\bRule\s*Configuration\s*(?:notes|说明)[:：]?/gi, "Rule configuration notes:")
+      .replace(/\bBy\s*Add\s*Ignore rules\b/gi, "By adding ignore rules")
+      .replace(/\bSearch\s*Device\s*name\s*or\s*(?:IP)?\.{0,3}/gi, "Search device name or IP...")
+      .replace(/([A-Za-z0-9)])：/g, "$1:")
+      .replace(/\bTotal\s{2,}/g, "Total ")
+      .replace(/\s{2,}/g, " ");
     return text;
   }
 
   NB.i18n = {
     locale: global.NB_LOCALE || "zh-CN",
+    isEnglish: /^en\b/i.test(global.NB_LOCALE || ""),
     messages: messages,
     t(key, params, fallback) {
       let text = Object.prototype.hasOwnProperty.call(messages, key)
@@ -40,11 +53,41 @@
     if (root.nodeType === Node.ELEMENT_NODE && ["SCRIPT", "STYLE", "CODE", "PRE"].includes(root.tagName)) return;
     if (root.nodeType === Node.ELEMENT_NODE) {
       ["title", "placeholder", "aria-label", "data-confirm-message"].forEach((name) => {
-        if (root.hasAttribute(name)) root.setAttribute(name, translateLegacy(root.getAttribute(name)));
+        if (!root.hasAttribute(name)) return;
+        const current = root.getAttribute(name);
+        const translated = translateLegacy(current);
+        if (translated !== current) root.setAttribute(name, translated);
       });
     }
     Array.from(root.childNodes || []).forEach(localizeNode);
   }
+
+  const dynamicUiSelector = [
+    "button", "option", "label", "th", "td",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "[role='status']", "[role='alert']",
+    ".backup-status", ".status-pill", ".badge",
+    ".breadcrumb-item", ".breadcrumb-subtitle",
+    ".modal-title", ".toast", ".form-text",
+    ".nav-link", ".dropdown-item",
+    ".card-title", ".section-label", ".empty-state",
+    ".rule-card", ".fw-bold", ".small", ".text-secondary", "p"
+  ].join(",");
+
+  function localizeDynamicUi(root) {
+    if (!legacyEntries.length || !root) return;
+    if (root.nodeType === Node.TEXT_NODE) {
+      if (root.parentElement && root.parentElement.closest(dynamicUiSelector)) localizeNode(root);
+      return;
+    }
+    if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+    if (root.nodeType === Node.ELEMENT_NODE && root.matches(dynamicUiSelector)) localizeNode(root);
+    if (typeof root.querySelectorAll === "function") {
+      root.querySelectorAll(dynamicUiSelector).forEach(localizeNode);
+    }
+  }
+
+  NB.localizeDynamicUi = localizeDynamicUi;
 
   function localizeObject(value, seen) {
     if (typeof value === "string") return translateLegacy(value);
@@ -117,6 +160,38 @@
     }
     document.addEventListener("DOMContentLoaded", () => {
       document.documentElement.lang = NB.i18n.locale;
+      if (NB.i18n.isEnglish) document.documentElement.lang = "en";
+      localizeDynamicUi(document.body);
+      document.querySelectorAll("input, select, textarea").forEach((field) => {
+        field.addEventListener("invalid", () => {
+          if (!NB.i18n.isEnglish) return;
+          if (field.validity && field.validity.valueMissing) {
+            field.setCustomValidity("Please fill out this field.");
+          }
+        });
+        field.addEventListener("input", () => field.setCustomValidity(""));
+        field.addEventListener("change", () => field.setCustomValidity(""));
+      });
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === "characterData") {
+            localizeDynamicUi(mutation.target);
+            return;
+          }
+          if (mutation.type === "attributes") {
+            localizeNode(mutation.target);
+            return;
+          }
+          mutation.addedNodes.forEach(localizeDynamicUi);
+        });
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["title", "placeholder", "aria-label", "data-confirm-message"]
+      });
     });
   }
 })(window);

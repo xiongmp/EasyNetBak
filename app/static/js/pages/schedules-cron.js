@@ -1,4 +1,5 @@
 (function () {
+      const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
       // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
       // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
       function normalizeApschedulerCronForCronstrue(expr) {
@@ -57,14 +58,11 @@
         try {
           const normalizedCron = normalizeApschedulerCronForCronstrue(val);
           let meaning = cronstrue.toString(normalizedCron, {
-            locale: "zh_CN",
+            locale: isEnglish ? "en" : "zh_CN",
             use24HourTimeFormat: true 
           });
           
-          // 优化中文表达，使其更符合习惯
-          // 例如："在02:00, 仅星期六" -> "每周六 02:00"
-          //      "在02:00" -> "每天 02:00"
-          if (meaning.startsWith("在")) {
+          if (!isEnglish && meaning.startsWith("在")) {
             const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
             if (timeMatch) {
               const timeStr = timeMatch[1];
@@ -87,7 +85,7 @@
           targetEl.classList.remove("text-danger");
           targetEl.classList.add("text-primary");
         } catch (e) {
-          targetEl.textContent = "无效的 Cron 表达式";
+          targetEl.textContent = isEnglish ? "Invalid cron expression" : "无效的 Cron 表达式";
           targetEl.classList.remove("text-primary");
           targetEl.classList.add("text-danger");
         }

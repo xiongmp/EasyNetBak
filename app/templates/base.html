@@ -208,55 +208,37 @@
               <nav class="breadcrumb-container d-none d-md-flex">
                 <div class="breadcrumb-item">
                   <a href="/dashboard" class="breadcrumb-link">
-                    <i class="bi bi-house breadcrumb-icon"></i>首页
+                    <i class="bi bi-house breadcrumb-icon"></i>{{ _("nav.home") }}
                   </a>
                 </div>
                 {% if active == 'dashboard' %}
                   <div class="breadcrumb-item">
-                    <span class="breadcrumb-link active">仪表盘</span>
+                    <span class="breadcrumb-link active">{{ _("nav.dashboard") }}</span>
                   </div>
                 {% else %}
                   {% if active in ['devices', 'groups', 'credentials', 'templates'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">资源管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.resources") }}</span></div>
                   {% elif active in ['backups', 'diff_rules', 'config_search', 'schedules'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">备份管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.backups") }}</span></div>
                   {% elif active in ['audit_logs', 'login_logs', 'webshell_records'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">日志管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.logs") }}</span></div>
                   {% elif active in ['settings', 'notifications', 'storage_settings', 'api_keys'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">系统管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.system") }}</span></div>
                   {% elif active in ['users', 'roles'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">用户与授权</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.access") }}</span></div>
                   {% elif active == 'profile' %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">用户中心</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.profile_section") }}</span></div>
                   {% endif %}
 
                   <div class="breadcrumb-item">
                     <span class="breadcrumb-link active">
-                      {% if active == 'devices' %}设备管理
-                      {% elif active == 'groups' %}设备分组
-                      {% elif active == 'credentials' %}凭据管理
-                      {% elif active == 'templates' %}备份命令模板
-                      {% elif active == 'backups' %}备份历史
-                      {% elif active == 'diff_rules' %}Diff 忽略规则
-                      {% elif active == 'config_search' %}配置搜索
-                      {% elif active == 'schedules' %}定时任务
-                      {% elif active == 'audit_logs' %}操作日志
-                      {% elif active == 'login_logs' %}登录日志
-                      {% elif active == 'webshell_records' %}Webshell 回放
-                      {% elif active == 'settings' %}系统设置
-                      {% elif active == 'storage_settings' %}存储设置
-                      {% elif active == 'api_keys' %}API Key
-                      {% elif active == 'notifications' %}通知设置
-                      {% elif active == 'users' %}用户管理
-                      {% elif active == 'roles' %}角色管理
-                      {% elif active == 'profile' %}个人设置
-                      {% endif %}
+                      {{ _("nav." + active) }}
                     </span>
                   </div>
                 {% endif %}
                 {% if page_subtitle %}
                   <div class="breadcrumb-subtitle d-none d-lg-flex text-secondary">
-                    {{ __legacy(page_subtitle) }}
+                    {{ _(page_subtitle_key, fallback=page_subtitle) if page_subtitle_key else __legacy(page_subtitle) }}
                   </div>
                 {% endif %}
               </nav>

@@ -78,7 +78,7 @@
               <i class="bi bi-cloud-arrow-up fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}备份任务</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }} {{ __legacy("备份任务") }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.backup_window_total }}</h5>
             </div>
           </div>
@@ -93,7 +93,7 @@
               <i class="bi bi-check2-circle fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}成功率</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }} {{ __legacy("成功率") }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.success_rate }}%</h5>
             </div>
           </div>
@@ -130,7 +130,7 @@
               <div class="d-flex align-items-center justify-content-center mb-2">
                 <i class="bi bi-clock-history text-muted opacity-25" style="font-size: 2rem;"></i>
               </div>
-              <div class="text-center text-muted small mb-2" style="font-size: 0.75rem;">{{ dashboard_window.label }}耗时分布</div>
+              <div class="text-center text-muted small mb-2" style="font-size: 0.75rem;">{{ dashboard_window.label }} {{ __legacy("耗时分布") }}</div>
               <div class="row g-2">
                 <div class="col-4">
                   <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
@@ -156,7 +156,7 @@
             <!-- 详细统计 Tab -->
             <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="overflow-y: auto; overflow-x: hidden;">
               <div class="mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between flex-shrink-0">
-                <div class="text-muted small" style="font-size: 0.75rem;">{{ dashboard_window.label }}成功率</div>
+                <div class="text-muted small" style="font-size: 0.75rem;">{{ dashboard_window.label }} {{ __legacy("成功率") }}</div>
                 <div class="d-flex align-items-baseline">
                   <div class="fw-bold me-2 {% if task_health.upload_success_rate >= 90 %}text-success{% elif task_health.upload_success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 0.85rem;">
                     {{ task_health.upload_success_rate }}%

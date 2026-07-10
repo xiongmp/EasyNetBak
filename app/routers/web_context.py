@@ -44,9 +44,31 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
     role = getattr(user, "role", "") if user else ""
     eff = _user_effective_perms(user)
     locale = getattr(request.state, "locale", settings.default_locale)
+    page_subtitle_keys = {
+        "dashboard": "page.dashboard.subtitle",
+        "devices": "page.devices.subtitle",
+        "groups": "page.groups.subtitle",
+        "credentials": "page.credentials.subtitle",
+        "templates": "page.templates.subtitle",
+        "backups": "page.backups.subtitle",
+        "diff_rules": "page.diff_rules.subtitle",
+        "config_search": "page.config_search.subtitle",
+        "schedules": "page.schedules.subtitle",
+        "audit_logs": "page.audit_logs.subtitle",
+        "login_logs": "page.login_logs.subtitle",
+        "webshell_records": "page.webshell_records.subtitle",
+        "settings": "page.settings.subtitle",
+        "storage_settings": "page.storage_settings.subtitle",
+        "api_keys": "page.api_keys.subtitle",
+        "notifications": "page.notifications.subtitle",
+        "users": "page.users.subtitle",
+        "roles": "page.roles.subtitle",
+        "profile": "page.profile.subtitle",
+    }
     return {
         "request": request,
         "active": active,
+        "page_subtitle_key": page_subtitle_keys.get(active),
         "platforms": PLATFORMS,
         "ssh_platforms": PLATFORMS,
         "telnet_platforms": TELNET_PLATFORMS,

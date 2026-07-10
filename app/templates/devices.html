@@ -52,9 +52,9 @@
           </div>
           <div class="col-md-2 col-sm-6">
             <select name="status" class="form-select form-select-sm filter-control-sm">
-              <option value="">连通状态: 全部</option>
-              <option value="online" {% if filters.status == 'online' %}selected{% endif %}>在线 (可达)</option>
-              <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>离线 (不可达)</option>
+              <option value="">{{ _("status.device.filter_all") }}</option>
+              <option value="online" {% if filters.status == 'online' %}selected{% endif %}>{{ _("status.device.online_reachable") }}</option>
+              <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>{{ _("status.device.offline_unreachable") }}</option>
             </select>
           </div>
           <div class="col-md-1 col-sm-6">
@@ -261,19 +261,19 @@
                 <td class="text-secondary small text-start">{{ d.host }}:{{ d.port }}</td>
                 <td id="device-status-{{ d.id }}" class="text-start">
                   {% if d.reachability_status == True %}
-                    <div class="status-pill status-online" title="检测时间: {{ d.last_reachability_check|dt_local }}">
+                    <div class="status-pill status-online" title="{{ _('label.test_time') }}: {{ d.last_reachability_check|dt_local }}">
                       <span class="status-dot"></span>
-                      <span>在线</span>
+                      <span>{{ _("status.device.online") }}</span>
                     </div>
                   {% elif d.reachability_status == False %}
-                    <div class="status-pill status-offline" title="检测时间: {{ d.last_reachability_check|dt_local }}&#10;错误: {{ d.reachability_error }}">
+                    <div class="status-pill status-offline" title="{{ _('label.test_time') }}: {{ d.last_reachability_check|dt_local }}&#10;{{ _('label.error') }}: {{ __legacy(d.reachability_error or '') }}">
                       <span class="status-dot"></span>
-                      <span>离线</span>
+                      <span>{{ _("status.device.offline") }}</span>
                     </div>
                   {% else %}
                     <div class="status-pill status-unknown">
                       <span class="status-dot"></span>
-                      <span>未知</span>
+                      <span>{{ _("status.unknown") }}</span>
                     </div>
                   {% endif %}
                 </td>
@@ -512,8 +512,9 @@
                 </div>
 
                 <div class="input-group mb-2">
-                  <input class="form-control" type="file" name="file" accept=".csv" id="importFile" required />
-                  <label class="input-group-text text-secondary bg-light" for="importFile">浏览...</label>
+                  <input class="visually-hidden" type="file" name="file" accept=".csv" id="importFile" required />
+                  <label class="btn btn-outline-secondary mb-0" for="importFile">浏览...</label>
+                  <span class="form-control bg-body text-secondary" id="importFileName">未选择任何文件</span>
                 </div>
 
                 <div class="form-text small text-secondary">
@@ -528,6 +529,20 @@
                   <code class="text-dark bg-light px-1 rounded">credential_name</code>,
                   <code class="text-dark bg-light px-1 rounded">default_template_name</code>(可选)
                 </div>
+                <script>
+                  (function () {
+                    const input = document.getElementById("importFile");
+                    const nameEl = document.getElementById("importFileName");
+                    if (!input || !nameEl) return;
+                    const translate = window.NB && typeof window.NB.translateLegacy === "function"
+                      ? window.NB.translateLegacy
+                      : (value) => value;
+                    nameEl.textContent = translate("未选择任何文件");
+                    input.addEventListener("change", () => {
+                      nameEl.textContent = input.files && input.files.length ? input.files[0].name : translate("未选择任何文件");
+                    });
+                  })();
+                </script>
               </div>
 
               <!-- Options Section -->

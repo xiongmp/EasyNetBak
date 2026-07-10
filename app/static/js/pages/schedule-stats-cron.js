@@ -1,16 +1,16 @@
 (function() {
+        const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
         const cronEl = document.getElementById("cron-meaning");
         if (cronEl) {
           const cron = cronEl.getAttribute("data-cron");
           if (cron) {
             try {
               let meaning = cronstrue.toString(cron, { 
-                locale: "zh_CN",
+                locale: isEnglish ? "en" : "zh_CN",
                 use24HourTimeFormat: true
               });
               
-              // 优化中文表达，使其更符合习惯
-              if (meaning.startsWith("在")) {
+              if (!isEnglish && meaning.startsWith("在")) {
                 const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
                 if (timeMatch) {
                   const timeStr = timeMatch[1];
@@ -29,7 +29,7 @@
               }
               cronEl.textContent = meaning;
             } catch (e) {
-              cronEl.textContent = "无效的 Cron 表达式";
+              cronEl.textContent = isEnglish ? "Invalid cron expression" : "无效的 Cron 表达式";
               cronEl.classList.replace("text-primary", "text-danger");
             }
           }
