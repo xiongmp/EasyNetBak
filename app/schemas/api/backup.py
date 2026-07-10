@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas.api.common import PageResponse
+
 
 class BackupContentResponseSchema(BaseModel):
     config_text: str | None = None
@@ -16,6 +18,5 @@ class DeviceBackupItemSchema(BaseModel):
     config_snapshot_hash: str | None = None
 
 
-class DeviceBackupsResponseSchema(BaseModel):
-    total: int
-    items: list[DeviceBackupItemSchema]
+class DeviceBackupsResponseSchema(PageResponse[DeviceBackupItemSchema]):
+    pass

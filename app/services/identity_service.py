@@ -79,6 +79,7 @@ def create_user(
     allowed_group_ids: str | None = None,
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
+    enable_watermark: bool = True,
 ):
     try:
         return crud.create_user(
@@ -91,6 +92,7 @@ def create_user(
             allowed_group_ids=allowed_group_ids,
             mfa_enabled=mfa_enabled,
             mfa_secret=mfa_secret,
+            enable_watermark=enable_watermark,
         )
     except RuntimeError as exc:
         raise ServiceError(str(exc), code="USER_SAVE_FAILED") from exc

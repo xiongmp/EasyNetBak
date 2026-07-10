@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Depends
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.concurrency import run_in_threadpool
+from starlette.middleware.gzip import GZipMiddleware
 
 from app import crud
 from app.core.settings import settings
@@ -17,12 +23,16 @@ from app.db import init_db, session_scope
 from app.scheduler import ensure_default_schedule_from_legacy_settings, stop_scheduler, sync_scheduler_from_db
 from app.router_registry import router as web_router
 from app.routers.support import ApiError
+from app.schemas.api.common import public_api_error_response
 from app.services.auth import decode_session_token
-from app.core.logger import setup_logging, set_request_id
-from app.services import identity_service, request_context_service
+from app.core.logger import get_request_id, setup_logging, set_request_id
+from app.services import identity_service, request_context_service, task_realtime_service
 
 
 from contextlib import asynccontextmanager
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -53,6 +63,7 @@ async def lifespan(app: FastAPI):
     
     if settings.enable_scheduler:
         sync_scheduler_from_db()
+    await task_realtime_service.task_realtime_hub.start()
 
     try:
         yield
@@ -62,6 +73,7 @@ async def lifespan(app: FastAPI):
         pass
     finally:
         stop_scheduler()
+        await task_realtime_service.task_realtime_hub.shutdown()
 
 app = FastAPI(
     title=settings.app_name,
@@ -78,6 +90,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 @CsrfProtect.load_config
@@ -87,14 +100,113 @@ def get_csrf_config():
 
 @app.exception_handler(CsrfProtectError)
 def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+    if _is_internal_json_api_request(request):
+        return _api_error_json(
+            status_code=exc.status_code,
+            code="CSRF_VALIDATION_FAILED",
+            message=exc.message,
+        )
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
+
+def _is_public_api_request(request: Request) -> bool:
+    return request.url.path.startswith("/api/v1/")
+
+
+def _is_internal_json_api_request(request: Request) -> bool:
+    path = request.url.path
+    return (
+        (path.startswith("/api/") and not path.startswith("/api/v1/"))
+        or path in {"/notifications/test", "/settings/test-s3", "/settings/test-ftp"}
+    )
+
+
+def _is_json_api_request(request: Request) -> bool:
+    return _is_public_api_request(request) or _is_internal_json_api_request(request)
+
+
+def _http_error_code(status_code: int) -> str:
+    return {
+        400: "BAD_REQUEST",
+        401: "UNAUTHORIZED",
+        403: "PERMISSION_DENIED",
+        404: "RESOURCE_NOT_FOUND",
+        409: "CONFLICT",
+        422: "VALIDATION_ERROR",
+        429: "RATE_LIMITED",
+        500: "INTERNAL_ERROR",
+        503: "SERVICE_UNAVAILABLE",
+    }.get(int(status_code), "API_ERROR")
+
+
+def _api_error_json(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    details: dict | None = None,
+) -> JSONResponse:
+    request_id = get_request_id() or set_request_id()
+    response = JSONResponse(
+        status_code=status_code,
+        content=public_api_error_response(
+            code=code,
+            message=message,
+            request_id=request_id,
+            details=details,
+        ),
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 @app.exception_handler(ApiError)
 def api_error_exception_handler(request: Request, exc: ApiError):
+    if _is_json_api_request(request):
+        return _api_error_json(
+            status_code=exc.status_code,
+            code=exc.code,
+            message=exc.detail,
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail, "code": exc.code},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_exception_handler(request: Request, exc: StarletteHTTPException):
+    if not _is_json_api_request(request):
+        return await http_exception_handler(request, exc)
+    message = exc.detail if isinstance(exc.detail, str) else "Request failed"
+    return _api_error_json(
+        status_code=exc.status_code,
+        code=_http_error_code(exc.status_code),
+        message=message,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_exception_handler(request: Request, exc: RequestValidationError):
+    if not _is_json_api_request(request):
+        return await request_validation_exception_handler(request, exc)
+    return _api_error_json(
+        status_code=422,
+        code="VALIDATION_ERROR",
+        message="Request validation failed",
+        details={"errors": jsonable_encoder(exc.errors())},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if not _is_json_api_request(request):
+        raise exc
+    logger.exception("Unhandled JSON API error")
+    return _api_error_json(
+        status_code=500,
+        code="INTERNAL_ERROR",
+        message="Internal server error",
     )
 
 
@@ -115,8 +227,9 @@ async def custom_swagger_ui_html():
 
 @app.middleware("http")
 async def _request_id_middleware(request, call_next):
-    set_request_id()
+    request_id = set_request_id(request.headers.get("X-Request-ID"))
     response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -172,11 +285,11 @@ async def _auth_middleware(request, call_next):
         return await call_next(request)
 
     if user is None:
-        if path.startswith("/api/v1/"):
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
+        if _is_json_api_request(request):
+            return _api_error_json(
                 status_code=401,
-                content={"detail": "Unauthorized", "code": "UNAUTHORIZED"},
+                code="UNAUTHORIZED",
+                message="Unauthorized",
             )
         nxt = quote(str(request.url.path) + (("?" + request.url.query) if request.url.query else ""))
         response = RedirectResponse(url=f"/login?next={nxt}", status_code=303)

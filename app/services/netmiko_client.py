@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from enum import Enum, unique
-from typing import Any
+from typing import Any, Callable
 
 from netmiko import ConnectHandler, NetmikoTimeoutException, NetmikoAuthenticationException
 
@@ -329,11 +329,20 @@ def run_netmiko_commands(
     read_timeout_override: int = 120,
     command_read_timeout: int = 240,
     command_max_loops: int = 120,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
     from app.platforms import to_netmiko_device_type
 
     start_time = time.time()
     logger.info(f"Starting backup for {host}:{port} ({platform})")
+
+    def emit_progress(event: str, **details: Any) -> None:
+        if progress_callback is None:
+            return
+        try:
+            progress_callback(event, details)
+        except Exception:
+            logger.debug("Backup progress callback failed", exc_info=True)
 
     device_type = to_netmiko_device_type(platform, login_method)
     device: dict[str, Any] = {
@@ -361,18 +370,43 @@ def run_netmiko_commands(
 
     def _execute(conn_device: dict[str, Any]) -> list[str]:
         output_parts: list[str] = []
+        emit_progress(
+            "backup_record_netmiko_connecting",
+            host=host,
+            port=port,
+            platform=platform,
+            login_method=login_method,
+            device_type=conn_device.get("device_type"),
+            encoding=conn_device.get("encoding"),
+            conn_timeout=conn_timeout,
+            auth_timeout=auth_timeout,
+            banner_timeout=banner_timeout,
+        )
         with ConnectHandler(**conn_device) as conn:
+            emit_progress("backup_record_netmiko_connected", host=host, port=port)
             conn.ansi_escape_codes = False
             if _requires_enable_mode(device_type):
+                emit_progress("backup_record_enable_started")
                 conn.enable()
+                emit_progress("backup_record_enable_completed")
             prompt = conn.find_prompt().rstrip()
+            emit_progress("backup_record_prompt_detected", prompt=prompt)
             
             # 常见的分页提示符正则，如 "---- More ----", "--More--", "More:"
             pagination_pattern = r"(?:--\s*[Mm][Oo][Rr][Ee]\s*--|----\s*[Mm][Oo][Rr][Ee]\s*----|[Mm][Oo][Rr][Ee]:)"
             # 联合匹配设备提示符或分页提示符，用于及时发现分页异常
             expect_pattern = rf"({re.escape(prompt)}|{pagination_pattern})"
 
-            for cmd in commands:
+            total_commands = len(commands)
+            for index, cmd in enumerate(commands, start=1):
+                command_start = time.time()
+                emit_progress(
+                    "backup_record_command_started",
+                    command=cmd,
+                    command_index=index,
+                    command_count=total_commands,
+                    read_timeout=command_read_timeout,
+                )
                 # 默认 send_command 获取输出，利用 expect_pattern 发现分页异常时不等待超时立即返回
                 out = conn.send_command(
                     cmd,
@@ -386,10 +420,16 @@ def run_netmiko_commands(
 
                 # 发现分页异常时，自动切到 send_command_timing() 循环处理
                 if re.search(pagination_pattern, out):
+                    emit_progress(
+                        "backup_record_command_pagination_detected",
+                        command=cmd,
+                        command_index=index,
+                    )
                     logger.info(f"发现分页异常 (设备 {host}:{port})，命令 '{cmd}' 自动切到 send_command_timing() 并手动按空格处理...")
                     full_output = [out]
                     buffer_tail = out
                     output_size = len(out.encode(device["encoding"], errors="ignore"))
+                    page_reads = 0
 
                     # 将超时语义改为空闲超时，避免超大配置在持续输出时被总耗时误杀。
                     last_data_time = time.monotonic()
@@ -407,6 +447,7 @@ def run_netmiko_commands(
                             raise NetmikoTimeoutException(f"处理分页总耗时过长，未能找到提示符 '{prompt}'")
 
                         if _tail_has_pagination_marker(buffer_tail, pagination_pattern):
+                            page_reads += 1
                             # 当前处于分页符，发送空格 (注意 normalize=False 防止发送回车)
                             page_out = conn.send_command_timing(
                                 " ",
@@ -440,6 +481,13 @@ def run_netmiko_commands(
                                 last_data_time = time.monotonic()
 
                     out = "".join(full_output)
+                    emit_progress(
+                        "backup_record_command_pagination_completed",
+                        command=cmd,
+                        command_index=index,
+                        page_reads=page_reads,
+                        output_bytes=output_size,
+                    )
 
                 # 处理退格符 \x08 和 \x7f 
                 out = _clean_backspaces(out)
@@ -465,12 +513,23 @@ def run_netmiko_commands(
                     lines[0] = f"{prompt}{cmd}"
                     out = "\n".join(lines)
                 output_parts.append(out.rstrip())
+                emit_progress(
+                    "backup_record_command_completed",
+                    command=cmd,
+                    command_index=index,
+                    command_count=total_commands,
+                    line_count=len((out or "").splitlines()),
+                    output_bytes=len((out or "").encode(device["encoding"], errors="ignore")),
+                    duration_seconds=round(time.time() - command_start, 3),
+                )
+            emit_progress("backup_record_netmiko_disconnected", host=host, port=port)
         return output_parts
 
     try:
         output_parts = _execute(device)
     except Exception as exc:
         if _ENABLE_LEGACY_SSH_FALLBACK and _is_ssh_algo_mismatch_error(exc):
+            emit_progress("backup_record_legacy_ssh_fallback_started", error=str(exc))
             logger.warning(
                 "Detected SSH algorithm mismatch for %s:%s, retrying with legacy SSH compatibility mode: %s",
                 host,
@@ -479,17 +538,29 @@ def run_netmiko_commands(
             )
             try:
                 output_parts = _execute(_legacy_ssh_compatible_device(device))
+                emit_progress("backup_record_legacy_ssh_fallback_completed")
             except Exception as retry_exc:
                 duration = time.time() - start_time
                 logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {retry_exc}")
+                emit_progress(
+                    "backup_record_netmiko_failed",
+                    error=str(retry_exc),
+                    duration_seconds=round(duration, 3),
+                )
                 _raise_netmiko_error(retry_exc, "备份失败")
         else:
             duration = time.time() - start_time
             logger.error(f"Backup failed for {host}:{port} after {duration:.2f}s: {exc}")
+            emit_progress(
+                "backup_record_netmiko_failed",
+                error=str(exc),
+                duration_seconds=round(duration, 3),
+            )
             _raise_netmiko_error(exc, "备份失败")
 
     duration = time.time() - start_time
     logger.info(f"Backup completed for {host}:{port} in {duration:.2f}s")
+    emit_progress("backup_record_netmiko_completed", duration_seconds=round(duration, 3))
 
     return "\n\n".join(output_parts).strip() + "\n"
 

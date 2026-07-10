@@ -29,7 +29,7 @@
                 <label class="form-label small fw-bold text-secondary mb-1">发件人地址</label>
                 <input name="smtp_from" class="form-control" value="{{ smtp_from }}" placeholder="backup@example.com" />
               </div>
-              
+
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-bold text-secondary mb-1">SMTP 账号</label>
                 <input name="smtp_user" class="form-control" value="{{ smtp_user }}" placeholder="通常为邮箱地址" />
@@ -122,22 +122,22 @@
           const btn = this;
           const form = btn.closest('form');
           const formData = new FormData(form);
-          
+
           const originalText = btn.innerHTML;
           btn.disabled = true;
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送中...';
-          
+
           try {
             const response = await fetch('/notifications/test', {
               method: 'POST',
               body: formData
             });
             const result = await response.json();
-            
+
             if (result.success) {
               window.NB.showToast(result.message, 'success');
             } else {
-              window.NB.showToast('发送失败: ' + result.message, 'error');
+              window.NB.showToast('发送失败: ' + (result && result.error && result.error.message ? result.error.message : (result.message || '')), 'error');
             }
           } catch (error) {
             window.NB.showToast('请求出错: ' + error.message, 'error');
@@ -251,7 +251,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="card border-0 bg-primary bg-opacity-10 shadow-sm">
       <div class="card-body p-4 text-primary-emphasis small">
         <h6 class="fw-bold mb-2">安全提示</h6>

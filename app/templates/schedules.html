@@ -8,20 +8,11 @@
 {% set can_schedule_write = can_schedule_create or can_schedule_update %}
 
 {% block head %}
-<style>
-  .fs-7 { font-size: 0.75rem !important; }
-  .x-small { font-size: 0.7rem !important; }
-  .transition-all { transition: all 0.2s ease-in-out; }
-  .hover-shadow-md:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important; }
-  .preview-scroll::-webkit-scrollbar { height: 4px; width: 4px; }
-  .preview-scroll::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 4px; }
-  .preview-scroll.expanded { max-height: none !important; }
-  .js-next-run { white-space: nowrap; }
-</style>
+<link href="/static/css/pages/schedules.css" rel="stylesheet" />
 {% endblock %}
 
 {% block content %}
-  
+
   {% if can_schedule_write %}
     <!-- 定时任务配置弹窗 -->
     <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
@@ -29,7 +20,7 @@
         <div class="modal-content shadow-lg border-0">
           <form method="post" action="/schedules">
             <input type="hidden" name="schedule_id" value="{{ current.id if current else 0 }}" />
-            
+
             <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
               <h5 class="modal-title d-flex align-items-center fw-bold text-body" id="scheduleModalLabel">
                 <i class="bi {{ 'bi-pencil-square' if current else 'bi-plus-circle-fill' }} text-primary me-2"></i>
@@ -46,12 +37,12 @@
                     <label class="form-label small text-secondary fw-bold mb-2">任务名称</label>
                     <input name="name" class="form-control" value="{{ current.name if current else '' }}" placeholder="例如：核心交换机每日备份" required />
                   </div>
-                  
+
                   <div class="mb-4">
                     <label class="form-label small text-secondary fw-bold mb-2">Cron 表达式 (APScheduler: 分 时 日 月 周)</label>
                     <input id="crontab-input" name="crontab" class="form-control font-monospace" value="{{ current.crontab if current else '0 2 * * *' }}" required />
                     <div id="crontab-meaning" class="form-text small text-primary mt-2 fw-medium min-height-1" style="min-height: 1.25rem;"></div>
-                    
+
                     <div class="mt-3 p-3 bg-body-tertiary rounded border border-secondary-subtle">
                       <pre class="mb-0 text-secondary x-small" style="line-height: 1.4; font-family: 'Courier New', Courier, monospace;">
 ┌────────── 分钟 (0 - 59)
@@ -64,7 +55,7 @@
                     </div>
                     <div class="form-text x-small text-muted mt-2">
                       <span class="text-secondary">常用示例：</span>
-                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * *'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * *</code> (每天02:00) 
+                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * *'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * *</code> (每天02:00)
                       <span class="mx-2 text-secondary opacity-50">|</span>
                       <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * 5'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * 5</code> (每周六02:00)
                     </div>
@@ -103,33 +94,27 @@
                         <i class="bi bi-pencil-fill me-1"></i> 选择设备
                       </button>
                     </div>
-                    
+
                     <textarea id="schedule-targets" name="targets" class="d-none">{{ current.targets if current else 'all' }}</textarea>
                   </div>
 
-                  <div class="border border-secondary-subtle rounded-3 p-3 bg-body-tertiary shadow-sm flex-grow-1 overflow-hidden d-flex flex-column" style="min-height: 300px;">
+                  <div class="border border-secondary-subtle rounded-3 p-3 bg-body-tertiary shadow-sm overflow-hidden d-flex flex-column flex-grow-1 schedule-preview-card">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                       <div class="fw-bold small text-secondary d-flex align-items-center">
                         <i class="bi bi-eye-fill text-primary me-2"></i>目标匹配预览
                       </div>
                       <div class="badge bg-body text-primary border border-primary-subtle fw-medium px-3 py-2" id="schedule-preview-summary"></div>
                     </div>
-                    
+
                     <div class="flex-grow-1 overflow-auto pe-2 preview-scroll">
                       <div class="d-flex flex-wrap gap-1 mb-3" id="schedule-preview-counts"></div>
                       <div class="d-flex flex-wrap gap-1" id="schedule-preview-devices"></div>
-                      
-                      <div class="mt-4 text-center d-none" id="schedule-preview-toggle-container">
-                        <button type="button" class="btn btn-sm btn-link text-decoration-none text-secondary" id="schedule-preview-toggle">
-                          <i class="bi bi-chevron-down me-1"></i>展开全部设备
-                        </button>
-                      </div>
-                      
+
                       <div class="text-center py-5 d-none" id="schedule-preview-loading">
                         <div class="spinner-border spinner-border-sm text-primary me-2"></div>
                         <span class="text-secondary small">匹配中...</span>
                       </div>
-                      
+
                       <div class="text-center py-5 d-none text-danger" id="schedule-preview-error">
                         <i class="bi bi-exclamation-triangle fs-4 d-block mb-2"></i>
                         <div class="small">预览加载失败，请重试</div>
@@ -199,7 +184,7 @@
                     <div class="fw-bold text-primary text-truncate" style="max-width: 180px;" title="{{ s.name }}">{{ s.name }}</div>
                   </div>
                 </td>
-                <td class="text-start">
+                <td class="text-start text-nowrap">
                   <code class="small text-primary bg-body-tertiary px-2 py-1 rounded border border-light-subtle">{{ s.crontab }}</code>
                   <div class="x-small text-secondary mt-1 js-cron-meaning" data-cron="{{ s.crontab }}"></div>
                 </td>
@@ -214,7 +199,7 @@
                 </td>
                 <td class="text-start">
                   <div class="form-check form-switch mb-0 d-flex flex-column align-items-start ps-0" style="width: fit-content;">
-                    <input class="form-check-input js-schedule-toggle ms-0" type="checkbox" role="switch" 
+                    <input class="form-check-input js-schedule-toggle ms-0" type="checkbox" role="switch"
                            data-schedule-id="{{ s.id }}" {% if s.enabled %}checked{% endif %}
                            {% if not can_schedule_update %}disabled{% endif %}
                            style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
@@ -329,7 +314,7 @@
   </div>
 
   <!-- 目标选择Drawer抽屉窗口 -->
-  <div class="offcanvas offcanvas-end shadow-lg border-0" tabindex="-1" id="target-drawer" aria-labelledby="target-drawer-label" style="width: 950px; max-width: 100%;">
+  <div class="offcanvas offcanvas-end shadow-lg border-0" tabindex="-1" id="target-drawer" aria-labelledby="target-drawer-label" data-bs-scroll="true" data-bs-backdrop="true" style="width: 950px; max-width: 100%;">
     <div class="offcanvas-header bg-body-tertiary border-bottom-0 py-3">
       <h5 class="offcanvas-title d-flex align-items-center fw-bold text-body" id="target-drawer-label">
         <i class="bi bi-hdd-network-fill text-primary me-2"></i>
@@ -352,7 +337,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- 按平台选择 -->
           <div class="row g-2 mb-3">
             <div class="col-12">
@@ -371,7 +356,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- 按分组选择 -->
           <div class="row g-2 mb-3">
             <div class="col-12">
@@ -396,7 +381,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- 按设备选择 -->
           <div class="row g-2 mb-0">
             <div class="col-12">
@@ -421,7 +406,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 预览与操作区域（固定在底部） -->
       <div class="p-3 border-top bg-body-tertiary">
         <div class="border rounded-3 p-3 bg-body shadow-sm mb-3">
@@ -435,11 +420,6 @@
           <div id="drawer-preview-container" class="overflow-auto preview-scroll pe-2" style="max-height: 200px;">
             <div class="mb-3 d-flex flex-wrap gap-2" id="drawer-preview-counts"></div>
             <div class="mb-0 d-flex flex-wrap gap-1" id="drawer-preview-devices"></div>
-            <div class="mt-2 text-center d-none" id="drawer-preview-toggle-container">
-              <button type="button" class="btn btn-sm btn-link text-decoration-none text-primary fw-medium" id="drawer-preview-toggle">
-                <i class="bi bi-chevron-down me-1"></i>展开全部预览设备
-              </button>
-            </div>
             <div class="small text-secondary mb-0 d-none p-3 text-center" id="drawer-preview-loading">
               <span class="spinner-border spinner-border-sm me-2"></span>正在计算匹配设备...
             </div>
@@ -449,7 +429,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="d-flex gap-3">
           <button type="button" class="btn btn-primary px-5 py-2 shadow-sm fw-bold" id="apply-targets">
             <i class="bi bi-check-circle me-2"></i>确认应用选择
@@ -464,1207 +444,8 @@
 
 {% block scripts %}
   <script src="/static/js/cronstrue-i18n.min.js"></script>
-  <script>
-    (function () {
-      // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
-      // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
-      function normalizeApschedulerCronForCronstrue(expr) {
-        if (!expr || typeof expr !== "string") return expr;
-        const parts = expr.trim().split(/\s+/);
-        if (parts.length !== 5) return expr;
-
-        const apsToLinuxDow = (n) => (n === 6 ? 0 : n + 1);
-
-        const mapDowSegment = (segment) => {
-          const s = (segment || "").trim();
-          if (!s || s === "*" || s.includes("/") || /[A-Za-z]/.test(s)) return s;
-
-          if (/^\d+$/.test(s)) {
-            const n = Number(s);
-            if (Number.isInteger(n) && n >= 0 && n <= 6) return String(apsToLinuxDow(n));
-            return s;
-          }
-
-          const m = s.match(/^(\d+)-(\d+)$/);
-          if (!m) return s;
-          const start = Number(m[1]);
-          const end = Number(m[2]);
-          if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > 6 || end < 0 || end > 6) {
-            return s;
-          }
-
-          const apsDays = [];
-          let cur = start;
-          while (true) {
-            apsDays.push(cur);
-            if (cur === end) break;
-            cur = (cur + 1) % 7;
-          }
-          const linuxDays = apsDays.map(apsToLinuxDow);
-          const uniq = Array.from(new Set(linuxDays));
-          if (uniq.length === 7) return "*";
-          return uniq.join(",");
-        };
-
-        const dowField = parts[4];
-        parts[4] = dowField
-          .split(",")
-          .map(mapDowSegment)
-          .join(",");
-        return parts.join(" ");
-      }
-
-      function updateCronMeaning(inputEl, targetEl) {
-        if (!inputEl || !targetEl) return;
-        const val = inputEl.value || inputEl.getAttribute("data-cron");
-        if (!val) {
-          targetEl.textContent = "";
-          return;
-        }
-        try {
-          const normalizedCron = normalizeApschedulerCronForCronstrue(val);
-          let meaning = cronstrue.toString(normalizedCron, {
-            locale: "zh_CN",
-            use24HourTimeFormat: true 
-          });
-          
-          // 优化中文表达，使其更符合习惯
-          // 例如："在02:00, 仅星期六" -> "每周六 02:00"
-          //      "在02:00" -> "每天 02:00"
-          if (meaning.startsWith("在")) {
-            const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
-            if (timeMatch) {
-              const timeStr = timeMatch[1];
-              let rest = meaning.replace(timeMatch[0], "").replace(/^[,\s，]+/, "");
-              
-              if (!rest) {
-                meaning = "每天 " + timeStr;
-              } else if (rest.startsWith("仅星期")) {
-                meaning = rest.replace("仅星期", "每周") + " " + timeStr;
-              } else if (rest.includes("每月的第")) {
-                meaning = rest.replace(/在每月的第\s?(\d+)\s?天/, "每月$1号") + " " + timeStr;
-              } else {
-                // 其他复杂情况，至少把时间挪到后面，去掉开头的“在”
-                meaning = rest + " " + timeStr;
-              }
-            }
-          }
-
-          targetEl.textContent = meaning;
-          targetEl.classList.remove("text-danger");
-          targetEl.classList.add("text-primary");
-        } catch (e) {
-          targetEl.textContent = "无效的 Cron 表达式";
-          targetEl.classList.remove("text-primary");
-          targetEl.classList.add("text-danger");
-        }
-      }
-
-      // 列表中的表达式识别
-      document.querySelectorAll(".js-cron-meaning").forEach(el => updateCronMeaning(el, el));
-
-      // 如果是管理员，添加输入框实时识别
-      const cronInput = document.getElementById("crontab-input");
-      const cronMeaning = document.getElementById("crontab-meaning");
-      if (cronInput && cronMeaning) {
-        cronInput.addEventListener("input", () => updateCronMeaning(cronInput, cronMeaning));
-        updateCronMeaning(cronInput, cronMeaning);
-      }
-
-      // 弹窗自动唤起与 URL 清理
-      const scheduleModalEl = document.getElementById('scheduleModal');
-      if (scheduleModalEl) {
-        const scheduleModal = new bootstrap.Modal(scheduleModalEl);
-        
-        // 如果 URL 中有 edit 参数，自动打开弹窗
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('edit')) {
-          scheduleModal.show();
-        }
-
-        // 弹窗关闭后，如果 URL 中有 edit 参数，则清理并刷新（或直接修改 URL）
-        scheduleModalEl.addEventListener('hidden.bs.modal', function () {
-          if (urlParams.has('edit')) {
-            window.location.href = '/schedules';
-          }
-        });
-
-        // 如果没有打开弹窗（即不是通过 edit 参数进来的），则显示返回列表按钮（如果存在）
-        if (!urlParams.has('edit')) {
-          const backBtn = document.getElementById('back-to-list-btn');
-          if (backBtn) backBtn.classList.remove('d-none');
-        }
-      }
-    })();
-  </script>
+  <script src="/static/js/pages/schedules-cron.js"></script>
   {% if can_schedule_update %}
-    <script>
-      (function () {
-        const btns = Array.from(document.querySelectorAll(".js-schedule-run"));
-        const toggles = Array.from(document.querySelectorAll(".js-schedule-toggle"));
-
-        function updateNextRunDisplay(checkbox, nextRun) {
-          if (!checkbox) return;
-          const row = checkbox.closest("tr");
-          const nextRunEl = row ? row.querySelector(".js-next-run") : null;
-          if (!nextRunEl || !nextRun) return;
-
-          nextRunEl.classList.remove("text-danger", "text-primary", "text-secondary");
-          if (nextRun.tone === "danger") {
-            nextRunEl.classList.add("text-danger");
-          } else if (nextRun.tone === "primary") {
-            nextRunEl.classList.add("text-primary");
-          } else {
-            nextRunEl.classList.add("text-secondary");
-          }
-          nextRunEl.innerHTML = `<i class="bi bi-clock me-1"></i>${escapeText(nextRun.text || "")}`;
-        }
-
-        // 处理开关切换
-        async function toggleSchedule(scheduleId, checkbox) {
-          const originalStatus = !checkbox.checked;
-          const label = checkbox.parentElement.querySelector(".js-toggle-label");
-          const originalLabel = label ? label.textContent.trim() : "";
-          
-          checkbox.disabled = true;
-          if (label) {
-            label.classList.add("text-muted");
-            label.textContent = "同步中...";
-          }
-
-          try {
-            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/toggle`, { method: "POST" });
-            if (!resp.ok) {
-              let detail = "";
-              try {
-                const data = await resp.json();
-                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
-              } catch (e) {
-                detail = "";
-              }
-              throw new Error(detail || "切换失败");
-            }
-            const data = await resp.json();
-            
-            checkbox.checked = data.enabled;
-            if (label) {
-              label.textContent = data.enabled ? "已开启" : "已禁用";
-              label.classList.remove("text-muted");
-            }
-            updateNextRunDisplay(checkbox, data.next_run);
-
-            if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast(data.enabled ? "定时任务已开启" : "定时任务已禁用", "success");
-            }
-          } catch (e) {
-            console.error(e);
-            checkbox.checked = originalStatus;
-            if (label) {
-              label.textContent = originalLabel;
-              label.classList.remove("text-muted");
-            }
-            if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("切换状态失败: " + e.message, "error");
-            }
-          } finally {
-            checkbox.disabled = false;
-          }
-        }
-
-        toggles.forEach((toggle) => {
-          toggle.addEventListener("change", () => {
-            const sid = toggle.getAttribute("data-schedule-id");
-            toggleSchedule(sid, toggle);
-          });
-          
-          // 点击 Label 也能触发开关
-          const label = toggle.parentElement.querySelector(".js-toggle-label");
-          if (label) {
-            label.addEventListener("click", () => {
-              if (!toggle.disabled) {
-                toggle.checked = !toggle.checked;
-                toggle.dispatchEvent(new Event('change'));
-              }
-            });
-          }
-        });
-
-        const targetsEl = document.getElementById("schedule-targets");
-        const previewSummary = document.getElementById("schedule-preview-summary");
-        const previewCounts = document.getElementById("schedule-preview-counts");
-        const previewDevices = document.getElementById("schedule-preview-devices");
-        const previewLoading = document.getElementById("schedule-preview-loading");
-        const previewError = document.getElementById("schedule-preview-error");
-        const previewToggleBtn = document.getElementById("schedule-preview-toggle");
-        const previewToggleContainer = document.getElementById("schedule-preview-toggle-container");
-        
-        let isPreviewExpanded = false;
-        let lastPreviewData = null;
-
-        if (previewToggleBtn) {
-          previewToggleBtn.addEventListener("click", () => {
-            isPreviewExpanded = !isPreviewExpanded;
-            previewDevices.classList.toggle("expanded", isPreviewExpanded);
-            previewToggleBtn.innerHTML = isPreviewExpanded 
-              ? '<i class="bi bi-chevron-up me-1"></i>收起设备列表' 
-              : '<i class="bi bi-chevron-down me-1"></i>展开全部设备';
-            if (lastPreviewData) renderPreview(lastPreviewData);
-          });
-        }
-        
-        // 目标选择器相关元素
-        const targetAllCheckbox = document.getElementById("target-all");
-        const platformSelection = document.getElementById("platform-selection");
-        const groupSelection = document.getElementById("group-selection");
-        const deviceSelection = document.getElementById("device-selection");
-        const deviceSearch = document.getElementById("device-search");
-        
-        // Drawer相关元素
-        const openTargetDrawerBtn = document.getElementById("open-target-drawer");
-        const targetDrawer = document.getElementById("target-drawer");
-        const applyTargetsBtn = document.getElementById("apply-targets");
-        const targetsSummaryText = document.getElementById("targets-summary-text");
-        
-        // Drawer预览相关元素
-        const drawerPreviewContainer = document.getElementById("drawer-preview-container");
-        const drawerPreviewSummary = document.getElementById("drawer-preview-summary");
-        const drawerPreviewCounts = document.getElementById("drawer-preview-counts");
-        const drawerPreviewDevices = document.getElementById("drawer-preview-devices");
-        const drawerPreviewLoading = document.getElementById("drawer-preview-loading");
-        const drawerPreviewError = document.getElementById("drawer-preview-error");
-        const drawerPreviewToggleBtn = document.getElementById("drawer-preview-toggle");
-        const drawerPreviewToggleContainer = document.getElementById("drawer-preview-toggle-container");
-        
-        let isDrawerPreviewExpanded = false;
-        let lastDrawerPreviewData = null;
-
-        if (drawerPreviewToggleBtn) {
-          drawerPreviewToggleBtn.addEventListener("click", () => {
-            isDrawerPreviewExpanded = !isDrawerPreviewExpanded;
-            if (drawerPreviewContainer) drawerPreviewContainer.classList.toggle("expanded", isDrawerPreviewExpanded);
-            drawerPreviewToggleBtn.innerHTML = isDrawerPreviewExpanded 
-              ? '<i class="bi bi-chevron-up me-1"></i>收起预览' 
-              : '<i class="bi bi-chevron-down me-1"></i>展开预览设备';
-            if (lastDrawerPreviewData) renderDrawerPreview(lastDrawerPreviewData);
-          });
-        }
-        
-        // 存储加载的数据
-        let platformsData = [];
-        let groupsData = [];
-        let devicesData = [];
-        
-        // Drawer实例
-        let drawerInstance = null;
-
-        function escapeText(text) {
-          const span = document.createElement("span");
-          span.textContent = text == null ? "" : String(text);
-          return span.innerHTML;
-        }
-
-        // 加载平台数据
-        async function loadPlatforms() {
-          try {
-            const resp = await fetch("/api/schedules/targets/platforms");
-            if (!resp.ok) throw new Error("Failed to load platforms");
-            platformsData = await resp.json();
-            renderPlatforms();
-          } catch (e) {
-            platformSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
-          }
-        }
-
-        // 加载分组数据
-        async function loadGroups() {
-          try {
-            const resp = await fetch("/api/schedules/targets/groups");
-            if (!resp.ok) throw new Error("Failed to load groups");
-            groupsData = await resp.json();
-            renderGroups();
-          } catch (e) {
-            groupSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
-          }
-        }
-
-        // 加载设备数据
-        async function loadDevices(search = "") {
-          try {
-            const url = new URL("/api/schedules/targets/devices", window.location.origin);
-            if (search) url.searchParams.set("q", search);
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error("Failed to load devices");
-            const data = await resp.json();
-            devicesData = data.devices || [];
-            renderDevices();
-          } catch (e) {
-            deviceSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
-          }
-        }
-
-        // 渲染平台选择器
-        function renderPlatforms() {
-          if (!platformsData.length) {
-            platformSelection.innerHTML = '<div class="text-secondary small">暂无平台数据</div>';
-            return;
-          }
-          
-          platformSelection.innerHTML = platformsData.map(p => `
-            <div class="form-check form-check-inline me-0">
-              <input class="form-check-input d-none" type="checkbox" id="platform-${escapeText(p.name)}" data-type="platform" data-value="${escapeText(p.name)}">
-              <label class="btn btn-sm btn-outline-secondary border fw-normal px-2 py-1 cursor-pointer transition-all" for="platform-${escapeText(p.name)}">
-                ${escapeText(p.name)} <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal ms-1">${p.count}</span>
-              </label>
-            </div>
-          `).join('');
-          
-          // 添加事件监听
-          platformSelection.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', (e) => {
-              const label = platformSelection.querySelector(`label[for="${e.target.id}"]`);
-              if (e.target.checked) {
-                label.classList.remove('btn-outline-secondary');
-                label.classList.add('btn-primary', 'border-primary');
-              } else {
-                label.classList.remove('btn-primary', 'border-primary');
-                label.classList.add('btn-outline-secondary');
-              }
-              handleOtherSelectionChange();
-            });
-          });
-        }
-
-        function buildGroupTree(flatList) {
-          const map = new Map();
-          const roots = [];
-          
-          flatList.forEach(item => {
-              map.set(item.id, { ...item, children: [] });
-          });
-          
-          flatList.forEach(item => {
-              if (item.parent_id && map.has(item.parent_id)) {
-                  map.get(item.parent_id).children.push(map.get(item.id));
-              } else {
-                  roots.push(map.get(item.id));
-              }
-          });
-          
-          return roots;
-        }
-
-        function renderGroupTreeNodes(nodes, container) {
-          const ul = document.createElement('ul');
-          ul.className = 'tree-view';
-          
-          nodes.forEach(node => {
-              const li = document.createElement('li');
-              li.className = 'tree-node';
-              
-              const content = document.createElement('div');
-              content.className = 'tree-node-content';
-              content.style.setProperty('--tree-depth', String(Math.max(0, Number(node.depth || 0))));
-              
-              const hasChildren = node.children && node.children.length > 0;
-              
-              const toggle = document.createElement('div');
-              toggle.className = 'tree-toggle' + (hasChildren ? ' collapsed' : ' empty');
-              toggle.innerHTML = '<i class="bi bi-caret-down-fill"></i>';
-              
-              // 复选框
-              const checkbox = document.createElement('input');
-              checkbox.type = 'checkbox';
-              checkbox.className = 'form-check-input tree-checkbox mt-0';
-              checkbox.id = `group-${node.id}`;
-              checkbox.dataset.type = 'group';
-              checkbox.dataset.value = node.id;
-              checkbox.dataset.name = node.full_path || node.name;
-              
-              // 按照记忆：层级图标与配色
-              let iconClass = 'bi me-2 fs-5 ';
-              let textClass = '';
-              if (node.depth === 0 || node.id === 0 || node.id === -1) {
-                  iconClass += 'bi-house-door-fill text-secondary';
-                  textClass = 'fw-medium text-body';
-              } else if (node.depth === 1) {
-                  iconClass += 'bi-folder-fill text-secondary';
-                  textClass = 'fw-medium text-body';
-              } else {
-                  iconClass += 'bi-folder text-secondary opacity-75';
-                  textClass = 'text-secondary';
-              }
-              
-              const icon = document.createElement('i');
-              icon.className = iconClass;
-              
-              const text = document.createElement('span');
-              text.className = textClass;
-              text.textContent = node.name;
-              
-              const countBadge = document.createElement('span');
-              countBadge.className = 'badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal ms-2';
-              countBadge.textContent = node.count || 0;
-              
-              content.appendChild(toggle);
-              content.appendChild(checkbox);
-              content.appendChild(icon);
-              content.appendChild(text);
-              content.appendChild(countBadge);
-              li.appendChild(content);
-              
-              let childrenUl = null;
-              if (hasChildren) {
-                  childrenUl = renderGroupTreeNodes(node.children, null);
-                  childrenUl.className = 'tree-view tree-children collapsed';
-                  li.appendChild(childrenUl);
-                  
-                  toggle.addEventListener('click', (e) => {
-                      e.stopPropagation();
-                      toggle.classList.toggle('collapsed');
-                      childrenUl.classList.toggle('collapsed');
-                  });
-              }
-              
-              checkbox.addEventListener('click', (e) => {
-                  e.stopPropagation();
-              });
-              
-              checkbox.addEventListener('change', (e) => {
-                  handleOtherSelectionChange();
-              });
-              
-              content.addEventListener('click', (e) => {
-                  if (e.target.closest('.tree-toggle') || e.target === checkbox) return;
-                  checkbox.checked = !checkbox.checked;
-                  checkbox.dispatchEvent(new Event('change'));
-              });
-              
-              ul.appendChild(li);
-          });
-          
-          if (container) {
-              container.innerHTML = '';
-              container.appendChild(ul);
-          }
-          return ul;
-        }
-
-        // 渲染分组选择器
-        function renderGroups(searchText = "") {
-          if (!groupsData.length) {
-            groupSelection.innerHTML = '<div class="text-secondary small">暂无分组数据</div>';
-            return;
-          }
-          
-          let filteredGroups = groupsData;
-          if (searchText) {
-            const query = searchText.toLowerCase();
-            // 找到所有匹配的节点
-            const matchedIds = new Set();
-            groupsData.forEach(g => {
-              if (g.name.toLowerCase().includes(query) || (g.full_path && g.full_path.toLowerCase().includes(query))) {
-                matchedIds.add(g.id);
-              }
-            });
-
-            // 确保匹配节点的父节点也显示出来，以便维持树形结构
-            const finalIds = new Set();
-            const addWithParents = (id) => {
-              if (finalIds.has(id)) return;
-              finalIds.add(id);
-              const item = groupsData.find(g => g.id === id);
-              if (item && item.parent_id) {
-                addWithParents(item.parent_id);
-              }
-            };
-            matchedIds.forEach(id => addWithParents(id));
-            
-            filteredGroups = groupsData.filter(g => finalIds.has(g.id));
-          }
-
-          if (searchText && !filteredGroups.length) {
-            groupSelection.innerHTML = '<div class="p-3 text-secondary small text-center">未找到匹配的分组</div>';
-            return;
-          }
-
-          const treeData = buildGroupTree(filteredGroups);
-          renderGroupTreeNodes(treeData, groupSelection);
-
-          // 如果是搜索状态，自动展开所有节点
-          if (searchText) {
-            groupSelection.querySelectorAll('.tree-children').forEach(ul => {
-              ul.classList.remove('collapsed');
-            });
-            groupSelection.querySelectorAll('.tree-toggle').forEach(toggle => {
-              toggle.classList.remove('collapsed');
-            });
-          }
-        }
-
-        // 渲染设备选择器
-        function renderDevices() {
-          const container = document.getElementById('device-selection');
-          const countEl = document.getElementById('device-selection-count');
-          
-          if (!devicesData.length) {
-            container.innerHTML = '<div class="p-3 text-secondary small text-center">未找到匹配的设备</div>';
-            if (countEl) countEl.textContent = '共 0 台';
-            return;
-          }
-          
-          if (countEl) countEl.textContent = `共 ${devicesData.length} 台`;
-          
-          container.innerHTML = `
-            <table class="table table-sm table-hover align-middle mb-0 small">
-              <thead class="bg-body-tertiary sticky-top">
-                <tr>
-                  <th class="ps-3" style="width: 40px;">
-                    <input class="form-check-input" type="checkbox" id="device-select-all-toggle">
-                  </th>
-                  <th>设备名称</th>
-                  <th style="width: 140px;">IP 地址</th>
-                  <th style="width: 120px;">平台</th>
-                  <th style="width: 120px;">分组</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${devicesData.map(d => `
-                  <tr class="cursor-pointer js-device-row" data-device-id="${d.id}">
-                    <td class="ps-3">
-                      <input class="form-check-input js-device-cb" type="checkbox" id="device-${d.id}" data-type="device" data-value="${d.id}" onclick="event.stopPropagation()">
-                    </td>
-                    <td><div class="text-body text-truncate" style="max-width: 180px;" title="${escapeText(d.name || d.host)}">${escapeText(d.name || d.host)}</div></td>
-                    <td><code class="text-secondary small">${escapeText(d.host)}</code></td>
-                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2">${escapeText(d.platform)}</span></td>
-                    <td><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2">${escapeText(d.group)}</span></td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          
-          // 行点击事件
-          container.querySelectorAll('.js-device-row').forEach(row => {
-            row.addEventListener('click', () => {
-              const cb = row.querySelector('.js-device-cb');
-              cb.checked = !cb.checked;
-              cb.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-          });
-          
-          // 复选框变化事件
-          container.querySelectorAll('.js-device-cb').forEach(cb => {
-            cb.addEventListener('change', (e) => {
-              const row = e.target.closest('tr');
-              if (e.target.checked) {
-                row.classList.add('is-selected');
-              } else {
-                row.classList.remove('is-selected');
-              }
-              handleOtherSelectionChange();
-            });
-          });
-          
-          // 全选/取消全选设备
-          const selectAllToggle = document.getElementById('device-select-all-toggle');
-          if (selectAllToggle) {
-            selectAllToggle.addEventListener('change', (e) => {
-              container.querySelectorAll('.js-device-cb').forEach(cb => {
-                if (cb.checked !== e.target.checked) {
-                  cb.checked = e.target.checked;
-                  cb.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-              });
-            });
-          }
-        }
-
-        // 更新目标文本框
-        function updateTargets() {
-          const targets = [];
-          
-          // 如果选择了所有设备
-          if (targetAllCheckbox && targetAllCheckbox.checked) {
-            targets.push('all');
-          } else {
-            // 收集选中的平台
-            platformSelection.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-              targets.push(`platform:${cb.dataset.value}`);
-            });
-            
-            // 收集选中的分组
-            groupSelection.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-              targets.push(`group:${cb.dataset.value}`);
-            });
-            
-            // 收集选中的设备
-            deviceSelection.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-              targets.push(`device:${cb.dataset.value}`);
-            });
-          }
-          
-          // 更新文本框
-          if (targetsEl) {
-            const newValue = targets.length ? targets.join('\n') : (targetAllCheckbox && targetAllCheckbox.checked ? 'all' : '');
-            if (targetsEl.value !== newValue) {
-              targetsEl.value = newValue;
-              // 手动触发 input 事件以更新预览
-              targetsEl.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          }
-          
-          // 更新Drawer预览
-          updateDrawerPreview();
-        }
-
-        // 更新Drawer预览
-        let previewDebounceTimer;
-        function updateDrawerPreview() {
-          if (!targetsEl || !drawerPreviewSummary || !drawerPreviewCounts || !drawerPreviewDevices) return;
-          
-          clearTimeout(previewDebounceTimer);
-          previewDebounceTimer = setTimeout(() => {
-            const targets = targetsEl.value.split('\n').map(t => t.trim()).filter(t => t);
-            
-            // 如果没有任何目标且没有勾选"所有设备"，则直接清空预览并返回
-            if (targets.length === 0 && (!targetAllCheckbox || !targetAllCheckbox.checked)) {
-              drawerPreviewSummary.textContent = "未选择任何设备";
-              drawerPreviewCounts.innerHTML = '';
-              drawerPreviewDevices.innerHTML = '';
-              drawerPreviewLoading.classList.add('d-none');
-              drawerPreviewError.classList.add('d-none');
-              drawerPreviewToggleContainer.classList.add("d-none");
-              return;
-            }
-
-            // 检查是否有现有内容
-            const hasContent = drawerPreviewDevices.children.length > 0;
-            
-            if (hasContent) {
-              // 如果有内容，通过透明度和顶部加载提示来避免布局跳动
-              drawerPreviewCounts.classList.add('opacity-50');
-              drawerPreviewDevices.classList.add('opacity-50');
-              drawerPreviewSummary.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>计算中...';
-              drawerPreviewLoading.classList.add('d-none');
-            } else {
-              // 如果没内容，显示加载占位符
-              drawerPreviewLoading.classList.remove('d-none');
-              drawerPreviewCounts.innerHTML = '';
-              drawerPreviewDevices.innerHTML = '';
-            }
-            
-            drawerPreviewError.classList.add('d-none');
-            
-            // 发送预览请求
-            const formData = new FormData();
-            formData.append('targets', targets.join('\n'));
-            
-            fetch('/api/schedules/preview', {
-              method: 'POST',
-              body: formData
-            })
-            .then(resp => resp.json())
-            .then(data => {
-              renderDrawerPreview(data);
-            })
-            .catch(error => {
-              drawerPreviewLoading.classList.add('d-none');
-              drawerPreviewCounts.classList.remove('opacity-50');
-              drawerPreviewDevices.classList.remove('opacity-50');
-              drawerPreviewSummary.textContent = "计算失败";
-              drawerPreviewError.classList.remove('d-none');
-            });
-          }, 300);
-        }
-
-        // 抽屉预览渲染函数
-        function renderDrawerPreview(data) {
-          lastDrawerPreviewData = data;
-          drawerPreviewLoading.classList.add('d-none');
-          drawerPreviewCounts.classList.remove('opacity-50');
-          drawerPreviewDevices.classList.remove('opacity-50');
-          
-          const counts = data.counts || {};
-          const devices = data.devices || [];
-          const total = counts.total || 0;
-          
-          // 更新摘要
-          drawerPreviewSummary.textContent = `共 ${total} 台设备`;
-          
-          // 更新计数
-          let countHtml = '';
-          if (counts.platforms && Object.keys(counts.platforms).length > 0) {
-            const list = Object.entries(counts.platforms).sort().map(([p, c]) => 
-              `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1">${p} · ${c}</span>`
-            ).join(' ');
-            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的目标平台:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
-          }
-          if (counts.groups && Object.keys(counts.groups).length > 0) {
-            const list = Object.entries(counts.groups).sort().map(([g, c]) => 
-              `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1">${g} · ${c}</span>`
-            ).join(' ');
-            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的分组:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
-          }
-          drawerPreviewCounts.innerHTML = countHtml;
-          
-          // 更新设备列表
-          const displayLimit = isDrawerPreviewExpanded ? 1000 : 20;
-          const displayDevices = devices.slice(0, displayLimit);
-
-          const deviceBadges = displayDevices.map(device => 
-            `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge">${escapeText(device.name || device.host)} <small class="opacity-75">(${escapeText(device.host)})</small></span>`
-          ).join('');
-          
-          if (deviceBadges) {
-            drawerPreviewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的设备:</div><div class="d-flex flex-wrap gap-1">${deviceBadges}</div></div>`;
-          } else {
-            drawerPreviewDevices.innerHTML = '';
-          }
-
-          // 控制展开按钮
-          if (devices.length > 20) {
-            drawerPreviewToggleContainer.classList.remove("d-none");
-          } else {
-            drawerPreviewToggleContainer.classList.add("d-none");
-          }
-
-          if (devices.length > displayLimit) {
-            const more = document.createElement("div");
-            more.className = "w-100 text-center text-muted small mt-2";
-            more.textContent = `... 还有 ${devices.length - displayLimit} 台设备未展示`;
-            drawerPreviewDevices.appendChild(more);
-          }
-        }
-
-        // 处理"所有设备"复选框变化
-        function handleTargetAllChange() {
-          if (targetAllCheckbox.checked) {
-            // 取消其他所有选择
-            platformSelection.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            groupSelection.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            deviceSelection.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            // 还需要更新 UI 样式（比如平台的按钮颜色）
-            platformSelection.querySelectorAll('label').forEach(label => {
-              label.classList.remove('btn-primary', 'border-primary');
-              label.classList.add('btn-outline-secondary');
-            });
-            // 移除设备的选中样式
-            deviceSelection.querySelectorAll('tr.is-selected').forEach(row => row.classList.remove('is-selected'));
-          }
-          updateTargets();
-        }
-
-        // 处理其他选择变化
-        function handleOtherSelectionChange() {
-          if (targetAllCheckbox.checked) {
-            targetAllCheckbox.checked = false;
-          }
-          updateTargets();
-        }
-
-        // 初始化目标选择器
-        function initTargetSelector() {
-          if (!targetAllCheckbox || !platformSelection || !groupSelection || !deviceSelection) return;
-          
-          // 加载数据
-          loadPlatforms();
-          loadGroups();
-          loadDevices();
-          
-          // 添加事件监听
-          targetAllCheckbox.addEventListener('change', handleTargetAllChange);
-          
-          // 分组搜索
-          const groupSearch = document.getElementById("group-search");
-          if (groupSearch) {
-            let groupSearchTimer;
-            groupSearch.addEventListener('input', () => {
-              clearTimeout(groupSearchTimer);
-              groupSearchTimer = setTimeout(() => {
-                renderGroups(groupSearch.value);
-              }, 200);
-            });
-          }
-
-          // 快捷选择：全选/清空
-          document.querySelectorAll('.js-select-all').forEach(link => {
-            link.addEventListener('click', (e) => {
-              e.preventDefault();
-              const targetId = e.target.dataset.target;
-              const container = document.getElementById(targetId);
-              if (container) {
-                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                  if (!cb.checked) {
-                    cb.checked = true;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                  }
-                });
-              }
-            });
-          });
-          
-          document.querySelectorAll('.js-clear-all').forEach(link => {
-            link.addEventListener('click', (e) => {
-              e.preventDefault();
-              const targetId = e.target.dataset.target;
-              const container = document.getElementById(targetId);
-              if (container) {
-                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                  if (cb.checked) {
-                    cb.checked = false;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                  }
-                });
-              }
-            });
-          });
-          
-          // 设备搜索
-          if (deviceSearch) {
-            let searchTimer;
-            deviceSearch.addEventListener('input', () => {
-              clearTimeout(searchTimer);
-              searchTimer = setTimeout(() => {
-                loadDevices(deviceSearch.value);
-              }, 300);
-            });
-          }
-          
-          // 为选择器添加变化监听（用于在动态加载后绑定事件）
-          const observer = new MutationObserver(() => {
-            // 解析现有目标到动态加载的复选框
-            parseTargetsToQuickMode();
-          });
-          
-          observer.observe(platformSelection, { childList: true });
-          observer.observe(groupSelection, { childList: true });
-          observer.observe(deviceSelection, { childList: true });
-          
-          // 初始化时解析现有目标
-          parseTargetsToQuickMode();
-          
-          // 更新目标摘要
-          updateTargetsSummary();
-          
-          // 初始化Drawer
-          initDrawer();
-        }
-
-        // 初始化Drawer
-        function initDrawer() {
-          // 创建Drawer实例
-          if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
-            drawerInstance = new bootstrap.Offcanvas(targetDrawer);
-          }
-          
-          // 打开Drawer按钮事件
-          if (openTargetDrawerBtn) {
-            openTargetDrawerBtn.addEventListener('click', () => {
-              if (drawerInstance) {
-                drawerInstance.show();
-                
-                // 强制将 Offcanvas 及其 backdrop 移动到 body 末尾，确保不受 Modal DOM 结构影响
-                setTimeout(() => {
-                  const backdrop = document.querySelector('.offcanvas-backdrop');
-                  if (backdrop) {
-                    document.body.appendChild(backdrop);
-                    backdrop.style.zIndex = '2040';
-                  }
-                  document.body.appendChild(targetDrawer);
-                  targetDrawer.style.zIndex = '2050';
-                }, 50);
-              }
-            });
-          }
-          
-          // 应用选择按钮事件
-          if (applyTargetsBtn) {
-            applyTargetsBtn.addEventListener('click', () => {
-              applyTargets();
-            });
-          }
-          
-          // 监听Drawer显示事件，加载数据
-          if (targetDrawer) {
-            targetDrawer.addEventListener('show.bs.offcanvas', () => {
-              loadDrawerData();
-              // 确保打开时立即触发一次预览更新
-              updateDrawerPreview();
-            });
-          }
-        }
-
-        // 加载Drawer数据
-        function loadDrawerData() {
-          loadPlatforms();
-          loadGroups();
-          loadDevices();
-        }
-
-        // 应用选择
-        function applyTargets() {
-          updateTargets();
-          updateTargetsSummary();
-          if (drawerInstance) {
-            drawerInstance.hide();
-          }
-        }
-
-        // 更新目标摘要
-        function updateTargetsSummary() {
-          if (!targetsEl || !targetsSummaryText) return;
-          const val = targetsEl.value.trim();
-          if (!val) {
-            targetsSummaryText.innerHTML = '<span class="badge rounded-pill bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-normal">未选择设备</span>';
-            return;
-          }
-          const lines = val.split('\n').filter(l => l.trim());
-          if (lines.length === 1 && lines[0] === 'all') {
-            targetsSummaryText.innerHTML = '<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">所有设备</span>';
-          } else {
-            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">已选择 ${lines.length} 项配置</span>`;
-          }
-        }
-
-        // 解析目标文本到快速选择模式
-        function parseTargetsToQuickMode() {
-          if (!targetsEl) return;
-          
-          const targets = targetsEl.value.split('\n').map(t => t.trim()).filter(t => t);
-          
-          // 如果包含 all，则勾选所有设备
-          if (targets.includes('all')) {
-            if (targetAllCheckbox && !targetAllCheckbox.checked) {
-              targetAllCheckbox.checked = true;
-              // 触发 change 事件以同步 UI
-              targetAllCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            return;
-          }
-
-          // 分别处理其他目标
-          targets.forEach(target => {
-            if (target.startsWith('platform:')) {
-              const platform = target.substring(9);
-              const cb = platformSelection.querySelector(`input[data-value="${platform}"]`);
-              if (cb && !cb.checked) {
-                cb.checked = true;
-                // 展开父节点以便看到选中的项
-                let parentUl = cb.closest('.tree-children');
-                while (parentUl) {
-                  parentUl.classList.remove('collapsed');
-                  const toggle = parentUl.parentElement.querySelector('.tree-toggle');
-                  if (toggle) toggle.classList.remove('collapsed');
-                  parentUl = parentUl.parentElement.closest('.tree-children');
-                }
-                cb.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            } else if (target.startsWith('group:')) {
-              const groupValue = target.substring(6);
-              // 根据名称或者ID匹配（优先匹配name）
-              let cb = groupSelection.querySelector(`input[data-name="${groupValue}"]`);
-              if (!cb) {
-                cb = groupSelection.querySelector(`input[data-value="${groupValue}"]`);
-              }
-              if (cb && !cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            } else if (target.startsWith('device:')) {
-              const deviceId = target.substring(7);
-              const cb = deviceSelection.querySelector(`input[data-value="${deviceId}"]`);
-              if (cb && !cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }
-          });
-        }
-
-        // 初始化
-        initTargetSelector();
-
-        async function runSchedule(scheduleId, btn) {
-          if (!scheduleId) return;
-          btn.disabled = true;
-          const old = btn.innerHTML;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
-          try {
-            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
-            if (!resp.ok) {
-              let detail = "";
-              try {
-                const data = await resp.json();
-                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
-              } catch (e) {
-                detail = "";
-              }
-              throw new Error(detail || "执行失败");
-            }
-            const data = await resp.json();
-            const records = (data && data.records) || [];
-            const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
-            if (records.length && window.NB && typeof window.NB.trackBackups === "function") {
-              window.NB.trackBackups(records);
-              if (enqueueStatus === "partial") {
-                window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
-              } else {
-                window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
-              }
-            } else if (records.length === 0) {
-              window.NB.showToast("没有找到需要备份的设备", "warning");
-            }
-          } catch (e) {
-            console.error(e);
-            window.NB.showToast("手动执行失败: " + e.message, "error");
-          } finally {
-            btn.disabled = false;
-            btn.innerHTML = old;
-          }
-        }
-
-        btns.forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const sid = btn.getAttribute("data-schedule-id");
-            runSchedule(sid, btn);
-          });
-        });
-
-        if (targetsEl && previewSummary && previewCounts && previewDevices && previewLoading && previewError) {
-          let timer = null;
-          let inflight = 0;
-
-          function setLoading(loading) {
-            previewLoading.classList.toggle("d-none", !loading);
-          }
-
-          function setError(hasError, message) {
-            previewError.classList.toggle("d-none", !hasError);
-            const msgEl = previewError.querySelector(".small");
-            if (msgEl) {
-              msgEl.textContent = message || "预览加载失败，请重试";
-            }
-          }
-
-          function renderPreview(data) {
-            lastPreviewData = data;
-            const counts = (data && data.counts) || {};
-            const total = Number(counts.total || 0);
-            previewSummary.textContent = total ? `匹配 ${total} 台设备` : "未匹配到设备";
-
-            const platforms = counts.platforms || {};
-            const groups = counts.groups || {};
-
-            previewCounts.innerHTML = "";
-            let countHtml = '';
-             if (Object.keys(platforms).length > 0) {
-               const list = Object.keys(platforms).sort().map(k => `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1">${k || "unknown"} · ${platforms[k]}</span>`).join(' ');
-               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的目标平台:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
-             }
-             if (Object.keys(groups).length > 0) {
-               const list = Object.keys(groups).sort().map(k => `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1">${k} · ${groups[k]}</span>`).join(' ');
-               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的分组:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
-             }
-            previewCounts.innerHTML = countHtml;
-
-            const devices = (data && data.devices) || [];
-            
-            // 如果没展开，最多显示 30 个；如果展开了，显示全部（或者一个较大的上限）
-            const displayLimit = isPreviewExpanded ? 1000 : 30;
-            const displayDevices = devices.slice(0, displayLimit);
-
-            const deviceBadges = displayDevices
-                  .map((d) => {
-                    const name = escapeText(d.name || "");
-                    const host = escapeText(d.host || "");
-                    const platform = escapeText(d.platform || "");
-                    const group = escapeText(d.group || "");
-                    return `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge" title="${name} · ${host} · ${platform} · ${group}">${name || host} <small class="opacity-75">(${host})</small></span>`;
-                  })
-                  .join("");
-            
-            if (deviceBadges) {
-              previewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的设备:</div><div class="d-flex flex-wrap gap-1">${deviceBadges}</div></div>`;
-            } else {
-              previewDevices.innerHTML = "";
-            }
-
-            // 控制展开按钮的显示
-            if (devices.length > 30) {
-              previewToggleContainer.classList.remove("d-none");
-            } else {
-              previewToggleContainer.classList.add("d-none");
-            }
-
-            if (devices.length > displayLimit) {
-              const more = document.createElement("div");
-              more.className = "w-100 text-center text-muted small mt-2";
-              more.textContent = `... 还有 ${devices.length - displayLimit} 台设备未展示`;
-              previewDevices.appendChild(more);
-            }
-          }
-
-          async function loadPreview() {
-            const targets = (targetsEl.value || "").trim();
-            if (!targets) {
-              renderPreview({ devices: [], counts: { total: 0, platforms: {}, groups: {} } });
-              setLoading(false);
-              return;
-            }
-            const reqId = ++inflight;
-            setError(false);
-            setLoading(true);
-            try {
-              const fd = new FormData();
-              fd.set("targets", targets);
-              const resp = await fetch("/api/schedules/preview", { method: "POST", body: fd });
-              if (!resp.ok) {
-                let detail = "";
-                try {
-                  const data = await resp.json();
-                  detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
-                } catch (e) {
-                  detail = "";
-                }
-                throw new Error(detail || "预览加载失败，请重试");
-              }
-              const data = await resp.json();
-              if (reqId !== inflight) return;
-              renderPreview(data);
-            } catch (e) {
-              if (reqId !== inflight) return;
-              previewSummary.textContent = "";
-              previewCounts.innerHTML = "";
-              previewDevices.innerHTML = "";
-              setError(true, e && e.message ? String(e.message) : "预览加载失败，请重试");
-            } finally {
-              if (reqId === inflight) setLoading(false);
-            }
-          }
-
-          window.scheduleLoad = function scheduleLoad() {
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(loadPreview, 250);
-          };
-
-          // 监听文本框变化
-          targetsEl.addEventListener("input", window.scheduleLoad);
-          
-          // 监听文本框内容变化（包括程序化修改）
-          const observer = new MutationObserver(() => {
-            window.scheduleLoad();
-          });
-          observer.observe(targetsEl, { 
-            attributes: true, 
-            attributeFilter: ['value'],
-            childList: false, 
-            subtree: false 
-          });
-          
-          // 初始加载
-          loadPreview();
-        }
-      })();
-    </script>
+    <script src="/static/js/pages/schedules.js"></script>
   {% endif %}
 {% endblock %}

@@ -15,6 +15,55 @@ from app.services import task_state_service
 
 logger = logging.getLogger(__name__)
 
+
+def _alert_result(
+    *,
+    mode: str,
+    rule_enabled: bool,
+    matched: bool = False,
+    email_attempted: bool = False,
+    email_sent: bool = False,
+    skipped: bool = False,
+    reason: str = "",
+    error: str = "",
+) -> dict:
+    result = {
+        "mode": mode,
+        "rule_enabled": bool(rule_enabled),
+        "matched": bool(matched),
+        "email_attempted": bool(email_attempted),
+        "email_sent": bool(email_sent),
+        "skipped": bool(skipped),
+        "reason": reason,
+    }
+    if error:
+        result["error"] = error
+    return result
+
+
+def _send_alert_email(subject: str, content: str, *, mode: str, reason: str) -> dict:
+    try:
+        email_sent = send_email(subject, content, content_type="html")
+        return _alert_result(
+            mode=mode,
+            rule_enabled=True,
+            matched=True,
+            email_attempted=True,
+            email_sent=bool(email_sent),
+            reason=reason if email_sent else "smtp_incomplete",
+        )
+    except Exception as exc:
+        return _alert_result(
+            mode=mode,
+            rule_enabled=True,
+            matched=True,
+            email_attempted=True,
+            email_sent=False,
+            reason="email_send_failed",
+            error=str(exc),
+        )
+
+
 def _format_datetime(dt: datetime | None, session: Session) -> str:
     if dt is None:
         return ""
@@ -155,29 +204,100 @@ def _render_config_change_summary_compact_html(summary: dict) -> str:
     return "".join(parts)
 
 
-def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = False):
+def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     检查备份记录并根据规则触发告警
     :param skip_email: 是否跳过发送邮件（用于批量任务，后续统一发送汇总邮件）
     """
     device = crud.get_device(session, record.device_id)
     if not device:
-        return
+        return _alert_result(mode="device_missing", rule_enabled=False, skipped=True, reason="device_missing")
+
+    always_send = crud.get_setting(session, key="always_send_summary") == "1"
+    if always_send and not skip_email:
+        return _send_single_backup_summary_email(session, device, record)
 
     # 1. 备份失败告警
     if not record.success:
-        _handle_failure_alert(session, device, record, skip_email)
+        return _handle_failure_alert(session, device, record, skip_email)
     else:
         # 2. 配置变更告警
-        _handle_config_change_alert(session, device, record, skip_email)
+        return _handle_config_change_alert(session, device, record, skip_email)
 
-def _handle_failure_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False):
+
+def _send_single_backup_summary_email(session: Session, device: Device, record: BackupRecord) -> dict:
+    prev_success = None
+    change_summary = None
+    if record.success:
+        backups = crud.list_device_backups(session, device.id, limit=2)
+        for backup in backups:
+            if backup.id != record.id and backup.success:
+                prev_success = backup
+                break
+        change_summary = _config_change_summary_after_diff_rules(
+            session,
+            device=device,
+            current_record=record,
+            previous_record=prev_success,
+        )
+
+    status_label = "成功"
+    status_color = "#5cb85c"
+    status_detail = "本次单设备备份执行成功。"
+    if str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED:
+        status_label = "终止"
+        status_color = "#f0ad4e"
+        status_detail = record.error_message or "任务已终止"
+    elif not record.success:
+        status_label = "失败"
+        status_color = "#d9534f"
+        status_detail = record.error_message or "未知错误"
+    elif change_summary:
+        status_detail = "本次备份成功，并检测到配置发生变更。"
+
+    duration_str = f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-"
+    subject = f"【备份汇总报告】{device.name}({device.host}) {status_label}"
+    content = f"""
+    <html>
+    <body>
+        <h2>备份汇总报告</h2>
+        <p><strong>任务时间:</strong> {_format_datetime(record.started_at, session)}</p>
+        <p><strong>统计结果:</strong> 总计 1 台，成功 <span style="color: {'#5cb85c' if record.success else '#6c757d'};">{1 if record.success else 0}</span> 台，失败 <span style="color: {'#d9534f' if not record.success and str(record.status or '').strip() != task_state_service.BACKUP_RECORD_STATUS_CANCELLED else '#6c757d'};">{1 if (not record.success and str(record.status or '').strip() != task_state_service.BACKUP_RECORD_STATUS_CANCELLED) else 0}</span> 台，终止 <span style="color: {'#f0ad4e' if str(record.status or '').strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED else '#6c757d'};">{1 if str(record.status or '').strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED else 0}</span> 台</p>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 800px;">
+            <tr><th style="background-color: #f2f2f2; width: 120px; text-align: left;">设备名称</th><td>{escape(device.name)}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">设备地址</th><td>{escape(device.host)}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">执行结果</th><td style="color: {status_color};">{status_label}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">耗时</th><td>{duration_str}</td></tr>
+            <tr><th style="background-color: #f2f2f2; text-align: left;">详情</th><td>{escape(status_detail)}</td></tr>
+        </table>
+    """
+    if not record.success and record.error_message:
+        content += f"""
+        <h3 style="color: #d9534f;">失败详情</h3>
+        <div style="max-width: 800px; padding: 10px 12px; border: 1px solid #f5c6cb; background-color: #f8d7da; color: #721c24;">
+            {escape(record.error_message)}
+        </div>
+        """
+    if change_summary:
+        content += f"""
+        <h3 style="color: #f0ad4e;">配置变更摘要</h3>
+        {_render_config_change_summary_compact_html(change_summary)}
+        """
+    content += """
+    </body>
+    </html>
+    """
+    return _send_alert_email(subject, content, mode="single_summary", reason="always_send_summary")
+
+def _handle_failure_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     处理备份失败告警
     """
     alert_on_fail = crud.get_setting(session, key="alert_on_fail") == "1"
-    if not alert_on_fail or skip_email:
-        return
+    if skip_email:
+        return _alert_result(mode="failure", rule_enabled=alert_on_fail, skipped=True, reason="skip_email")
+    if not alert_on_fail:
+        return _alert_result(mode="failure", rule_enabled=False, skipped=True, reason="rule_disabled")
 
     subject = f"【告警】设备备份失败: {device.name}({device.host})"
     
@@ -199,15 +319,17 @@ def _handle_failure_alert(session: Session, device: Device, record: BackupRecord
     </html>
     """
     
-    send_email(subject, content, content_type="html")
+    return _send_alert_email(subject, content, mode="failure", reason="failure_rule_matched")
 
-def _handle_config_change_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False):
+def _handle_config_change_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     处理配置变更告警
     """
     alert_on_change = crud.get_setting(session, key="alert_on_config_change") == "1"
-    if not alert_on_change or skip_email:
-        return
+    if skip_email:
+        return _alert_result(mode="config_change", rule_enabled=alert_on_change, skipped=True, reason="skip_email")
+    if not alert_on_change:
+        return _alert_result(mode="config_change", rule_enabled=False, skipped=True, reason="rule_disabled")
 
     # 获取上一个成功的备份记录
     backups = crud.list_device_backups(session, device.id, limit=2)
@@ -242,7 +364,17 @@ def _handle_config_change_alert(session: Session, device: Device, record: Backup
         </body>
         </html>
         """
-        send_email(subject, content, content_type="html")
+        return _send_alert_email(subject, content, mode="config_change", reason="config_changed")
+
+    return _alert_result(
+        mode="config_change",
+        rule_enabled=True,
+        matched=False,
+        email_attempted=False,
+        email_sent=False,
+        skipped=False,
+        reason="no_config_change",
+    )
 
 def check_and_alert_batch(session: Session, run_id: UUID):
     """
@@ -250,13 +382,13 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     """
     run = crud.get_schedule_run(session, run_id)
     if not run:
-        return
+        return {"mode": "batch_summary", "skipped": True, "reason": "run_missing"}
 
     # 检查是否有任何失败或变更
     # 获取该批次的所有记录
     items = crud.list_schedule_run_items(session, run_id)
     if not items:
-        return
+        return {"mode": "batch_summary", "skipped": True, "reason": "no_items"}
 
     backup_ids = [item.backup_id for item in items]
     records = crud.list_backups_by_ids(session, backup_ids)
@@ -302,13 +434,32 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     # 2. 如果未开启汇总，但开启了“失败告警”且有失败，则发送
     # 3. 如果未开启汇总，但开启了“变更提醒”且有变更，则发送
     should_send = always_send
+    trigger_reason = "always_send_summary" if always_send else ""
     if not should_send and alert_on_fail and (failed_records or cancelled_records):
         should_send = True
+        trigger_reason = "failure_rule_matched"
     if not should_send and alert_on_change and changed_records:
         should_send = True
+        trigger_reason = "config_changed"
 
     if not should_send:
-        return
+        any_rule_enabled = bool(always_send or alert_on_fail or alert_on_change)
+        return {
+            "mode": "batch_summary",
+            "rule_enabled": any_rule_enabled,
+            "matched": False,
+            "email_attempted": False,
+            "email_sent": False,
+            "skipped": True,
+            "reason": "no_rule_matched" if any_rule_enabled else "rule_disabled",
+            "trigger_reason": "no_rule_matched",
+            "failed_count": len(failed_records),
+            "cancelled_count": len(cancelled_records),
+            "changed_count": len(changed_records),
+            "always_send": bool(always_send),
+            "alert_on_fail": bool(alert_on_fail),
+            "alert_on_change": bool(alert_on_change),
+        }
 
     # 构建汇总邮件内容
     subject = f"【备份汇总报告】"
@@ -406,4 +557,28 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     </html>
     """
 
-    send_email(subject, content, content_type="html")
+    try:
+        email_sent = send_email(subject, content, content_type="html")
+        reason = "batch_summary_sent" if email_sent else "smtp_incomplete"
+        error = ""
+    except Exception as exc:
+        email_sent = False
+        reason = "email_send_failed"
+        error = str(exc)
+    return {
+        "mode": "batch_summary",
+        "rule_enabled": True,
+        "matched": True,
+        "email_attempted": True,
+        "email_sent": bool(email_sent),
+        "skipped": False,
+        "reason": reason,
+        "trigger_reason": trigger_reason,
+        "error": error,
+        "failed_count": len(failed_records),
+        "cancelled_count": len(cancelled_records),
+        "changed_count": len(changed_records),
+        "always_send": bool(always_send),
+        "alert_on_fail": bool(alert_on_fail),
+        "alert_on_change": bool(alert_on_change),
+    }

@@ -333,6 +333,7 @@ def api_test_ftp(
     ftp_base_dir: str = Form(""),
     ftp_passive: str = Form("1"),
     ftp_timeout: str = Form("15"),
+    ftp_encoding: str = Form("utf-8"),
 ):
     _require_permission(request, "storage_settings.update")
 
@@ -347,6 +348,7 @@ def api_test_ftp(
         base_dir=ftp_base_dir.strip(),
         passive=ftp_passive.strip(),
         timeout=ftp_timeout.strip(),
+        encoding=ftp_encoding.strip(),
     )
 
     return {"success": success, "message": message}
@@ -478,6 +480,7 @@ def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends(
     ftp_base_dir = crud.get_setting(session, key="ftp_base_dir") or ""
     ftp_passive = crud.get_setting(session, key="ftp_passive") or "1"
     ftp_timeout = crud.get_setting(session, key="ftp_timeout") or "15"
+    ftp_encoding = crud.get_setting(session, key="ftp_encoding") or "utf-8"
 
     display_access_key = "*" * len(s3_access_key) if s3_access_key else ""
     display_secret_key = "*" * len(s3_secret_key) if s3_secret_key else ""
@@ -505,6 +508,7 @@ def storage_settings_page(request: Request, csrf_protect: CsrfProtect = Depends(
             "ftp_base_dir": ftp_base_dir,
             "ftp_passive": ftp_passive,
             "ftp_timeout": ftp_timeout,
+            "ftp_encoding": ftp_encoding,
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
@@ -532,6 +536,7 @@ def update_storage_settings(
     ftp_base_dir: str = Form(""),
     ftp_passive: str = Form("1"),
     ftp_timeout: str = Form("15"),
+    ftp_encoding: str = Form("utf-8"),
 ):
     csrf_protect.validate_csrf(request)
     _require_permission(request, "storage_settings.update")
@@ -551,6 +556,10 @@ def update_storage_settings(
         ftp_timeout = str(val)
     except (ValueError, TypeError):
         ftp_timeout = "15"
+
+    ftp_encoding = ftp_encoding.strip().lower()
+    if ftp_encoding not in {"utf-8", "gbk", "latin-1"}:
+        ftp_encoding = "utf-8"
 
     crud.set_setting(session, key="s3_enabled", value="1" if s3_enabled in {"1", "on"} else "0")
     crud.set_setting(session, key="s3_endpoint", value=s3_endpoint.strip())
@@ -572,6 +581,7 @@ def update_storage_settings(
     crud.set_setting(session, key="ftp_base_dir", value=ftp_base_dir.strip())
     crud.set_setting(session, key="ftp_passive", value="1" if ftp_passive in {"1", "on"} else "0")
     crud.set_setting(session, key="ftp_timeout", value=ftp_timeout.strip())
+    crud.set_setting(session, key="ftp_encoding", value=ftp_encoding)
 
     _log_action(
         request,

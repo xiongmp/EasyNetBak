@@ -277,8 +277,12 @@
               </div>
 
               <div class="col-12">
-                  <label class="form-label small fw-bold text-secondary">
-                      <i class="bi bi-diagram-3 me-1"></i>设备分组访问权限
+                  <label class="form-label small fw-bold text-secondary d-flex align-items-center">
+                      <i class="bi bi-diagram-3 me-1"></i>
+                      <span>设备分组访问权限</span>
+                      <div class="form-text x-small ms-2 mt-0 text-secondary opacity-50">
+                          <i class="bi bi-info-circle me-1"></i>勾选分组以分配权限；授权父节点即自动包含其所有子孙节点。
+                      </div>
                   </label>
                   <div class="card bg-light-subtle border-0">
                       <div class="card-header bg-transparent border-0 pt-3 pb-2">
@@ -303,9 +307,6 @@
                       <div id="userGroupSelectPanel" class="card-body pt-0" style="display: {{ 'block' if current and current.group_access_type == 'specific' else 'none' }};">
                           <div class="border rounded p-2 custom-tree-select bg-body" style="max-height: 300px; overflow-y: auto;">
                               <div id="userGroupTreeContainer"></div>
-                          </div>
-                          <div class="form-text x-small mt-2 text-center text-secondary">
-                              <i class="bi bi-info-circle me-1"></i>勾选分组以分配权限；授权父节点即自动包含其所有子孙节点。
                           </div>
                       </div>
                   </div>

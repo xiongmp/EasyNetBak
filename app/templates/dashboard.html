@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import render_backup_record_status %}
 
 {% block content %}
 <div class="dashboard-layout d-flex flex-column h-100">
@@ -7,7 +8,7 @@
       <h4 class="mb-0">运行统计概览</h4>
       <div class="stats-info ms-3 d-flex align-items-center">
         <span class="me-3"><i class="bi bi-calendar-check me-1"></i>统计周期：{{ dashboard_window.label }}</span>
-        
+
       </div>
     </div>
     <div class="time-selector-pill">
@@ -23,7 +24,7 @@
     </div>
   </div>
 
-  <div class="row g-2 mb-2 flex-shrink-0 row-cols-2 row-cols-md-5">
+  <div class="row g-2 mb-2 flex-shrink-0 row-cols-2 row-cols-md-5 dashboard-summary-row">
     <div class="col">
       <div class="card h-100 border-0 shadow-sm hover-lift">
         <div class="card-body py-2 px-3 d-flex align-items-center">
@@ -101,7 +102,7 @@
     </div>
   </div>
 
-  <div class="row g-2 mb-2 flex-grow-1 min-height-0">
+  <div class="row g-2 mb-2 flex-grow-1 min-height-0 dashboard-analytics-row">
     <div class="col-md-3 d-flex flex-column">
       <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
         <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
@@ -151,7 +152,7 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- 详细统计 Tab -->
             <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="overflow-y: auto; overflow-x: hidden;">
               <div class="mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between flex-shrink-0">
@@ -163,7 +164,7 @@
                   <div class="text-muted" style="font-size: 0.7rem;">{{ task_health.upload_success_total }}/{{ task_health.upload_attempt_total }}</div>
                 </div>
               </div>
-              
+
               <div class="table-responsive flex-grow-1" style="overflow-x: hidden;">
                 <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.7rem; table-layout: fixed;">
                   <thead class="table-light sticky-top">
@@ -253,7 +254,7 @@
     </div>
   </div>
 
-  <div class="row g-2 flex-grow-1 min-height-0">
+  <div class="row g-2 flex-grow-1 min-height-0 dashboard-detail-row">
     <div class="col-md-6 d-flex flex-column">
       <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
         <div class="card-header bg-transparent border-0 pt-2 px-3 pb-2 flex-shrink-0 d-flex justify-content-between align-items-center">
@@ -278,7 +279,7 @@
               <tbody id="backup-table-body">
                 {% if recent_backups %}
                 {% for record in recent_backups %}
-                <tr class="backup-row" data-status="{% if record.success %}success{% elif record.finished_at %}failed{% else %}running{% endif %}">
+                <tr class="backup-row" data-status="{% if record.status == 'cancelled' %}cancelled{% elif record.status == 'succeeded' or record.success %}success{% elif record.status == 'failed' or record.finished_at %}failed{% else %}running{% endif %}">
                   <td class="ps-3 py-1">
                     <div class="d-flex align-items-center">
                       <div class="bg-body-tertiary rounded-circle p-1 me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
@@ -292,19 +293,7 @@
                   </td>
                   <td class="py-1" style="font-size: 0.75rem;">{{ record.started_at | dt_local }}</td>
                   <td class="text-center py-1">
-                    {% if record.success %}
-                    <div class="backup-status backup-status-success" style="font-size: 0.65rem; padding: 2px 6px;">
-                      <i class="bi bi-check-circle" style="font-size: 0.65rem;"></i>成功
-                    </div>
-                    {% elif record.finished_at %}
-                    <div class="backup-status backup-status-failed" style="font-size: 0.65rem; padding: 2px 6px;">
-                      <i class="bi bi-x-circle" style="font-size: 0.65rem;"></i>失败
-                    </div>
-                    {% else %}
-                    <div class="backup-status backup-status-running" style="font-size: 0.65rem; padding: 2px 6px;">
-                      <i class="bi bi-arrow-repeat" style="font-size: 0.65rem;"></i>运行中
-                    </div>
-                    {% endif %}
+                    {{ render_backup_record_status(record.status or ('succeeded' if record.success else ('failed' if record.finished_at else 'running'))) }}
                   </td>
                   <td class="pe-3 py-1 text-end">
                       {% if record.finished_at %}
@@ -364,679 +353,12 @@
 <script src="/static/js/echarts.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-    const chartTextColor = isDark ? '#94a3b8' : '#64748b';
-    const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
-    const chartSplitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
-    const chartTooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-    const chartTooltipBorder = isDark ? '#475569' : '#e2e8f0';
-    const chartTooltipText = isDark ? '#f1f5f9' : '#334155';
-    const chartBorderColor = isDark ? '#1e293b' : '#fff';
-    const chartEmptyColor = isDark ? '#334155' : '#f1f5f9';
-    const heatmapColorList = isDark 
-        ? ['#1e293b', '#172554', '#1e40af', '#2563eb', '#3b82f6', '#60a5fa'] 
-        : ['#f1f5f9', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
-
-    // 备份趋势图
-    const trendChart = echarts.init(document.getElementById('backup-trend-chart'));
-    const trendData = {{ trend_stats | tojson }};
-    const isHourlyTrend = trendData.granularity === 'hour';
-
-    function setTrendChartOption(textColor, splitLineColor, tooltipBg, tooltipBorder, tooltipText, borderColor) {
-        trendChart.setOption({
-            animation: true,
-            animationDuration: 1000,
-            animationEasing: 'cubicOut',
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: {
-                    type: 'shadow',
-                    shadowStyle: {
-                        color: 'rgba(59, 130, 246, 0.1)'
-                    }
-                },
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                borderWidth: 1,
-                textStyle: {
-                    color: tooltipText
-                }
-            },
-            legend: {
-                data: ['成功', '失败'],
-                bottom: 0,
-                itemWidth: 12,
-                itemHeight: 12,
-                textStyle: { fontSize: 12, color: textColor }
-            },
-            grid: {
-                left: '2%',
-                right: '3%',
-                bottom: isHourlyTrend ? 60 : 40,
-                top: '5%',
-                containLabel: true
-            },
-            xAxis: {
-                type: 'category',
-                data: trendData.labels,
-                axisLine: { lineStyle: { color: borderColor } },
-                axisLabel: {
-                    color: textColor,
-                    fontSize: 11,
-                    rotate: isHourlyTrend ? 45 : 0,
-                    hideOverlap: !isHourlyTrend
-                },
-                axisTick: { show: false }
-            },
-            yAxis: {
-                type: 'value',
-                splitLine: {
-                    lineStyle: {
-                        color: splitLineColor,
-                        type: 'dashed'
-                    }
-                },
-                axisLabel: { color: textColor, fontSize: 11 },
-                axisLine: { show: false }
-            },
-            series: [
-                {
-                    name: '成功',
-                    type: 'bar',
-                    stack: 'total',
-                    itemStyle: {
-                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#22c55e' },
-                            { offset: 1, color: '#16a34a' }
-                        ]),
-                        borderRadius: [4, 4, 0, 0]
-                    },
-                    data: trendData.success,
-                    barWidth: isHourlyTrend ? '70%' : '60%',
-                    emphasis: {
-                        itemStyle: {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: '#4ade80' },
-                                { offset: 1, color: '#22c55e' }
-                            ])
-                        }
-                    }
-                },
-                {
-                    name: '失败',
-                    type: 'bar',
-                    stack: 'total',
-                    itemStyle: {
-                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#ef4444' },
-                            { offset: 1, color: '#dc2626' }
-                        ]),
-                        borderRadius: [4, 4, 0, 0]
-                    },
-                    data: trendData.fail,
-                    barWidth: isHourlyTrend ? '70%' : '60%',
-                    emphasis: {
-                        itemStyle: {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: '#f87171' },
-                                { offset: 1, color: '#ef4444' }
-                            ])
-                        }
-                    }
-                }
-            ]
-        });
-    }
-
-    setTrendChartOption(
-        chartTextColor,
-        chartSplitLineColor,
-        chartTooltipBg,
-        chartTooltipBorder,
-        chartTooltipText,
-        chartBorderColor
-    );
-    
-    // 移除趋势图加载状态
-    document.querySelector('#backup-trend-chart .chart-loading')?.remove();
-
-    // 平台分布饼图
-    const pieChart = echarts.init(document.getElementById('platform-pie-chart'));
-    const platformData = {{ platform_stats | tojson }};
-    
-    pieChart.setOption({
-        animation: true,
-        animationDuration: 1000,
-        animationEasing: 'cubicOut',
-        tooltip: {
-            trigger: 'item',
-            formatter: '{b}: {c} ({d}%)',
-            backgroundColor: chartTooltipBg,
-            borderColor: chartTooltipBorder,
-            borderWidth: 1,
-            textStyle: {
-                color: chartTooltipText
-            }
-        },
-        legend: {
-            bottom: '5',
-            left: 'center',
-            itemWidth: 12,
-            itemHeight: 12,
-            padding: [0, 5],
-            textStyle: { fontSize: 12, color: chartTextColor }
-        },
-        series: [
-            {
-                name: '平台',
-                type: 'pie',
-                radius: ['45%', '70%'],
-                center: ['50%', '40%'],
-                avoidLabelOverlap: false,
-                itemStyle: {
-                    borderRadius: 5,
-                    borderColor: chartBorderColor,
-                    borderWidth: 2
-                },
-                label: {
-                    show: false,
-                    position: 'center'
-                },
-                emphasis: {
-                    label: {
-                        show: true,
-                        fontSize: '14',
-                        fontWeight: 'bold'
-                    },
-                    scale: true,
-                    scaleSize: 10
-                },
-                labelLine: {
-                    show: false
-                },
-                data: platformData,
-                animationType: 'scale',
-                animationEasing: 'elasticOut'
-            }
-        ]
-    });
-    
-    // 移除饼图加载状态
-    document.querySelector('#platform-pie-chart .chart-loading')?.remove();
-
-    // 配置变更频率热力图
-    const heatmapChart = echarts.init(document.getElementById('change-heatmap-chart'));
-    const heatmapData = {{ change_heatmap | tojson }};
-    const heatmapValues = Array.isArray(heatmapData.data) ? heatmapData.data : [];
-    const heatmapMax = heatmapData.max || 0;
-    const isMatrixHeatmap = heatmapData.mode === 'matrix';
-
-    function setHeatmapChartOption(textColor, tooltipBg, tooltipBorder, tooltipText, borderColor, emptyColor, colorList) {
-        const baseOption = {
-            animation: true,
-            animationDuration: 1000,
-            animationEasing: 'cubicOut',
-            visualMap: {
-                type: 'continuous',
-                min: 0,
-                max: Math.max(5, heatmapMax),
-                calculable: false,
-                orient: 'horizontal',
-                left: 'center',
-                bottom: 0,
-                inRange: {
-                    color: colorList
-                },
-                text: ['多', '少'],
-                textStyle: { fontSize: 12, color: textColor },
-                itemWidth: 16,
-                itemHeight: 200
-            }
-        };
-
-        if (isMatrixHeatmap) {
-            heatmapChart.setOption({
-                ...baseOption,
-                tooltip: {
-                    position: 'top',
-                    formatter: function (params) {
-                        const xIndex = params.value && params.value.length > 2 ? params.value[0] : 0;
-                        const yIndex = params.value && params.value.length > 2 ? params.value[1] : 0;
-                        const val = params.value && params.value.length > 2 ? params.value[2] : 0;
-                        const xLabel = (heatmapData.x_labels || [])[xIndex] || '';
-                        const yLabel = (heatmapData.y_labels || [])[yIndex] || '';
-                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
-                    },
-                    backgroundColor: tooltipBg,
-                    borderColor: tooltipBorder,
-                    borderWidth: 1,
-                    padding: [8, 12],
-                    textStyle: {
-                        color: tooltipText,
-                        fontSize: 12
-                    },
-                    extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
-                },
-                grid: {
-                    left: '4%',
-                    right: '3%',
-                    top: '10%',
-                    bottom: 40,
-                    containLabel: true
-                },
-                xAxis: {
-                    type: 'category',
-                    data: heatmapData.x_labels || [],
-                    splitArea: { show: true },
-                    splitLine: { show: false },
-                    axisLine: { lineStyle: { color: borderColor } },
-                    axisLabel: {
-                        color: textColor,
-                        fontSize: 12,
-                        rotate: (heatmapData.y_labels || []).length === 1 ? 45 : 0,
-                        hideOverlap: false
-                    },
-                    axisTick: { show: false }
-                },
-                yAxis: {
-                    type: 'category',
-                    data: heatmapData.y_labels || [],
-                    splitArea: { show: true },
-                    splitLine: { show: false },
-                    axisLine: { lineStyle: { color: borderColor } },
-                    axisLabel: { color: textColor, fontSize: 12 },
-                    axisTick: { show: false }
-                },
-                series: [
-                    {
-                        type: 'heatmap',
-                        data: heatmapValues,
-                        label: { show: false },
-                        itemStyle: {
-                            borderRadius: 4,
-                            borderColor: borderColor,
-                            borderWidth: 1
-                        },
-                        emphasis: {
-                            itemStyle: {
-                                shadowBlur: 6,
-                                shadowColor: 'rgba(0, 0, 0, 0.12)',
-                                borderColor: '#3b82f6',
-                                borderWidth: 1
-                            }
-                        }
-                    }
-                ]
-            }, true);
-            return;
-        }
-
-        heatmapChart.setOption({
-            ...baseOption,
-            tooltip: {
-                position: 'top',
-                formatter: function (params) {
-                    const label = params.value && params.value.length > 1 ? params.value[0] : '';
-                    const val = params.value && params.value.length > 1 ? params.value[1] : 0;
-                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
-                },
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                borderWidth: 1,
-                padding: [8, 12],
-                textStyle: {
-                    color: tooltipText,
-                    fontSize: 12
-                },
-                extraCssText: 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-radius: 6px;'
-            },
-            calendar: {
-                top: 25,
-                left: 30,
-                right: 10,
-                bottom: 40,
-                cellSize: ['auto', 16],
-                range: heatmapData.range,
-                itemStyle: {
-                    borderWidth: 2,
-                    borderColor: borderColor,
-                    color: emptyColor
-                },
-                splitLine: {
-                    show: false
-                },
-                dayLabel: {
-                    nameMap: ['日', '一', '二', '三', '四', '五', '六'],
-                    firstDay: 1,
-                    color: textColor,
-                    fontSize: 10
-                },
-                monthLabel: {
-                    nameMap: 'cn',
-                    color: textColor,
-                    fontSize: 11,
-                    margin: 6
-                },
-                yearLabel: { show: false }
-            },
-            series: [
-                {
-                    type: 'heatmap',
-                    coordinateSystem: 'calendar',
-                    data: heatmapValues,
-                    itemStyle: {
-                        borderRadius: 3,
-                    },
-                    emphasis: {
-                        itemStyle: {
-                            shadowBlur: 4,
-                            shadowColor: 'rgba(0, 0, 0, 0.1)',
-                            borderColor: '#3b82f6',
-                            borderWidth: 1
-                        }
-                    }
-                }
-            ]
-        }, true);
-    }
-
-    setHeatmapChartOption(
-        chartTextColor,
-        chartTooltipBg,
-        chartTooltipBorder,
-        chartTooltipText,
-        chartBorderColor,
-        chartEmptyColor,
-        heatmapColorList
-    );
-
-    document.querySelector('#change-heatmap-chart .chart-loading')?.remove();
-
-    // 分组健康度柱状图
-    const healthChart = echarts.init(document.getElementById('group-health-chart'));
-    const healthData = {{ health_stats | tojson }};
-    
-    // 动态计算是否需要滚动条
-    const showZoom = healthData.length > 5;
-    
-    healthChart.setOption({
-        animation: true,
-        animationDuration: 1000,
-        animationEasing: 'cubicOut',
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: { type: 'shadow' },
-            formatter: '{b}: {c}%',
-            backgroundColor: chartTooltipBg,
-            borderColor: chartTooltipBorder,
-            borderWidth: 1,
-            textStyle: {
-                color: chartTooltipText
-            }
-        },
-        grid: {
-            left: '1%',
-            right: showZoom ? '10%' : '8%',
-            bottom: 20,
-            top: '2%',
-            containLabel: true
-        },
-        dataZoom: showZoom ? [
-            {
-                type: 'slider',
-                yAxisIndex: 0,
-                width: 6,
-                right: 2,
-                showDataShadow: false,
-                startValue: 0,
-                endValue: 4,
-                borderColor: 'transparent',
-                backgroundColor: 'transparent',
-                fillerColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)',
-                handleSize: 0,
-                showDetail: false
-            },
-            {
-                type: 'inside',
-                yAxisIndex: 0,
-                zoomOnMouseWheel: false,
-                moveOnMouseWheel: true,
-                moveOnMouseMove: true
-            }
-        ] : [],
-        xAxis: {
-            type: 'value',
-            max: 100,
-            splitLine: { 
-                lineStyle: { 
-                    color: chartSplitLineColor,
-                    type: 'dashed'
-                } 
-            },
-            axisLabel: { formatter: '{value}%', color: chartTextColor, fontSize: 12 },
-            axisLine: { show: false }
-        },
-        yAxis: {
-            type: 'category',
-            inverse: true, // 设置为反向，让第一个数据在上方
-            data: healthData.map(item => item.name),
-            axisLine: { lineStyle: { color: chartBorderColor } },
-            axisLabel: { 
-                color: chartTextColor, 
-                fontSize: 12,
-                width: 120, // 为层级分组名称预留更多显示空间
-                overflow: 'truncate' // 文本过长时截断
-            },
-            axisTick: { show: false }
-        },
-        series: [
-            {
-                name: '成功率',
-                type: 'bar',
-                data: healthData.map(item => item.value),
-                itemStyle: {
-                    color: function(params) {
-                        const val = params.value;
-                        if (val >= 90) return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                            { offset: 0, color: '#22c55e' },
-                            { offset: 1, color: '#16a34a' }
-                        ]);
-                        if (val >= 70) return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                            { offset: 0, color: '#fbbf24' },
-                            { offset: 1, color: '#f59e0b' }
-                        ]);
-                        return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                            { offset: 0, color: '#f87171' },
-                            { offset: 1, color: '#ef4444' }
-                        ]);
-                    },
-                    borderRadius: [0, 4, 4, 0]
-                },
-                label: {
-                    show: true,
-                    position: 'right',
-                    formatter: '{c}%',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: chartTitleColor
-                },
-                barMaxWidth: 20,
-                emphasis: {
-                    itemStyle: {
-                        shadowBlur: 10,
-                        shadowColor: 'rgba(0, 0, 0, 0.1)'
-                    }
-                },
-                animationDelay: function (idx) {
-                    return idx * 100;
-                }
-            }
-        ]
-    });
-    
-    // 移除健康度图加载状态
-    document.querySelector('#group-health-chart .chart-loading')?.remove();
-
-    // 监听主题切换事件
-    window.addEventListener('themeChanged', function(e) {
-        const newTheme = e.detail.theme;
-        const isDark = newTheme === 'dark';
-        
-        // 重新定义颜色变量
-        const textColor = isDark ? '#94a3b8' : '#64748b';
-        const titleColor = isDark ? '#e2e8f0' : '#334155';
-        const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9';
-        const tooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-        const tooltipBorder = isDark ? '#475569' : '#e2e8f0';
-        const tooltipText = isDark ? '#f1f5f9' : '#334155';
-        const borderColor = isDark ? '#1e293b' : '#fff';
-        const emptyColor = isDark ? '#334155' : '#f1f5f9';
-        const heatmapColors = isDark 
-            ? ['#1e293b', '#172554', '#1e40af', '#2563eb', '#3b82f6', '#60a5fa'] 
-            : ['#f1f5f9', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
-
-        // 更新趋势图
-        setTrendChartOption(
-            textColor,
-            splitLineColor,
-            tooltipBg,
-            tooltipBorder,
-            tooltipText,
-            borderColor
-        );
-
-        // 更新饼图
-        pieChart.setOption({
-            tooltip: {
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                textStyle: { color: tooltipText }
-            },
-            legend: { textStyle: { color: textColor } },
-            series: [{
-                itemStyle: { borderColor: borderColor }
-            }]
-        });
-
-        // 更新热力图
-        setHeatmapChartOption(
-            textColor,
-            tooltipBg,
-            tooltipBorder,
-            tooltipText,
-            borderColor,
-            emptyColor,
-            heatmapColors
-        );
-
-        // 更新健康度图
-        healthChart.setOption({
-            tooltip: {
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
-                textStyle: { color: tooltipText }
-            },
-            dataZoom: showZoom ? [{
-                backgroundColor: 'transparent',
-                fillerColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'
-            }, {
-                type: 'inside'
-            }] : [],
-            xAxis: {
-                axisLabel: { color: textColor },
-                splitLine: { lineStyle: { color: splitLineColor } }
-            },
-            yAxis: {
-                axisLine: { lineStyle: { color: borderColor } },
-                axisLabel: { color: textColor }
-            },
-            series: [{
-                label: { color: titleColor }
-            }]
-        });
-    });
-
-    // 响应式优化：使用 ResizeObserver 监听容器大小变化
-    const chartMap = new Map();
-    if (document.getElementById('backup-trend-chart')) chartMap.set(document.getElementById('backup-trend-chart'), trendChart);
-    if (document.getElementById('platform-pie-chart')) chartMap.set(document.getElementById('platform-pie-chart'), pieChart);
-    if (document.getElementById('change-heatmap-chart')) chartMap.set(document.getElementById('change-heatmap-chart'), heatmapChart);
-    if (document.getElementById('group-health-chart')) chartMap.set(document.getElementById('group-health-chart'), healthChart);
-
-    const resizeObserver = new ResizeObserver(entries => {
-        // 使用 requestAnimationFrame 优化，避免 "ResizeObserver loop limit exceeded" 错误
-        window.requestAnimationFrame(() => {
-            entries.forEach(entry => {
-                const chart = chartMap.get(entry.target);
-                if (chart) chart.resize();
-            });
-        });
-    });
-
-    chartMap.forEach((chart, container) => {
-        resizeObserver.observe(container);
-    });
-
-    // 备份活动表格过滤
-    const filterButtons = document.querySelectorAll('[data-filter]');
-    const backupRows = document.querySelectorAll('.backup-row');
-    const emptyStateRow = document.getElementById('empty-state-row');
-    
-    filterButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const filter = this.getAttribute('data-filter');
-            
-            // 更新按钮状态
-            filterButtons.forEach(btn => {
-                btn.classList.remove('btn-primary', 'active');
-                btn.classList.add('btn-outline-secondary');
-            });
-            this.classList.remove('btn-outline-secondary');
-            this.classList.add('btn-primary', 'active');
-            
-            let visibleCount = 0;
-            
-            // 过滤表格行
-            backupRows.forEach(row => {
-                const status = row.getAttribute('data-status');
-                if (filter === 'all' || status === filter) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-            
-            // 处理空状态显示
-            if (visibleCount === 0 && emptyStateRow) {
-                emptyStateRow.style.display = '';
-                const emptyText = emptyStateRow.querySelector('p');
-                if (filter === 'success') {
-                    emptyText.textContent = '暂无成功的备份记录';
-                } else if (filter === 'failed') {
-                    emptyText.textContent = '暂无失败的备份记录';
-                } else {
-                    emptyText.textContent = '暂无备份记录';
-                }
-            } else if (emptyStateRow) {
-                emptyStateRow.style.display = 'none';
-            }
-        });
-    });
-
-    // 备份详情查看按钮
-    const backupLinks = document.querySelectorAll('.nb-backup-link');
-    backupLinks.forEach(link => {
-        link.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            const backupId = this.getAttribute('data-backup-id');
-            if (!backupId) return;
-            if (window.NB && typeof window.NB.openBackupView === 'function') {
-                window.NB.openBackupView(backupId);
-            }
-        });
-    });
-});
+  window.DASHBOARD_CONFIG = {
+    trendStats: {{ trend_stats | tojson }},
+    platformStats: {{ platform_stats | tojson }},
+    changeHeatmap: {{ change_heatmap | tojson }},
+    healthStats: {{ health_stats | tojson }}
+  };
 </script>
+<script src="/static/js/pages/dashboard.js"></script>
 {% endblock %}

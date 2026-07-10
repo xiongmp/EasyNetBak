@@ -1465,6 +1465,10 @@ def _delete_empty_schedule_runs(session: Session, run_ids: Iterable[UUID]) -> No
     )
     run_ids_to_delete = [run_id for run_id in terminal_run_ids if run_id not in remaining_run_ids]
     if run_ids_to_delete:
+        stmt_del_events = delete(TaskEvent).where(
+            TaskEvent.run_id.in_([str(run_id) for run_id in run_ids_to_delete])
+        )
+        session.exec(stmt_del_events)
         stmt_del_runs = delete(BackupScheduleRun).where(BackupScheduleRun.id.in_(run_ids_to_delete))
         session.exec(stmt_del_runs)
 
@@ -1484,6 +1488,8 @@ def bulk_delete_backups(session: Session, backup_ids: Iterable[UUID]) -> int:
         )
         stmt = delete(BackupScheduleRunItem).where(BackupScheduleRunItem.backup_id == bid)
         session.exec(stmt)
+        stmt_events = delete(TaskEvent).where(TaskEvent.record_id == str(bid))
+        session.exec(stmt_events)
         session.delete(record)
         count += 1
     _delete_empty_schedule_runs(session, affected_run_ids)
@@ -1533,6 +1539,11 @@ def cleanup_old_backups(session: Session, days: int) -> int:
     
     if record_ids_to_delete:
         # 2. 删除关联的 run items
+        stmt_del_events = delete(TaskEvent).where(
+            TaskEvent.record_id.in_([str(record_id) for record_id in record_ids_to_delete])
+        )
+        session.exec(stmt_del_events)
+
         stmt_del_items = delete(BackupScheduleRunItem).where(BackupScheduleRunItem.backup_id.in_(record_ids_to_delete))
         session.exec(stmt_del_items)
         

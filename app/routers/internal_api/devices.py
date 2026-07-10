@@ -43,8 +43,13 @@ def api_trigger_backup(request: Request, device_id: int, template_id: int = Form
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "TRIGGER_BACKUP_API", "device", device_id, f"Backup Record ID: {result.record_id}")
     if not result.enqueued:
+        if result.enqueue_error_message:
+            raise HTTPException(status_code=503, detail=result.enqueue_error_message)
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {
+        "run_id": str(result.run_id) if result.run_id else None,
+        "enqueue_status": result.enqueue_status,
+        "enqueue_warning_message": result.enqueue_warning_message,
         "record": {
             "id": str(result.record_id),
             "device_id": int(result.device_id),
@@ -81,11 +86,15 @@ def api_bulk_backup(
         None,
         f"Run ID: {result.run_id}, Jobs: {len(result.jobs)}",
     )
+    if not result.enqueued and result.enqueue_error_message:
+        raise HTTPException(status_code=503, detail=result.enqueue_error_message)
     if result.enqueue_status == "none":
         raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
     return {
+        "run_id": str(result.run_id) if result.run_id else None,
         "records": [str(record_id) for record_id in result.enqueued_record_ids],
         "enqueue_status": result.enqueue_status,
+        "enqueue_warning_message": result.enqueue_warning_message,
     }
 
 

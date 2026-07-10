@@ -29,6 +29,7 @@ def _dt_local_filter(ctx, value: datetime | None) -> str:
 
 
 templates.env.filters["dt_local"] = _dt_local_filter
+templates.env.globals["app_name"] = settings.app_name
 templates.env.globals["app_version"] = settings.app_version
 
 

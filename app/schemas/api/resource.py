@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.api.common import PageResponse
 from app.schemas.inputs import (
     CredentialCreateInput,
     CredentialUpdateInput,
@@ -30,7 +31,7 @@ class GroupResponseSchema(BaseModel):
 
 
 class GroupTreeNodeSchema(GroupResponseSchema):
-    children: list["GroupTreeNodeSchema"] = []
+    children: list["GroupTreeNodeSchema"] = Field(default_factory=list)
 
 
 GroupTreeNodeSchema.model_rebuild()
@@ -41,6 +42,10 @@ class GroupCreateSchema(GroupCreateInput):
 
 
 class GroupUpdateSchema(GroupUpdateInput):
+    pass
+
+
+class GroupListResponseSchema(PageResponse[GroupResponseSchema]):
     pass
 
 
@@ -62,6 +67,10 @@ class CredentialUpdateSchema(CredentialUpdateInput):
     pass
 
 
+class CredentialListResponseSchema(PageResponse[CredentialResponseSchema]):
+    pass
+
+
 class TemplateResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,4 +86,8 @@ class TemplateCreateSchema(TemplateCreateInput):
 
 
 class TemplateUpdateSchema(TemplateUpdateInput):
+    pass
+
+
+class TemplateListResponseSchema(PageResponse[TemplateResponseSchema]):
     pass

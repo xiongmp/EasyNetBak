@@ -15,17 +15,32 @@ from sqlmodel import Session, select
 
 from app.db import session_scope
 from app.models import BackupRecord, BackupScheduleRun, Device, TaskEvent
-from app.services import task_runtime_config_service, task_state_service
+from app.services import task_event_bus_service, task_runtime_config_service, task_state_service
 
 _MODULE_LOGGER = logging.getLogger(__name__)
 _TASK_EVENT_BUFFER_BATCH_SIZE = 20
 _TASK_EVENT_BUFFER_FLUSH_INTERVAL_SECONDS = 5.0
 _TASK_EVENT_BUFFER_MAX_SIZE = 500
 _TASK_EVENT_IMMEDIATE_PERSIST_EVENTS = {
+    "backup_record_netmiko_connecting",
+    "backup_record_netmiko_connected",
+    "backup_record_enable_started",
+    "backup_record_enable_completed",
+    "backup_record_prompt_detected",
+    "backup_record_command_started",
+    "backup_record_command_pagination_detected",
+    "backup_record_command_pagination_completed",
+    "backup_record_command_completed",
+    "backup_record_netmiko_disconnected",
+    "backup_record_legacy_ssh_fallback_started",
+    "backup_record_legacy_ssh_fallback_completed",
+    "backup_record_netmiko_failed",
+    "backup_record_netmiko_completed",
     "backup_record_task_retry_scheduled",
     "backup_record_storage_upload",
     "backup_record_task_signal_failure",
     "backup_record_task_revoked",
+    "backup_record_semaphore_degraded",
 }
 _TASK_EVENT_LOG_ONLY_EVENTS = {
     "bulk_reachability_device_error",
@@ -86,6 +101,7 @@ def log_task_event(
     if persistence_mode == "log_only":
         return
     if persistence_mode == "immediate":
+        flush_task_event_buffer(logger=logger, force=True)
         _persist_task_events([buffered_event], logger=logger, flush_reason="immediate", allow_requeue=False)
         return
     _buffer_task_event(buffered_event, logger=logger)
@@ -403,10 +419,14 @@ def _persist_task_events(
     if not events:
         return
 
+    broadcast_payloads: list[dict[str, Any]] = []
     try:
         with session_scope() as session:
             for task_event in events:
-                session.add(_to_task_event_model(task_event))
+                model = _to_task_event_model(task_event)
+                session.add(model)
+                session.flush()
+                broadcast_payloads.append(task_event_bus_service.serialize_task_event_model(model))
     except SQLAlchemyError as exc:
         dropped_count = _requeue_task_events(events) if allow_requeue else len(events)
         logger.warning(
@@ -424,6 +444,10 @@ def _persist_task_events(
             ),
             exc_info=True,
         )
+        return
+
+    if broadcast_payloads:
+        task_event_bus_service.publish_task_events(broadcast_payloads)
 
 
 def _requeue_task_events(events: list[BufferedTaskEvent]) -> int:

@@ -1,28 +1,44 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.security import APIKeyHeader
+from fastapi import Depends, Request
 from sqlmodel import Session
 
 from app import crud
 from app.db import get_session
+from app.routers.public_api.v1.common import (
+    limit_query,
+    normalize_public_pagination,
+    page_payload,
+    page_query,
+    public_api_router,
+)
 from app.routers.support import _require_api_permission, raise_api_error, raise_service_api_error
 from app.schemas.api.resource import (
     OperationStatusSchema,
     TemplateCreateSchema,
+    TemplateListResponseSchema,
     TemplateResponseSchema,
     TemplateUpdateSchema,
 )
 from app.services import resource_service
 
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False, description="API Key for third-party integrations")
-
-router = APIRouter(prefix="/api/v1", dependencies=[Depends(api_key_header)])
+router = public_api_router()
 
 
-@router.get("/templates", summary="获取所有自定义备份模板", response_model=list[TemplateResponseSchema], tags=["备份管理"])
-def get_templates(request: Request, session: Session = Depends(get_session)):
+@router.get("/templates", summary="获取所有自定义备份模板", response_model=TemplateListResponseSchema, tags=["备份管理"])
+def get_templates(
+    request: Request,
+    page: int = page_query(),
+    limit: int = limit_query(),
+    session: Session = Depends(get_session),
+):
     _require_api_permission(request, "templates.view")
-    return crud.list_templates(session)
+    pagination = normalize_public_pagination(page=page, limit=limit)
+    return page_payload(
+        items=crud.list_templates(session, limit=pagination.limit, offset=pagination.offset),
+        page=pagination.page,
+        limit=pagination.limit,
+        total=crud.count_templates(session),
+    )
 
 
 @router.get("/templates/{template_id}", summary="获取备份模板详情", response_model=TemplateResponseSchema, tags=["备份管理"])

@@ -102,9 +102,10 @@
                   <thead class="bg-body-tertiary">
                     <tr>
                       <th style="width: 40px;"></th>
-                      <th style="width: 180px;">备份时间</th>
+                      <th class="backup-time-cell" style="width: 180px;">备份时间</th>
                       <th style="width: 110px;">状态</th>
                       <th>详细信息 / 错误原因</th>
+                      <th style="width: 80px;">日志</th>
                       {% if has_permission('backups.delete') %}
                       <th style="width: 80px;">操作</th>
                       {% endif %}
@@ -112,7 +113,7 @@
                   </thead>
                   <tbody id="backup-tbody-1">
                     <tr>
-                      <td colspan="{{ 5 if has_permission('backups.delete') else 4 }}" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
+                      <td colspan="{{ 6 if has_permission('backups.delete') else 5 }}" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
                     </tr>
                   </tbody>
                 </table>
@@ -127,9 +128,10 @@
                   <thead class="bg-body-tertiary" id="thead-2">
                     <tr>
                       <th style="width: 40px;"></th>
-                      <th style="width: 180px;">备份时间</th>
+                      <th class="backup-time-cell" style="width: 180px;">备份时间</th>
                       <th style="width: 110px;">状态</th>
                       <th>详细信息 / 错误原因</th>
+                      <th style="width: 80px;">日志</th>
                       {% if has_permission('backups.delete') %}
                       <th style="width: 80px;">操作</th>
                       {% endif %}
@@ -229,7 +231,7 @@
 
     const BACKUP_PAGE_LIMIT = 20;
     const SCROLL_LOAD_THRESHOLD = 64;
-    const BACKUP_TABLE_COLSPAN = CAN_DELETE_BACKUP ? 5 : 4;
+    const BACKUP_TABLE_COLSPAN = CAN_DELETE_BACKUP ? 6 : 5;
     let selectedDeviceIds = []; // Array of strings
     let isMultiDeviceMode = false;
     let selectedBackups = [];
@@ -278,7 +280,7 @@
       const attachListeners = (tbody) => {
         tbody.querySelectorAll(".backup-row").forEach((tr) => {
           tr.addEventListener("click", (ev) => {
-            if (ev.target && ev.target.closest && ev.target.closest(".backup-delete-row")) return;
+            if (ev.target && ev.target.closest && ev.target.closest(".backup-delete-row, .backup-log-row")) return;
             const cb = tr.querySelector(".backup-select");
             if (!cb) return;
             if (ev.target === cb) return;
@@ -319,6 +321,17 @@
             const bid = btn.getAttribute("data-backup-id");
             if (!bid) return;
             deleteBackupRecord(bid);
+          });
+        });
+        tbody.querySelectorAll(".backup-log-row").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const bid = btn.getAttribute("data-backup-id");
+            if (!bid) return;
+            if (window.NB && typeof window.NB.openBackupLogView === "function") {
+              window.NB.openBackupLogView(bid);
+            }
           });
         });
       };
@@ -378,9 +391,10 @@
             html += `
               <tr class="backup-row" data-backup-id="${escapeText(b.id)}">
                 <td><input class="form-check-input backup-select" type="checkbox" ${checked} /></td>
-                <td class="text-secondary small">${escapeText(b.started_at)}</td>
+                <td class="backup-time-cell text-secondary small">${escapeText(b.started_at)}</td>
                 <td>${status}</td>
                 <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}">${err}</td>
+                <td><button class="btn btn-outline-secondary btn-sm py-0 px-2 backup-log-row" title="查看执行日志" data-backup-id="${escapeText(b.id)}"><i class="bi bi-journal-text"></i></button></td>
                 ${opCell}
               </tr>
             `;
@@ -413,7 +427,7 @@
          let detail = "";
          try {
            const data = await resp.json();
-           detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+           detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
          } catch (e) {
            detail = "";
          }
@@ -628,7 +642,7 @@
             let detail = "";
             try {
               const data = await resp.json();
-              detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+              detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
             } catch (e) {
               detail = "";
             }
@@ -842,7 +856,7 @@
         let detail = "";
         try {
           const data = await resp.json();
-          detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+          detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
         } catch (e) {
           detail = "";
         }
@@ -952,7 +966,7 @@
                 let detail = "";
                 try {
                   const data = await resp.json();
-                  detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+                  detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
                 } catch (e) {
                   detail = "";
                 }
@@ -965,9 +979,13 @@
               
               const data = await resp.json();
               const bid = data && data.record ? data.record.id : null;
-              
+              const enqueueWarning = data && data.enqueue_warning_message ? String(data.enqueue_warning_message) : "";
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("备份任务已提交", "success");
+                if (enqueueWarning) {
+                  window.NB.showToast(enqueueWarning, "warning");
+                } else {
+                  window.NB.showToast("备份任务已提交", "success");
+                }
               }
 
               // Refresh
@@ -979,7 +997,14 @@
     
               if (bid) {
                 if (window.NB && typeof window.NB.trackBackups === "function") {
-                  window.NB.trackBackups([bid]);
+                  try {
+                    window.NB.trackBackups({
+                      backup_id: bid,
+                      warning_message: enqueueWarning,
+                    });
+                  } catch (trackError) {
+                    console.error("Failed to track backup task", trackError);
+                  }
                 }
                 startPolling(selectedDeviceId, bid);
               } else {

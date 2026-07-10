@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 from urllib.parse import quote_plus
 
 from pydantic import BaseModel, Field
@@ -40,7 +41,7 @@ class CelerySettings(BaseSettings):
             self.result_backend = self.broker_url
 
     # 备份任务失败时的最大重试次数
-    backup_max_retries: int = Field(2, alias="CELERY_BACKUP_MAX_RETRIES")
+    backup_max_retries: int = Field(1, alias="CELERY_BACKUP_MAX_RETRIES")
     # 备份任务重试的指数退避基数(秒)
     backup_retry_backoff_seconds: int = Field(10, alias="CELERY_BACKUP_RETRY_BACKOFF_SECONDS")
     # 任务软超时时间(秒)，超时会抛出 SoftTimeLimitExceeded 异常，任务可以在清理后退出
@@ -51,6 +52,8 @@ class CelerySettings(BaseSettings):
     schedule_finalize_poll_seconds: int = Field(5, alias="CELERY_SCHEDULE_FINALIZE_POLL_SECONDS")
     # 批量定时任务完成状态检查的最大轮询次数 (默认 720 次 * 5秒 = 1小时)
     schedule_finalize_max_polls: int = Field(720, alias="CELERY_SCHEDULE_FINALIZE_MAX_POLLS")
+    # When false, Redis semaphore failures block backup execution and trigger task retry.
+    redis_semaphore_fail_open: bool = Field(False, alias="CELERY_REDIS_SEMAPHORE_FAIL_OPEN")
 
 
 class CsrfSettings(BaseSettings):
@@ -77,10 +80,10 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    # 应用名称
-    app_name: str = Field("网络设备备份", alias="APP_NAME")
+    # 应用名称/品牌名，固定在代码中，不通过 .env 覆盖。
+    app_name: ClassVar[str] = "EasyNetBak"
     # 应用版本
-    app_version: str = Field("v1.3.2", alias="APP_VERSION")
+    app_version: str = Field("v1.4.0", alias="APP_VERSION")
     # 数据库连接字符串
     database_url: str = Field("", alias="DATABASE_URL")
     db_scheme: str = Field("postgresql", alias="DB_SCHEME")

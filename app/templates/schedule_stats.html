@@ -24,9 +24,9 @@
           <div class="info-label">任务名称</div>
           <div class="info-value text-truncate" title="{{ schedule.name }}">{{ schedule.name }}</div>
         </div>
-        
+
         <div class="v-divider"></div>
-        
+
         <div class="info-item">
           <div class="info-label">状态 & 平台</div>
           <div class="d-flex gap-2">
@@ -84,9 +84,9 @@
             {% endfor %}
             {% set resolved_title = title_parts|join(', ') %}
           {% endif %}
-          <div class="info-value text-truncate cursor-pointer" 
+          <div class="info-value text-truncate cursor-pointer"
                title="点击查看完整列表"
-               data-bs-toggle="modal" 
+               data-bs-toggle="modal"
                data-bs-target="#targetDevicesModal">
             <i class="bi bi-info-circle me-1 text-primary"></i>{{ resolved_title }}
           </div>
@@ -329,410 +329,27 @@
       </div>
     </div>
   </div>
- 
+
   {% if schedule %}
     <script>
-      (function () {
-        const btn = document.querySelector(".js-schedule-run");
-        const scheduleId = {{ schedule.id | tojson if schedule else 'null' }};
-        const runsTbody = document.getElementById("schedule-runs-tbody");
-        const canTerminateRuns = {{ has_permission('schedules.update') | tojson }};
-        let pollTimer = null;
-        const terminatingRunIds = new Set();
-
-        function stopPolling() {
-          if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = null;
-          }
-        }
-
-        function escapeText(text) {
-          const span = document.createElement("span");
-          span.textContent = text == null ? "" : String(text);
-          return span.innerHTML;
-        }
-
-        function renderRuns(items) {
-          if (!runsTbody) return;
-          const rows = Array.isArray(items) ? items : [];
-          if (!rows.length) {
-            runsTbody.innerHTML = `
-              <tr>
-                <td colspan="8" class="text-center text-secondary py-5">
-                  <div class="my-3">
-                    <i class="bi bi-inbox fs-1 opacity-25"></i>
-                    <p class="mt-2 text-xs">暂无运行记录</p>
-                  </div>
-                </td>
-              </tr>`;
-            return;
-          }
-
-          function canTerminateRun(status) {
-            return ["planned", "dispatching", "running", "finalizing"].includes(String(status || "").trim());
-          }
-
-          runsTbody.innerHTML = rows.map((r) => {
-            const statusHtml = window.NB && typeof window.NB.renderTaskStatusBadge === "function"
-              ? window.NB.renderTaskStatusBadge("schedule_run", { status: r.status, success: null })
-              : escapeText(r.status_label || r.status || "");
-            const statusMeta = window.NB && typeof window.NB.scheduleRunStatusMeta === "function"
-              ? window.NB.scheduleRunStatusMeta(r.status)
-              : null;
-            const successCount = r.finished_at ? Number(r.success_count || 0) : "—";
-            const failCount = r.finished_at ? Number(r.fail_count || 0) : "—";
-            const isTerminating = terminatingRunIds.has(String(r.id || ""));
-            const finishedAtHtml = r.finished_at
-              ? `<div class="fw-medium text-dark">${escapeText(r.finished_at)}</div>`
-              : '<span class="text-secondary opacity-50">—</span>';
-            let durationHtml = escapeText(r.duration_text || "—");
-            if (!r.finished_at && statusMeta) {
-              if (r.status === "running") {
-                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "运行中")}</span>`;
-              } else if (r.status === "finalizing") {
-                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "收尾中")}</span>`;
-              } else if (r.status === "cancelling") {
-                durationHtml = `<span class="text-warning"><i class="bi bi-slash-circle me-1"></i>${escapeText(statusMeta.label || r.duration_text || "终止中")}</span>`;
-              } else if (window.NB && typeof window.NB.isActiveScheduleRunStatus === "function" && window.NB.isActiveScheduleRunStatus(r.status)) {
-                durationHtml = `<span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>${escapeText(statusMeta.label || r.duration_text || r.status || "")}</span>`;
-              }
-            }
-            const actionHtml = canTerminateRuns && canTerminateRun(r.status)
-              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${isTerminating ? "处理中..." : "终止未运行任务"}</button>`
-              : '<span class="text-secondary opacity-50 text-xs">—</span>';
-
-            return `
-              <tr>
-                <td class="text-xs text-nowrap">
-                  <div class="fw-medium text-dark">${escapeText(r.started_at || "")}</div>
-                </td>
-                <td class="text-xs text-nowrap">${finishedAtHtml}</td>
-                <td class="text-nowrap">
-                  <div class="backup-status backup-status-light">${escapeText(r.trigger || "")}</div>
-                </td>
-                <td class="text-nowrap">
-                  <span class="text-xs text-secondary">${durationHtml}</span>
-                </td>
-                <td class="text-center text-nowrap">
-                  <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded bg-light border border-light-subtle">
-                    <span class="text-success fw-bold text-xs">${successCount}</span>
-                    <span class="text-secondary mx-1">/</span>
-                    <span class="text-danger fw-bold text-xs">${failCount}</span>
-                    <span class="text-secondary mx-1">/</span>
-                    <span class="text-dark fw-bold text-xs">${Number(r.total_devices || 0)}</span>
-                  </div>
-                </td>
-                <td class="text-nowrap">${statusHtml}</td>
-                <td class="text-nowrap">${actionHtml}</td>
-                <td class="text-truncate text-secondary text-xs error-summary-cell" title="${escapeText(r.error_message || "")}">${escapeText(r.error_summary || r.error_message || "")}</td>
-              </tr>`;
-          }).join("");
-        }
-
-        async function refreshRuns() {
-          if (!scheduleId) return;
-          try {
-            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/stats/runs`);
-            if (!resp.ok) {
-              let detail = "";
-              try {
-                const data = await resp.json();
-                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
-              } catch (e) {
-                detail = "";
-              }
-              if (resp.status === 404) {
-                stopPolling();
-                if (window.NB && typeof window.NB.showToast === "function") {
-                  window.NB.showToast(detail || "定时任务不存在", "warning");
-                }
-              }
-              return;
-            }
-            const data = await resp.json();
-            renderRuns(data.items || []);
-            if (!data.has_active_runs) {
-              stopPolling();
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        function ensurePolling() {
-          if (pollTimer || !scheduleId) return;
-          pollTimer = setInterval(refreshRuns, 2000);
-        }
-
-        async function terminatePendingTasks(runId) {
-          const rid = String(runId || "").trim();
-          if (!rid || terminatingRunIds.has(rid)) return;
-          terminatingRunIds.add(rid);
-          await refreshRuns();
-          try {
-            const resp = await fetch(`/api/schedules/runs/${encodeURIComponent(rid)}/terminate`, { method: "POST" });
-            let data = null;
-            try {
-              data = await resp.json();
-            } catch (e) {
-              data = null;
-            }
-            if (!resp.ok) {
-              const msg = data && (data.detail || data.message) ? (data.detail || data.message) : "终止失败";
-              throw new Error(msg);
-            }
-            if (data && data.message && window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast(data.message, "info");
-            }
-            ensurePolling();
-            await refreshRuns();
-          } catch (e) {
-            console.error(e);
-            if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("终止失败: " + e.message, "error");
-            }
-          } finally {
-            terminatingRunIds.delete(rid);
-            await refreshRuns();
-          }
-        }
-
-        async function runSchedule(scheduleId) {
-          if (!btn) return;
-          btn.disabled = true;
-          const old = btn.innerHTML;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
-          try {
-            const resp = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
-            if (!resp.ok) {
-              let detail = "";
-              try {
-                const data = await resp.json();
-                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
-              } catch (e) {
-                detail = "";
-              }
-              throw new Error(detail || "执行失败");
-            }
-            const data = await resp.json();
-            const records = (data && data.records) || [];
-            const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
-            if (records.length) {
-              if (window.NB && typeof window.NB.showToast === "function") {
-                if (enqueueStatus === "partial") {
-                  window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
-                } else {
-                  window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
-                }
-              }
-              ensurePolling();
-              refreshRuns();
-            } else if (records.length === 0) {
-              window.NB.showToast("没有找到需要备份的设备", "warning");
-            }
-          } catch (e) {
-            console.error(e);
-            window.NB.showToast("手动执行失败: " + e.message, "error");
-          } finally {
-            btn.disabled = false;
-            btn.innerHTML = old;
-          }
-        }
-        if (btn) {
-          btn.addEventListener("click", () => {
-            const sid = btn.getAttribute("data-schedule-id");
-            runSchedule(sid);
-          });
-        }
-
-        if (runsTbody) {
-          runsTbody.addEventListener("click", (event) => {
-            const terminateBtn = event.target.closest(".js-run-terminate");
-            if (!terminateBtn) return;
-            const runId = terminateBtn.getAttribute("data-run-id");
-            if (!runId) return;
-            if (window.NB && typeof window.NB.confirm === "function") {
-              window.NB.confirm({
-                title: "确认终止",
-                message: "确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。",
-                confirmBtnText: "确认终止",
-                confirmBtnClass: "btn-danger",
-                onConfirm: () => {
-                  terminatePendingTasks(runId);
-                },
-              });
-              return;
-            }
-            if (window.confirm("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。")) {
-              terminatePendingTasks(runId);
-            }
-          });
-        }
-
-        const hasActiveRuns = {{ (runs | selectattr('status', 'in', ['planned', 'dispatching', 'running', 'finalizing', 'cancelling']) | list | length > 0) | tojson }};
-        if (hasActiveRuns) {
-          ensurePolling();
-        }
-      })();
+      window.SCHEDULE_STATS_CONFIG = Object.assign(window.SCHEDULE_STATS_CONFIG || {}, {
+        scheduleId: {{ schedule.id | tojson if schedule else 'null' }},
+        canTerminateRuns: {{ has_permission('schedules.update') | tojson }},
+        hasActiveRuns: {{ (runs | selectattr('status', 'in', ['planned', 'dispatching', 'running', 'finalizing', 'cancelling']) | list | length > 0) | tojson }}
+      });
     </script>
+    <script src="/static/js/pages/schedule-stats-runs.js"></script>
   {% endif %}
 
-  <script src="/static/js/echarts.min.js"></script>
   <script>
-    (function () {
-      const TREND = {{ trend | tojson }};
-      const chartDom = document.getElementById("trend-chart");
-      if (!chartDom) return;
-
-      const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-      const textColor = isDark ? '#94a3b8' : '#64748b';
-      const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
-      const tooltipBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-      const tooltipBorder = isDark ? '#475569' : '#e2e8f0';
-      const tooltipText = isDark ? '#f1f5f9' : '#334155';
-
-      const chart = echarts.init(chartDom);
-
-      if (!TREND || !TREND.length) {
-        chart.setOption({
-          title: {
-            text: '暂无趋势数据',
-            left: 'center',
-            top: 'center',
-            textStyle: { color: '#94a3b8', fontSize: 12, fontWeight: 'normal' }
-          }
-        });
-        return;
-      }
-
-      const labels = TREND.map(function (p) {
-        var s = p.started_at || '';
-        return s.length > 10 ? s.substr(5) : s;
-      });
-      const rateData = TREND.map(function (p) { return Math.round((p.rate || 0) * 100); });
-
-      chart.setOption({
-        animation: true,
-        animationDuration: 800,
-        animationEasing: 'cubicOut',
-        tooltip: {
-          trigger: 'axis',
-          backgroundColor: tooltipBg,
-          borderColor: tooltipBorder,
-          borderWidth: 1,
-          padding: [10, 14],
-          textStyle: { color: tooltipText, fontSize: 12 },
-          axisPointer: {
-            type: 'shadow',
-            shadowStyle: { color: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.06)' }
-          },
-          formatter: function (params) {
-            var p = params[0];
-            var idx = p.dataIndex;
-            var item = TREND[idx] || {};
-            var rate = p.value;
-            var rateColor = rate >= 90 ? '#22c55e' : (rate >= 70 ? '#f59e0b' : '#ef4444');
-            return '<div style="font-weight:600;margin-bottom:6px;color:' + (isDark ? '#e2e8f0' : '#1e293b') + '">' + (item.started_at || '') + '</div>'
-              + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
-              + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>'
-              + '<span>成功率: <b style="color:' + rateColor + '">' + rate + '%</b></span>'
-              + '</div>'
-              + '<div style="font-size:11px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">'
-              + '<span style="color:#22c55e;">成功 ' + (item.success || 0) + '</span>'
-              + ' / <span style="color:#ef4444;">失败 ' + (item.fail || 0) + '</span>'
-              + ' / 总计 ' + (item.total || 0)
-              + '</div>';
-          }
-        },
-        grid: {
-          left: '0%',
-          right: '3%',
-          top: 8,
-          bottom: 4,
-          containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          data: labels,
-          boundaryGap: false,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { color: textColor, fontSize: 10 }
-        },
-        yAxis: {
-          type: 'value',
-          min: 0,
-          max: 100,
-          axisLabel: { color: textColor, fontSize: 10, formatter: '{value}%' },
-          splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } }
-        },
-        series: [{
-          type: 'line',
-          data: rateData,
-          smooth: true,
-          symbol: 'emptyCircle',
-          symbolSize: 6,
-          lineStyle: {
-            color: '#3b82f6',
-            width: 2.5,
-            shadowBlur: 6,
-            shadowColor: 'rgba(59, 130, 246, 0.15)'
-          },
-          itemStyle: {
-            color: '#3b82f6',
-            borderColor: '#3b82f6',
-            borderWidth: 2
-          },
-          emphasis: {
-            focus: 'series',
-            itemStyle: { borderWidth: 4, symbolSize: 10 }
-          },
-
-        }]
-      });
-    })();
+    window.SCHEDULE_STATS_CONFIG = Object.assign(window.SCHEDULE_STATS_CONFIG || {}, {
+      trend: {{ trend | tojson }}
+    });
   </script>
+  <script src="/static/js/echarts.min.js"></script>
+  <script src="/static/js/pages/schedule-stats-chart.js"></script>
   {% block scripts %}
-    <script src="https://cdn.jsdelivr.net/npm/cronstrue@2.50.0/dist/cronstrue-i18n.min.js"></script>
-    <script>
-      (function() {
-        const cronEl = document.getElementById("cron-meaning");
-        if (cronEl) {
-          const cron = cronEl.getAttribute("data-cron");
-          if (cron) {
-            try {
-              let meaning = cronstrue.toString(cron, { 
-                locale: "zh_CN",
-                use24HourTimeFormat: true
-              });
-              
-              // 优化中文表达，使其更符合习惯
-              if (meaning.startsWith("在")) {
-                const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
-                if (timeMatch) {
-                  const timeStr = timeMatch[1];
-                  let rest = meaning.replace(timeMatch[0], "").replace(/^[,\s，]+/, "");
-                  
-                  if (!rest) {
-                    meaning = "每天 " + timeStr;
-                  } else if (rest.startsWith("仅星期")) {
-                    meaning = rest.replace("仅星期", "每周") + " " + timeStr;
-                  } else if (rest.includes("每月的第")) {
-                    meaning = rest.replace(/在每月的第\s?(\d+)\s?天/, "每月$1号") + " " + timeStr;
-                  } else {
-                    meaning = rest + " " + timeStr;
-                  }
-                }
-              }
-              cronEl.textContent = meaning;
-            } catch (e) {
-              cronEl.textContent = "无效的 Cron 表达式";
-              cronEl.classList.replace("text-primary", "text-danger");
-            }
-          }
-        }
-      })();
-    </script>
+    <script src="/static/js/cronstrue-i18n.min.js"></script>
+    <script src="/static/js/pages/schedule-stats-cron.js"></script>
   {% endblock %}
 {% endblock %}

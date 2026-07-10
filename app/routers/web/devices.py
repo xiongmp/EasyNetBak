@@ -589,6 +589,8 @@ def bulk_backup(
         return RedirectResponse(url="/devices", status_code=303)
     if not result.jobs:
         return RedirectResponse(url="/devices?err=未找到有效设备", status_code=303)
+    if not result.enqueued and result.enqueue_error_message:
+        return RedirectResponse(url=f"/devices?{urlencode({'err': result.enqueue_error_message})}", status_code=303)
     if result.enqueue_status == "none":
         return RedirectResponse(url="/devices?err=Celery 未启用或不可用", status_code=303)
     if result.enqueue_status == "partial":
@@ -597,6 +599,8 @@ def bulk_backup(
             url=f"/devices?msg=已启动 {started} 个备份任务，部分任务入队失败",
             status_code=303,
         )
+    if result.enqueue_warning_message:
+        return RedirectResponse(url=f"/backups?{urlencode({'msg': result.enqueue_warning_message})}", status_code=303)
     return RedirectResponse(url="/backups", status_code=303)
 
 
@@ -1010,7 +1014,17 @@ def trigger_backup(request: Request, device_id: int, session: Session = Depends(
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "TRIGGER_BACKUP", "device", device_id, f"Backup Record ID: {result.record_id}")
     if not result.enqueued:
+        if result.enqueue_error_message:
+            return RedirectResponse(
+                url=f"/devices/{device_id}?{urlencode({'err': result.enqueue_error_message})}",
+                status_code=303,
+            )
         return RedirectResponse(url=f"/devices/{device_id}?err=Celery 未启用或不可用", status_code=303)
+    if result.enqueue_warning_message:
+        return RedirectResponse(
+            url=f"/devices/{device_id}?{urlencode({'msg': result.enqueue_warning_message})}",
+            status_code=303,
+        )
     return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
 
 

@@ -63,14 +63,12 @@
                         <td>
                             {% if log.username %}
                                 <span class="fw-medium">{{ log.username }}</span>
-                                {% if log.user_id %}<div class="small text-secondary">ID: {{ log.user_id }}</div>{% endif %}
                             {% else %}
                                 <span class="text-secondary small">系统 / 未知</span>
                             {% endif %}
                         </td>
                         <td>
                             <span class="small text-primary fw-bold">{{ action_map.get(log.action, log.action) }}</span>
-                            <div class="x-small text-secondary" style="font-size: 0.7rem;">{{ log.action }}</div>
                         </td>
                         <td>
                             <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">{{ resource_map.get(log.resource_type, log.resource_type) }}</span>

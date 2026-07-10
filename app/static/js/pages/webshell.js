@@ -1,0 +1,1126 @@
+document.addEventListener('DOMContentLoaded', function() {
+      const initialRootContainer = document.getElementById('terminal-container');
+      const reconnectBtn = document.getElementById('btn-reconnect');
+      const exportBtn = document.getElementById('btn-export-log');
+      const zoomInBtn = document.getElementById('btn-zoom-in');
+      const zoomOutBtn = document.getElementById('btn-zoom-out');
+      const globalSplitVBtn = document.getElementById('btn-global-split-v');
+      const globalSplitHBtn = document.getElementById('btn-global-split-h');
+      const globalSplitButtons = document.getElementById('global-split-buttons');
+      const themeList = document.getElementById('theme-list');
+      const pasteModalEl = document.getElementById('pasteModal');
+      const pasteContent = document.getElementById('paste-content');
+      const confirmPasteBtn = document.getElementById('btn-confirm-paste');
+      
+      const loginModalEl = document.getElementById('loginModal');
+      const switchDeviceModalEl = document.getElementById('switchDeviceModal');
+      const switchDeviceModalName = document.getElementById('switch-device-modal-name');
+      const btnConfirmSwitchDevice = document.getElementById('btn-confirm-switch-device');
+      const loginTypeRadios = document.getElementsByName('loginType');
+      const manualLoginFields = document.getElementById('manualLoginFields');
+      const btnLoginConnect = document.getElementById('btn-login-connect');
+      const manualUsernameInput = document.getElementById('manualUsername');
+      const manualPasswordInput = document.getElementById('manualPassword');
+      const topbarUsername = document.getElementById('topbar-username');
+      const topbarUsernameSeparator = document.getElementById('topbar-username-separator');
+      const topbarUsernameContainer = document.getElementById('topbar-username-container');
+
+      const sidebarToggleBtn = document.getElementById('btn-toggle-sidebar');
+      const sidebarEl = document.getElementById('webshell-sidebar');
+      const sidebarSearch = document.getElementById('sidebar-search');
+      const switchDeviceForm = document.getElementById('switch-device-form');
+      const tabbarEl = document.getElementById('webshell-tabbar');
+      const tabpanesEl = document.getElementById('webshell-tabpanes');
+      const initialTabPaneEl = document.getElementById('webshell-tabpane-initial');
+      const topbarDeviceNameEl = document.getElementById('topbar-device-name');
+      const topbarDeviceHostEl = document.getElementById('topbar-device-host');
+      const topbarDevicePlatformEl = document.getElementById('topbar-device-platform');
+      const topbarLoginBadgeEl = document.getElementById('topbar-login-badge');
+      const loginDeviceNameEl = document.getElementById('login-device-name');
+      const loginDeviceHostEl = document.getElementById('login-device-host');
+      const webshellConfig = window.WEBSHELL_CONFIG || {};
+      const initialDevice = webshellConfig.initialDevice || {};
+      const initialCredentialUsername = webshellConfig.initialCredentialUsername == null ? null : webshellConfig.initialCredentialUsername;
+      const csrfToken = webshellConfig.csrfToken || '';
+      const inactivityLimitMs = 5 * 60 * 1000;
+
+      let currentTheme = 'Default';
+      let pasteModal = null;
+      let loginModal = null;
+      let switchDeviceModal = null;
+      let pendingSwitchDeviceId = null;
+      
+      const tabs = new Map();
+      let activeTab = null;
+      let defaultLoginConfig = null;
+      let pendingLoginTab = null;
+
+      const themes = {
+          'Default': { type: 'dark', background: '#000000', foreground: '#ffffff', cursor: '#ffffff', headerBg: '#1a1a1a', headerFg: '#cccccc', borderColor: '#333333' },
+          'Solarized Dark': { type: 'dark', background: '#002b36', foreground: '#839496', cursor: '#93a1a1', headerBg: '#073642', headerFg: '#93a1a1', borderColor: '#073642' },
+          'Solarized Light': { type: 'light', background: '#fdf6e3', foreground: '#657b83', cursor: '#586e75', selection: '#07364240', headerBg: '#eee8d5', headerFg: '#586e75', borderColor: '#d3cbb7' },
+          'Dracula': { type: 'dark', background: '#282a36', foreground: '#f8f8f2', cursor: '#f8f8f2', headerBg: '#44475a', headerFg: '#f8f8f2', borderColor: '#6272a4' },
+          'Monokai': { type: 'dark', background: '#272822', foreground: '#f8f8f2', cursor: '#f8f8f2', headerBg: '#3e3d32', headerFg: '#f8f8f2', borderColor: '#75715e' },
+          'GitHub Light': { type: 'light', background: '#ffffff', foreground: '#24292e', cursor: '#24292e', selection: '#0366d640', headerBg: '#f6f8fa', headerFg: '#24292e', borderColor: '#e1e4e8' },
+          'Campbell': { type: 'dark', background: '#0C0C0C', foreground: '#CCCCCC', cursor: '#FFFFFF', headerBg: '#1f1f1f', headerFg: '#CCCCCC', borderColor: '#333333'},
+          'Homebrew': { type: 'dark', background: '#000000', foreground: '#28fe14', cursor: '#28fe14', selection: '#003700', headerBg: '#1a1a1a', headerFg: '#28fe14', borderColor: '#333333' }
+      };
+
+      if (typeof bootstrap !== 'undefined') {
+          pasteModal = new bootstrap.Modal(pasteModalEl);
+          loginModal = new bootstrap.Modal(loginModalEl);
+          switchDeviceModal = new bootstrap.Modal(switchDeviceModalEl);
+      }
+      
+      loginTypeRadios.forEach(radio => {
+          radio.addEventListener('change', (e) => {
+              if (e.target.value === 'manual') {
+                  manualLoginFields.style.display = 'block';
+                  manualUsernameInput.focus();
+              } else {
+                  manualLoginFields.style.display = 'none';
+              }
+          });
+      });
+
+      function handleLoginSubmit() {
+          const loginType = document.querySelector('input[name="loginType"]:checked').value;
+          const cfg = { loginType: loginType };
+          if (loginType === 'manual') {
+              cfg.username = manualUsernameInput.value.trim();
+              cfg.password = manualPasswordInput.value;
+              if (!cfg.username) {
+                  alert('请输入用户名');
+                  manualUsernameInput.focus();
+                  return;
+              }
+              // Update topbar username display for manual login
+              if (topbarUsername) {
+                  topbarUsername.textContent = cfg.username;
+              }
+              if (topbarUsernameSeparator && topbarUsernameContainer) {
+                  topbarUsernameSeparator.style.display = 'inline';
+                  topbarUsernameContainer.style.display = 'inline';
+              }
+          }
+          if (!defaultLoginConfig) defaultLoginConfig = cfg;
+          if (pendingLoginTab) {
+              pendingLoginTab.loginConfig = cfg;
+              pendingLoginTab.username = cfg.loginType === 'manual' ? (cfg.username || null) : pendingLoginTab.username;
+          }
+          loginModal.hide();
+          if (pendingLoginTab) {
+              if (pendingLoginTab.sessions.size === 0) {
+                  initFirstSession(pendingLoginTab);
+              } else if (pendingLoginTab.activeSession) {
+                  pendingLoginTab.activeSession.connect();
+              }
+          }
+      }
+
+      btnLoginConnect.addEventListener('click', handleLoginSubmit);
+
+      [manualUsernameInput, manualPasswordInput].forEach(input => {
+          input.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleLoginSubmit();
+              }
+          });
+      });
+
+      async function refreshWebshellToken(tab) {
+          try {
+              const body = new URLSearchParams();
+              body.set('csrf_token', csrfToken);
+              const result = await window.NB.api.request(`/devices/${tab.device.id}/webshell/token`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: body.toString(),
+                  credentials: 'same-origin'
+              });
+              if (result.ok) {
+                  const data = result.data || {};
+                  if (data && data.token) {
+                      tab.webshellToken = data.token;
+                      return true;
+                  }
+              }
+          } catch(e) {}
+          return false;
+      }
+
+      class TerminalSession {
+          constructor(container, tab) {
+              this.container = container;
+              this.tab = tab;
+              this.terminal = null;
+              this.fitAddon = null;
+              this.socket = null;
+              this.resizeObserver = null;
+              this.connectionStartTime = 0;
+              this.inactivityTimer = null;
+              this.autoDisconnected = false;
+              this.fontSize = 14;
+              this.authRetrying = false;
+
+              this.initUI();
+              this.initTerminal();
+              // Don't connect automatically in constructor if it's the very first time and we haven't selected login type yet.
+              // Wait, `TerminalSession` is now only created AFTER login modal finishes for the first time.
+              // Or if we split the terminal, we should use the same `initialLoginConfig`.
+              this.connect();
+              
+              tab.sessions.add(this);
+              this.setActive();
+          }
+
+          initUI() {
+              this.container.classList.add('terminal-pane');
+              this.container.addEventListener('click', () => this.setActive());
+              
+              // Create Header
+              const header = document.createElement('div');
+              header.className = 'pane-header';
+              this.header = header; // Store reference
+              
+              const title = document.createElement('div');
+              title.className = 'pane-title';
+              // Placeholder spacer to center title perfectly (controls width on right vs spacer on left)
+              // Or just use flex-grow 1 and text-align center, but we have controls on right.
+              // To center perfectly, we can use absolute positioning or grid, but flex auto margins work ok.
+              // For now, simple text-align center with flex-grow on title is good enough.
+              
+              header.appendChild(title);
+              this.titleElement = title;
+              this.updateTitle();
+              
+              const controls = document.createElement('div');
+              controls.className = 'pane-controls';
+              
+              const splitVBtn = document.createElement('button');
+              splitVBtn.className = 'pane-btn';
+              splitVBtn.title = '左右分栏';
+              splitVBtn.innerHTML = '<i class="bi bi-layout-split"></i>';
+              splitVBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  splitSession(this, 'vertical');
+              };
+              
+              const splitHBtn = document.createElement('button');
+              splitHBtn.className = 'pane-btn';
+              splitHBtn.title = '上下分栏';
+              splitHBtn.innerHTML = '<i class="bi bi-hdd-stack"></i>';
+              splitHBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  splitSession(this, 'horizontal');
+              };
+              
+              const closeBtn = document.createElement('button');
+              closeBtn.className = 'pane-btn btn-close-pane';
+              closeBtn.title = '关闭此分栏';
+              closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+              closeBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  this.destroy();
+              };
+              
+              controls.appendChild(splitVBtn);
+              controls.appendChild(splitHBtn);
+              controls.appendChild(closeBtn);
+              header.appendChild(controls);
+              
+              this.container.appendChild(header);
+              
+              // Create Body
+              const body = document.createElement('div');
+              body.className = 'pane-body';
+              this.container.appendChild(body);
+              
+              this.termParent = body;
+          }
+
+          initTerminal() {
+              // Terminal is now appended to this.termParent (the body)
+              const termContainer = document.createElement('div');
+              termContainer.style.width = '100%';
+              termContainer.style.height = '100%';
+              this.termParent.appendChild(termContainer);
+
+              if (!window.Terminal) return;
+              
+              this.terminal = new Terminal({
+                  cursorBlink: true,
+                  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+                  fontSize: this.fontSize,
+                  theme: themes[currentTheme] || themes['Default']
+              });
+
+              if (window.FitAddon && window.FitAddon.FitAddon) {
+                  this.fitAddon = new window.FitAddon.FitAddon();
+                  this.terminal.loadAddon(this.fitAddon);
+              }
+
+              this.terminal.open(termContainer);
+              if (this.fitAddon) this.fitAddon.fit();
+
+              if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
+                  this.terminal.attachCustomKeyEventHandler((e) => {
+                      if (
+                          e.type === 'keydown' &&
+                          (e.key === 'Delete' || e.key === 'Backspace') &&
+                          !e.ctrlKey &&
+                          !e.metaKey &&
+                          !e.altKey
+                      ) {
+                          if (this.socket && this.socket.readyState === 1) {
+                              this.socket.send(JSON.stringify({ type: 'input', data: '\x7f' }));
+                              this.markActivity();
+                          }
+                          return false;
+                      }
+                      return true;
+                  });
+              }
+
+              this.terminal.onData(data => {
+                  if (this.socket && this.socket.readyState === 1) {
+                      this.socket.send(JSON.stringify({ type: 'input', data: data }));
+                      this.markActivity();
+                  }
+              });
+
+              // Resize Observer for this specific pane body
+              if (window.ResizeObserver) {
+                  this.resizeObserver = new ResizeObserver(() => {
+                      if (this.fitAddon) {
+                          this.fitAddon.fit();
+                          this.sendResize();
+                      }
+                  });
+                  this.resizeObserver.observe(this.termParent);
+              }
+          }
+
+          updateTitle() {
+              if (this.titleElement) {
+                  // Get index from sessions set order
+                  const index = Array.from(this.tab.sessions).indexOf(this) + 1;
+                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span>${this.tab.device.name}<span class="opacity-50 ms-2">${this.tab.device.host}</span>`;
+              }
+          }
+
+          setActive() {
+               if (this.tab.activeSession === this) {
+                   if (this.terminal) this.terminal.focus();
+                   return;
+               }
+               
+               if (this.tab.activeSession) {
+                   this.tab.activeSession.container.classList.remove('active');
+                   if (this.tab.activeSession.header) {
+                       this.tab.activeSession.header.classList.remove('active');
+                       // Re-apply theme colors when inactive
+                       const theme = themes[currentTheme];
+                       if (theme) {
+                           this.tab.activeSession.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
+                           this.tab.activeSession.header.style.color = theme.headerFg || '#ccc';
+                           this.tab.activeSession.header.style.borderBottomColor = theme.borderColor || '#333';
+                       }
+                   }
+               }
+               this.tab.activeSession = this;
+               this.container.classList.add('active');
+               if (this.header) {
+                   this.header.classList.add('active');
+                   // Remove inline styles to let CSS class take precedence (or override with !important in CSS)
+                   // But since we use !important in CSS .active, inline styles don't matter much, 
+                   // except for cleaner DOM.
+               }
+               if (this.terminal) this.terminal.focus();
+           }
+
+          buildUrl() {
+              const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+              const tokenQuery = this.tab.webshellToken ? `?token=${encodeURIComponent(this.tab.webshellToken)}` : '';
+              return `${scheme}://${window.location.host}/ws/devices/${this.tab.device.id}/shell${tokenQuery}`;
+          }
+
+          async connect(options = {}) {
+              const { refreshToken = true, resetAuthRetry = true } = options;
+              if (resetAuthRetry) {
+                  this.authRetrying = false;
+              }
+              if (this.socket) {
+                  this.socket.close();
+                  this.socket = null;
+              }
+
+              this.terminal.clear();
+              this.writeLine('正在连接...');
+
+              if (refreshToken) {
+                  await refreshWebshellToken(this.tab);
+              }
+              this.connectionStartTime = Date.now();
+              this.socket = new WebSocket(this.buildUrl());
+              this.autoDisconnected = false;
+              this.resetInactivityTimer();
+
+              this.socket.onopen = () => {
+                  // Send init config
+                  const initCfg = this.tab.loginConfig || { loginType: 'auto' };
+                  const initMsg = { type: 'init', ...initCfg };
+                  this.socket.send(JSON.stringify(initMsg));
+                  
+                  if (this.fitAddon) this.fitAddon.fit();
+                  this.sendResize();
+                  this.terminal.focus();
+                  this.markActivity();
+              };
+
+              this.socket.onmessage = (ev) => {
+                  try {
+                      const payload = JSON.parse(ev.data);
+                      if (payload.type === 'output') {
+                          this.terminal.write(payload.data || '');
+                      } else if (payload.type === 'status') {
+                          let msg = payload.message || '';
+                          if (msg.includes('连接成功') && this.connectionStartTime > 0) {
+                              const duration = Date.now() - this.connectionStartTime;
+                              msg += ` (耗时: ${formatDuration(duration)})`;
+                              this.connectionStartTime = 0;
+                          }
+                          this.writeLine(`\r\n[系统] ${msg}`);
+                          if (
+                              loginModal &&
+                              (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
+                              !this.tab.promptedLogin &&
+                              /凭据|认证|用户名|密码|auth|login/i.test(msg)
+                          ) {
+                              this.tab.promptedLogin = true;
+                              pendingLoginTab = this.tab;
+                              updateTopbarForTab(this.tab);
+                              loginModal.show();
+                          }
+                      } else if (payload.type === 'error') {
+                          const msg = payload.message || '';
+                          this.writeLine(`\r\n[错误] ${msg}`);
+                          if (
+                              loginModal &&
+                              (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
+                              !this.tab.promptedLogin &&
+                              /凭据|认证|用户名|密码|auth|login/i.test(msg)
+                          ) {
+                              this.tab.promptedLogin = true;
+                              pendingLoginTab = this.tab;
+                              updateTopbarForTab(this.tab);
+                              loginModal.show();
+                          }
+                      }
+                  } catch (e) {
+                      this.terminal.write(ev.data || '');
+                  }
+              };
+
+              this.socket.onclose = (ev) => {
+                  if (ev && ev.code === 4403 && !this.authRetrying) {
+                      this.authRetrying = true;
+                      refreshWebshellToken(this.tab).then((ok) => {
+                          if (ok) {
+                              this.connect({ refreshToken: false, resetAuthRetry: false });
+                          } else {
+                              this.writeLine('\r\n连接已关闭');
+                          }
+                      });
+                      return;
+                  }
+                  this.writeLine('\r\n连接已关闭');
+                  this.clearInactivityTimer();
+              };
+
+              this.socket.onerror = () => {
+                  this.writeLine('\r\n连接异常');
+                  this.clearInactivityTimer();
+              };
+          }
+
+          async reconnect() {
+               // Logic to refresh token if needed, shared across sessions or per session? 
+               // For now, assume token is global. 
+               // If we need to refresh global token, we should do it once.
+               // But simple reconnect:
+               this.connect();
+          }
+
+          sendResize() {
+              if (!this.socket || this.socket.readyState !== 1 || !this.terminal) return;
+              this.socket.send(JSON.stringify({ type: 'resize', cols: this.terminal.cols, rows: this.terminal.rows }));
+          }
+
+          writeLine(text) {
+              if (!this.terminal) return;
+              this.terminal.writeln(text.replace(/\n/g, '\r\n'));
+          }
+
+          markActivity() {
+              if (this.autoDisconnected) return;
+              this.resetInactivityTimer();
+          }
+
+          resetInactivityTimer() {
+              this.clearInactivityTimer();
+              this.inactivityTimer = setTimeout(() => this.handleInactivity(), inactivityLimitMs);
+          }
+
+          clearInactivityTimer() {
+              if (this.inactivityTimer) {
+                  clearTimeout(this.inactivityTimer);
+                  this.inactivityTimer = null;
+              }
+          }
+
+          handleInactivity() {
+              if (this.autoDisconnected) return;
+              this.autoDisconnected = true;
+              this.writeLine('\r\n[系统] 由于 5 分钟无活动，连接已自动断开');
+              if (this.socket && this.socket.readyState === 1) {
+                  this.socket.close();
+              }
+          }
+
+          setTheme(themeName) {
+              if (!this.terminal) return;
+              const theme = themes[themeName];
+              if (theme) {
+                  this.terminal.options.theme = theme;
+                  // Pane background matches theme background
+                  this.container.style.backgroundColor = theme.background;
+                  this.container.style.borderColor = theme.borderColor || '#333';
+                  
+                  if (this.header) {
+                       // Only apply theme colors if not active
+                       if (!this.container.classList.contains('active')) {
+                           this.header.style.backgroundColor = theme.headerBg || '#1a1a1a';
+                           this.header.style.color = theme.headerFg || '#ccc';
+                           this.header.style.borderBottomColor = theme.borderColor || '#333';
+                       } else {
+                           // Ensure active styles persist or are re-applied if needed
+                           // The CSS !important should handle it, but we can also set inline for safety
+                       }
+                       
+                       if (theme.type === 'light') {
+                           this.container.classList.add('theme-light');
+                       } else {
+                           this.container.classList.remove('theme-light');
+                       }
+                   }
+              }
+          }
+
+          setFontSize(size) {
+              if (this.terminal) {
+                  this.terminal.options.fontSize = size;
+                  this.fontSize = size;
+                  if (this.fitAddon) {
+                      this.fitAddon.fit();
+                      this.sendResize();
+                  }
+              }
+          }
+
+          getLogContent() {
+              if (!this.terminal) return '';
+              let logContent = '';
+              const buffer = this.terminal.buffer.active;
+              for (let i = 0; i < buffer.length; i++) {
+                  logContent += buffer.getLine(i).translateToString(true) + '\n';
+              }
+              return logContent;
+          }
+
+          destroy() {
+              // Cleanup
+              if (this.socket) this.socket.close();
+              if (this.resizeObserver) this.resizeObserver.disconnect();
+              if (this.terminal) this.terminal.dispose();
+              
+              this.tab.sessions.delete(this);
+              if (this.tab.activeSession === this) {
+                  this.tab.activeSession = this.tab.sessions.size > 0 ? this.tab.sessions.values().next().value : null;
+                  if (this.tab.activeSession) this.tab.activeSession.setActive();
+              }
+
+              // Remove from DOM
+              const parent = this.container.parentElement;
+              this.container.remove();
+
+              // If parent is a split-container and has only one child left, unwrap it
+              if (parent.classList.contains('split-container') && parent.children.length === 1) {
+                  const survivor = parent.children[0];
+                  const grandParent = parent.parentElement;
+                  if (grandParent) {
+                      // Move survivor to grandparent
+                      grandParent.insertBefore(survivor, parent);
+                      parent.remove();
+                  } else {
+                      // If parent was root (shouldn't happen with structure, but check)
+                      // If parent is rootContainer, we just leave it.
+                  }
+              }
+              
+              // Special case: If this was the last session
+              if (this.tab.sessions.size === 0) {
+                  const btn = document.createElement('button');
+                  btn.className = 'btn btn-primary';
+                  btn.textContent = '开启新会话';
+                  btn.onclick = () => createSession(this.tab);
+                  
+                  const wrapper = document.createElement('div');
+                  wrapper.className = 'd-flex w-100 h-100 justify-content-center align-items-center text-white';
+                  wrapper.appendChild(btn);
+                  
+                  this.tab.rootContainer.innerHTML = '';
+                  this.tab.rootContainer.appendChild(wrapper);
+                  this.tab.activeSession = null;
+              }
+              
+              updateLayoutMode(this.tab);
+          }
+      }
+
+      function formatDuration(ms) {
+          if (ms < 1000) return ms + 'ms';
+          return (ms / 1000).toFixed(2) + 's';
+      }
+
+      function applyTheme(name) {
+          if (!themes[name]) name = 'Default';
+          currentTheme = name;
+          
+          tabs.forEach(tab => {
+              tab.sessions.forEach(session => session.setTheme(name));
+          });
+          
+          localStorage.setItem('webshell_theme', name);
+          
+          // Update active state in dropdown
+          const items = themeList.querySelectorAll('.dropdown-item');
+          items.forEach(item => {
+              if (item.dataset.theme === name) {
+                  item.classList.add('active');
+              } else {
+                  item.classList.remove('active');
+              }
+          });
+          
+          // Update global background
+          const shellRoot = document.querySelector('.webshell-root');
+          if (shellRoot) {
+              shellRoot.style.backgroundColor = themes[name].background;
+          }
+      }
+
+      function updateLayoutMode(tab) {
+          const sessionCount = tab.sessions.size;
+          const isMulti = sessionCount > 1;
+
+          // Toggle Global Buttons
+          if (globalSplitButtons) {
+              if (isMulti) {
+                  // Multi-window: Hide global buttons
+                  globalSplitButtons.classList.remove('d-flex');
+                  globalSplitButtons.style.display = 'none';
+              } else {
+                  // Single-window: Show global buttons
+                  globalSplitButtons.style.display = ''; // Clear inline style
+                  globalSplitButtons.classList.add('d-flex');
+              }
+          }
+
+          // Toggle Headers and Update Titles
+          let index = 1;
+          tab.sessions.forEach(session => {
+              if (session.header) {
+                  session.header.style.display = isMulti ? 'flex' : 'none';
+              }
+              if (session.updateTitle) {
+                  session.updateTitle();
+              }
+              // Resize terminal after layout change
+              if (session.fitAddon) {
+                  // Small delay to allow DOM update
+                  setTimeout(() => {
+                      session.fitAddon.fit();
+                      session.sendResize();
+                  }, 50);
+              }
+          });
+      }
+
+      function updateTopbarForTab(tab) {
+          if (!tab) return;
+          if (topbarDeviceNameEl) {
+              topbarDeviceNameEl.title = tab.device.name || '';
+              const iconHtml = '<i class="bi bi-terminal me-2"></i>';
+              topbarDeviceNameEl.innerHTML = `${iconHtml}${escapeHtml(tab.device.name || '')}`;
+          }
+          if (topbarDeviceHostEl) {
+              const hostText = `${tab.device.host || ''}${tab.device.port ? ':' + tab.device.port : ''}`;
+              topbarDeviceHostEl.title = hostText;
+              topbarDeviceHostEl.textContent = hostText;
+          }
+          if (topbarDevicePlatformEl) {
+              topbarDevicePlatformEl.title = tab.device.platform || '';
+              topbarDevicePlatformEl.textContent = tab.device.platform || '';
+          }
+          if (topbarLoginBadgeEl) {
+              topbarLoginBadgeEl.textContent = (tab.device.loginMethod || 'ssh').toUpperCase();
+          }
+          if (topbarUsernameSeparator && topbarUsernameContainer && topbarUsername) {
+              if (tab.username) {
+                  topbarUsername.textContent = tab.username;
+                  topbarUsernameSeparator.style.display = 'inline';
+                  topbarUsernameContainer.style.display = 'inline';
+              } else {
+                  topbarUsername.textContent = '';
+                  topbarUsernameSeparator.style.display = 'none';
+                  topbarUsernameContainer.style.display = 'none';
+              }
+          }
+          if (loginDeviceNameEl) loginDeviceNameEl.textContent = tab.device.name || '';
+          if (loginDeviceHostEl) loginDeviceHostEl.textContent = tab.device.host || '';
+      }
+
+      function setSidebarActiveDevice(deviceId) {
+          const items = document.querySelectorAll('.device-item');
+          items.forEach(el => {
+              const isActive = String(deviceId) === String(el.getAttribute('data-device-id'));
+              el.classList.toggle('active', isActive);
+              const icon = el.querySelector('i.bi-terminal');
+              const hostLine = el.querySelector('.small');
+              if (icon) {
+                  icon.classList.toggle('text-white', isActive);
+                  icon.classList.toggle('text-secondary', !isActive);
+              }
+              if (hostLine) {
+                  hostLine.classList.toggle('text-light', isActive);
+                  hostLine.classList.toggle('text-secondary', !isActive);
+              }
+          });
+      }
+
+      function ensureActiveDeviceVisible(deviceId) {
+          const item = Array.from(document.querySelectorAll('.device-item')).find(el => String(el.getAttribute('data-device-id')) === String(deviceId));
+          if (!item) return;
+          const collapseEl = item.closest('.accordion-collapse');
+          if (collapseEl && !collapseEl.classList.contains('show')) {
+              if (typeof bootstrap !== 'undefined') {
+                  new bootstrap.Collapse(collapseEl, { toggle: false }).show();
+              } else {
+                  collapseEl.classList.add('show');
+              }
+              const btn = document.querySelector(`[aria-controls="${collapseEl.id}"]`);
+              if (btn) btn.classList.remove('collapsed');
+          }
+          setTimeout(() => {
+              item.scrollIntoView({ behavior: 'auto', block: 'center' });
+          }, 50);
+      }
+
+      function escapeHtml(value) {
+          const s = String(value ?? '');
+          return s.replace(/[&<>"']/g, (ch) => {
+              switch (ch) {
+                  case '&': return '&amp;';
+                  case '<': return '&lt;';
+                  case '>': return '&gt;';
+                  case '"': return '&quot;';
+                  case "'": return '&#39;';
+                  default: return ch;
+              }
+          });
+      }
+
+      function createSession(tab, container = null) {
+          if (!tab) return null;
+          if (tab.sessions.size === 0 && tab.rootContainer.querySelector('button')) {
+              tab.rootContainer.innerHTML = '';
+          }
+          if (!container) {
+              container = document.createElement('div');
+              tab.rootContainer.appendChild(container);
+          }
+          const session = new TerminalSession(container, tab);
+          session.setTheme(currentTheme);
+          updateLayoutMode(tab);
+          return session;
+      }
+
+      function splitSession(session, direction) {
+          if (!session) return;
+          const tab = session.tab;
+          const oldPane = session.container;
+          const parent = oldPane.parentElement;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'split-container';
+          wrapper.style.flexDirection = direction === 'vertical' ? 'row' : 'column';
+          parent.insertBefore(wrapper, oldPane);
+          wrapper.appendChild(oldPane);
+          const newPane = document.createElement('div');
+          wrapper.appendChild(newPane);
+          createSession(tab, newPane);
+          if (session.fitAddon) {
+              setTimeout(() => {
+                  session.fitAddon.fit();
+                  session.sendResize();
+              }, 10);
+          }
+          updateLayoutMode(tab);
+      }
+
+      function initFirstSession(tab) {
+          createSession(tab);
+      }
+
+      function createTabContext(device, options = {}) {
+          const tab = {
+              id: `dev-${device.id}`,
+              device: device,
+              sessions: new Set(),
+              activeSession: null,
+              rootContainer: options.rootContainer,
+              paneEl: options.paneEl,
+              tabEl: null,
+              webshellToken: null,
+              loginConfig: options.loginConfig ?? null,
+              username: options.username || null
+          };
+          tabs.set(String(device.id), tab);
+          return tab;
+      }
+
+      function renderTabButton(tab) {
+          const el = document.createElement('div');
+          el.className = 'webshell-tab';
+          el.dataset.deviceId = String(tab.device.id);
+          el.innerHTML = `<span class="webshell-tab-title">${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="关闭"><i class="bi bi-x"></i></span>`;
+          el.addEventListener('click', () => activateTab(tab));
+          const closeEl = el.querySelector('.webshell-tab-close');
+          if (closeEl) {
+              closeEl.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  closeTab(tab);
+              });
+          }
+          tab.tabEl = el;
+          tabbarEl.appendChild(el);
+      }
+
+      function activateTab(tab) {
+          if (!tab) return;
+          if (activeTab && activeTab.paneEl) {
+              activeTab.paneEl.classList.remove('active');
+          }
+          if (activeTab && activeTab.tabEl) {
+              activeTab.tabEl.classList.remove('active');
+          }
+          activeTab = tab;
+          if (tab.paneEl) tab.paneEl.classList.add('active');
+          if (tab.tabEl) tab.tabEl.classList.add('active');
+          pendingLoginTab = tab;
+          updateTopbarForTab(tab);
+          setSidebarActiveDevice(tab.device.id);
+          ensureActiveDeviceVisible(tab.device.id);
+          updateLayoutMode(tab);
+          if (tab.activeSession && tab.activeSession.terminal) tab.activeSession.terminal.focus();
+      }
+
+      function closeTab(tab) {
+          if (!tab) return;
+          Array.from(tab.sessions).forEach(s => s.destroy());
+          tab.sessions.clear();
+          if (tab.paneEl) tab.paneEl.remove();
+          if (tab.tabEl) tab.tabEl.remove();
+          tabs.delete(String(tab.device.id));
+          if (activeTab && String(activeTab.device.id) === String(tab.device.id)) {
+              const remaining = Array.from(tabs.values());
+              if (remaining.length > 0) {
+                  activateTab(remaining[remaining.length - 1]);
+              } else {
+                  activeTab = null;
+              }
+          }
+      }
+
+      function promptLoginForTab(tab) {
+          pendingLoginTab = tab;
+          updateTopbarForTab(tab);
+          if (!loginModal) {
+              if (tab.sessions.size === 0) initFirstSession(tab);
+              return;
+          }
+          const autoRadio = document.getElementById('loginTypeAuto');
+          const manualRadio = document.getElementById('loginTypeManual');
+          if (autoRadio) autoRadio.checked = true;
+          if (manualRadio) manualRadio.checked = false;
+          if (manualLoginFields) manualLoginFields.style.display = 'none';
+          if (manualUsernameInput) manualUsernameInput.value = '';
+          if (manualPasswordInput) manualPasswordInput.value = '';
+          loginModal.show();
+      }
+
+      function openDeviceTab(device) {
+          const existing = tabs.get(String(device.id));
+          if (existing) {
+              activateTab(existing);
+              if (existing.sessions.size === 0) {
+                  promptLoginForTab(existing);
+              }
+              return existing;
+          }
+          const paneEl = document.createElement('div');
+          paneEl.className = 'webshell-tabpane';
+          paneEl.dataset.deviceId = String(device.id);
+          const rootEl = document.createElement('div');
+          rootEl.className = 'flex-grow-1 position-relative overflow-hidden d-flex terminal-container';
+          paneEl.appendChild(rootEl);
+          tabpanesEl.appendChild(paneEl);
+          const tab = createTabContext(device, { paneEl: paneEl, rootContainer: rootEl, loginConfig: null });
+          renderTabButton(tab);
+          activateTab(tab);
+          promptLoginForTab(tab);
+          return tab;
+      }
+
+      const initialTab = createTabContext(initialDevice, { paneEl: initialTabPaneEl, rootContainer: initialRootContainer, username: initialCredentialUsername });
+      renderTabButton(initialTab);
+      activateTab(initialTab);
+      if (loginModal) {
+          promptLoginForTab(initialTab);
+      } else {
+          initFirstSession(initialTab);
+      }
+
+      // Setup Themes
+      Object.keys(themes).forEach(name => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.classList.add('dropdown-item');
+          a.href = '#';
+          a.dataset.theme = name;
+          a.textContent = name;
+          a.addEventListener('click', (e) => {
+              e.preventDefault();
+              applyTheme(name);
+          });
+          li.appendChild(a);
+          themeList.appendChild(li);
+      });
+
+      const savedTheme = localStorage.getItem('webshell_theme');
+      applyTheme(savedTheme && themes[savedTheme] ? savedTheme : 'Default');
+
+      // Global Events
+      
+      // Split Buttons
+      if (globalSplitVBtn) {
+        globalSplitVBtn.addEventListener('click', () => {
+            if (activeTab && activeTab.activeSession) splitSession(activeTab.activeSession, 'vertical');
+        });
+      }
+      if (globalSplitHBtn) {
+        globalSplitHBtn.addEventListener('click', () => {
+            if (activeTab && activeTab.activeSession) splitSession(activeTab.activeSession, 'horizontal');
+        });
+      }
+
+      // Reconnect Active
+      reconnectBtn.addEventListener('click', async () => {
+          if (!activeTab) return;
+          pendingLoginTab = activeTab;
+          if (activeTab.loginConfig && (activeTab.loginConfig.loginType !== 'manual' || activeTab.loginConfig.username)) {
+              if (activeTab.activeSession) activeTab.activeSession.connect();
+              return;
+          }
+          if (loginModal) {
+              updateTopbarForTab(activeTab);
+              loginModal.show();
+          } else {
+              if (activeTab.activeSession) activeTab.activeSession.connect();
+          }
+      });
+
+      // Export Log Active
+      exportBtn.addEventListener('click', () => {
+          if (!activeTab || !activeTab.activeSession) return;
+          const content = activeTab.activeSession.getLogContent();
+          const blob = new Blob([content], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          a.download = `webshell-${activeTab.device.name || activeTab.device.host || activeTab.device.id}-${timestamp}.log`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      });
+
+      // Zoom
+      zoomInBtn.addEventListener('click', () => {
+          if (activeTab && activeTab.activeSession) activeTab.activeSession.setFontSize((activeTab.activeSession.fontSize || 14) + 1);
+      });
+
+      zoomOutBtn.addEventListener('click', () => {
+          if (activeTab && activeTab.activeSession && activeTab.activeSession.fontSize > 8) {
+              activeTab.activeSession.setFontSize(activeTab.activeSession.fontSize - 1);
+          }
+      });
+
+      // Paste
+      function showPasteModal() {
+          if (!pasteModal) return;
+          pasteContent.value = '';
+          navigator.clipboard.readText().then(text => {
+              pasteContent.value = text;
+              pasteModal.show();
+          }).catch(err => {
+              pasteModal.show();
+          });
+      }
+
+      confirmPasteBtn.addEventListener('click', () => {
+          const text = pasteContent.value;
+          if (text && activeTab && activeTab.activeSession && activeTab.activeSession.socket && activeTab.activeSession.socket.readyState === 1) {
+              activeTab.activeSession.socket.send(JSON.stringify({ type: 'input', data: text }));
+              activeTab.activeSession.markActivity();
+          }
+          if (pasteModal) pasteModal.hide();
+          if (activeTab && activeTab.activeSession && activeTab.activeSession.terminal) activeTab.activeSession.terminal.focus();
+      });
+
+      // Global Paste Event (handles right-click paste and native Ctrl+V/Cmd+V)
+      document.addEventListener('paste', (e) => {
+          const target = e.target;
+          if (!target) return;
+          const tag = target.tagName.toLowerCase();
+          
+          // xterm uses a hidden textarea for input handling. We want to intercept that.
+          const isXterm = target.classList.contains('xterm-helper-textarea');
+          
+          if (isXterm || (tag !== 'input' && tag !== 'textarea')) {
+              e.preventDefault();
+              e.stopPropagation();
+              const text = (e.clipboardData || window.clipboardData).getData('text');
+              if (text && pasteModal) {
+                  pasteContent.value = text;
+                  pasteModal.show();
+              }
+          }
+      }, true);
+
+      // Global Keyboard Events (fallback for cases where paste event might not fire if no focus)
+      document.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+               const activeEl = document.activeElement;
+               const tag = activeEl ? activeEl.tagName.toLowerCase() : '';
+               const isXterm = activeEl && activeEl.classList.contains('xterm-helper-textarea');
+               if (!isXterm && tag !== 'input' && tag !== 'textarea') {
+                   e.preventDefault();
+                   showPasteModal();
+               }
+          }
+      });
+      
+      // Sidebar toggle
+      if (sidebarToggleBtn && sidebarEl) {
+          sidebarToggleBtn.addEventListener('click', () => {
+              if (sidebarEl.style.width === '0px') {
+                  sidebarEl.style.width = '260px';
+                  sidebarEl.style.borderRightWidth = '1px';
+              } else {
+                  sidebarEl.style.width = '0px';
+                  sidebarEl.style.borderRightWidth = '0px';
+              }
+              // Resize terminals after animation
+              setTimeout(() => {
+                  if (activeTab) {
+                      activeTab.sessions.forEach(session => {
+                          if (session.fitAddon) {
+                              session.fitAddon.fit();
+                              session.sendResize();
+                          }
+                      });
+                  }
+              }, 350);
+          });
+      }
+
+      // Sidebar search
+      if (sidebarSearch) {
+          sidebarSearch.addEventListener('input', (e) => {
+              const term = e.target.value.toLowerCase().trim();
+              const groupItems = document.querySelectorAll('.group-item');
+              
+              groupItems.forEach(group => {
+                  const devices = group.querySelectorAll('.device-item');
+                  let hasVisibleDevice = false;
+                  
+                  devices.forEach(device => {
+                      const searchData = device.getAttribute('data-search') || '';
+                      if (term === '' || searchData.includes(term)) {
+                          device.style.display = 'block';
+                          hasVisibleDevice = true;
+                      } else {
+                          device.style.display = 'none';
+                      }
+                  });
+                  
+                  if (hasVisibleDevice) {
+                      group.style.display = 'block';
+                      if (term !== '') {
+                          // Expand if searching
+                          const collapseEl = group.querySelector('.accordion-collapse');
+                          if (collapseEl && !collapseEl.classList.contains('show')) {
+                              if (typeof bootstrap !== 'undefined') {
+                                  new bootstrap.Collapse(collapseEl, { toggle: false }).show();
+                              } else {
+                                  collapseEl.classList.add('show');
+                              }
+                          }
+                      }
+                  } else {
+                      group.style.display = 'none';
+                  }
+              });
+          });
+      }
+
+      // Switch device
+      const deviceItems = document.querySelectorAll('.device-item');
+      deviceItems.forEach(item => {
+          item.addEventListener('click', (e) => {
+              e.preventDefault();
+              const newDeviceId = item.getAttribute('data-device-id');
+              if (!newDeviceId) return;
+              const device = {
+                  id: Number(newDeviceId),
+                  name: item.getAttribute('data-device-name') || item.querySelector('.device-name')?.textContent || '',
+                  host: item.getAttribute('data-device-host') || '',
+                  port: item.getAttribute('data-device-port') || '',
+                  platform: item.getAttribute('data-device-platform') || '',
+                  loginMethod: item.getAttribute('data-device-login-method') || 'ssh'
+              };
+              openDeviceTab(device);
+          });
+      });
+
+      // Activity monitoring
+      const activityEvents = ['keydown', 'mousedown', 'mousemove', 'wheel', 'touchstart'];
+      activityEvents.forEach(eventName => {
+          document.addEventListener(eventName, () => {
+             if (activeTab && activeTab.activeSession) activeTab.activeSession.markActivity();
+          }, { passive: true });
+      });
+  });

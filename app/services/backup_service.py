@@ -6,7 +6,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 import json
 import re
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 from uuid import UUID
 
@@ -15,7 +15,7 @@ from sqlmodel import Session
 from sqlmodel import select
 
 from app import crud
-from app.models import BackupRecord, Device
+from app.models import BackupRecord, BackupScheduleRun, BackupScheduleRunItem, Device, TaskEvent
 from app.platforms import DEFAULT_COMMANDS, normalize_platform_id
 from app.platforms import platforms_compatible
 from app.core.time import format_local_datetime
@@ -33,6 +33,10 @@ class TriggerBackupResult:
     started_at: datetime
     template_id: int | None
     enqueued: bool
+    enqueue_status: str
+    enqueue_error_message: str
+    enqueue_warning_message: str
+    run_id: UUID | None
 
 
 @dataclass(slots=True)
@@ -43,6 +47,8 @@ class TriggerBulkBackupResult:
     jobs: list[tuple[int, UUID, int | None]]
     enqueued: bool
     enqueue_status: str
+    enqueue_error_message: str
+    enqueue_warning_message: str
     enqueued_record_ids: list[UUID]
 
 
@@ -58,6 +64,8 @@ class EnqueueScheduleRunResult:
     jobs: list[tuple[int, UUID, int | None]]
     enqueued: bool
     enqueue_status: str
+    enqueue_error_message: str
+    enqueue_warning_message: str
     enqueued_record_ids: list[UUID]
 
 
@@ -71,6 +79,21 @@ DEFAULT_DIFF_RULES = [
 ]
 DIFF_RULES_SETTING_KEY = "diff_ignore_rules"
 NOISE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in DEFAULT_NOISE_RULES]
+WORKER_UNAVAILABLE_MESSAGE = "Celery worker 未启动或无响应，任务已加入队列，worker 启动后会自动执行"
+
+
+def _enqueue_failure_from_records(session: Session, record_ids: list[UUID]) -> tuple[str, str]:
+    for record_id in record_ids:
+        record = crud.get_backup(session, record_id)
+        if record is None:
+            continue
+        failure_type = str(getattr(record, "failure_type", "") or "").strip()
+        error_message = str(getattr(record, "error_message", "") or "").strip()
+        if failure_type == "WORKER_UNAVAILABLE":
+            return "worker_unavailable", WORKER_UNAVAILABLE_MESSAGE
+        if error_message:
+            return "none", error_message
+    return "none", "Celery 未启用或不可用"
 
 
 def normalize_commands(commands_text: str) -> list[str]:
@@ -94,6 +117,7 @@ def backup_device(
     password: str | None,
     enable_password: str | None,
     template_commands: str | None,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
     commands_text = (template_commands or "").strip() or DEFAULT_COMMANDS.get(normalize_platform_id(platform), "")
     commands = normalize_commands(commands_text)
@@ -109,6 +133,7 @@ def backup_device(
         password=password,
         enable_password=enable_password,
         commands=commands,
+        progress_callback=progress_callback,
     )
 
 
@@ -203,6 +228,55 @@ def get_backup_view_payload(
     }
 
 
+def get_backup_log_payload(
+    session: Session,
+    backup_id: UUID,
+    *,
+    offset_minutes: int = 0,
+    allowed_group_ids: list[int] | None = None,
+    limit: int = 300,
+) -> dict[str, Any]:
+    detail = _ensure_backup_access(
+        get_backup_detail(session, backup_id),
+        allowed_group_ids=allowed_group_ids,
+        backup_id=backup_id,
+    )
+    record = detail.record
+    device = detail.device
+    limit = max(1, min(int(limit or 300), 1000))
+    stmt = (
+        select(TaskEvent)
+        .where(TaskEvent.record_id == str(record.id))
+        .order_by(TaskEvent.id.asc())
+        .limit(limit)
+    )
+    from app.services import task_realtime_service
+
+    events = [
+        item
+        for item in (
+            task_realtime_service._serialize_task_event(event, offset_minutes=offset_minutes)
+            for event in session.exec(stmt)
+        )
+        if not task_realtime_service._should_hide_device_log_event(item)
+    ]
+    return {
+        "device": _serialize_device(device, fallback_device_id=int(record.device_id)),
+        "record": {
+            "id": str(record.id),
+            "device_id": int(record.device_id),
+            "started_at": format_local_datetime(record.started_at, offset_minutes=offset_minutes),
+            "finished_at": format_local_datetime(record.finished_at, offset_minutes=offset_minutes) if record.finished_at else None,
+            "status": str(record.status or ""),
+            "status_label": task_state_service.get_backup_record_status_label(record.status),
+            "status_tone": task_state_service.get_backup_record_status_tone(record.status),
+            "success": bool(record.success),
+            "error_message": record.error_message or "",
+        },
+        "items": events,
+    }
+
+
 def get_backup_content(
     session: Session,
     backup_id: UUID,
@@ -287,6 +361,172 @@ def list_task_backups(
         1 for item in ordered if task_state_service.is_backup_record_active_status(item.get("status"))
     )
     return {"items": ordered, "running": running_count}
+
+
+def get_task_backup(
+    session: Session,
+    *,
+    backup_id: UUID,
+    offset_minutes: int = 0,
+    allowed_group_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    stmt = (
+        select(BackupRecord, Device)
+        .join(Device, Device.id == BackupRecord.device_id, isouter=True)
+        .where(BackupRecord.id == backup_id)
+    )
+    row = session.exec(stmt).first()
+    if not row:
+        return {"found": False, "backup_id": str(backup_id), "items": [], "running": 0}
+
+    record, device = row
+    if not _device_in_allowed_groups(device, allowed_group_ids):
+        return {"found": False, "backup_id": str(backup_id), "items": [], "running": 0}
+
+    item = {
+        "id": str(record.id),
+        "device": {
+            "id": int(device.id) if device and device.id else int(record.device_id),
+            "name": device.name if device else f"device-{record.device_id}",
+            "host": device.host if device else "",
+        },
+        "started_at": format_local_datetime(record.started_at, offset_minutes=offset_minutes),
+        "finished_at": format_local_datetime(record.finished_at, offset_minutes=offset_minutes) if record.finished_at else None,
+        "status": str(record.status or ""),
+        "status_label": task_state_service.get_backup_record_status_label(record.status),
+        "status_tone": task_state_service.get_backup_record_status_tone(record.status),
+        "success": bool(record.success),
+        "error_message": record.error_message or "",
+    }
+    running = 1 if task_state_service.is_backup_record_active_status(item.get("status")) else 0
+    return {"found": True, "backup_id": str(backup_id), "items": [item], "running": running}
+
+
+def list_task_backups_for_run(
+    session: Session,
+    *,
+    run_id: UUID,
+    offset_minutes: int = 0,
+    allowed_group_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    run = crud.get_schedule_run(session, run_id)
+    if run is None:
+        return {
+            "found": False,
+            "run_id": str(run_id),
+            "run_status": "",
+            "items": [],
+            "running": 0,
+        }
+
+    run_items = crud.list_schedule_run_items(session, run_id)
+    backup_ids = [item.backup_id for item in run_items if getattr(item, "backup_id", None)]
+    if not backup_ids:
+        return {
+            "found": True,
+            "run_id": str(run_id),
+            "run_status": str(run.status or ""),
+            "items": [],
+            "running": 0,
+        }
+
+    order_map = {str(item.backup_id): idx for idx, item in enumerate(run_items) if getattr(item, "backup_id", None)}
+    stmt = (
+        select(BackupRecord, Device)
+        .join(Device, Device.id == BackupRecord.device_id, isouter=True)
+        .where(BackupRecord.id.in_(backup_ids))
+    )
+    rows = session.exec(stmt).all()
+
+    items: list[dict[str, Any]] = []
+    for record, device in rows:
+        if not _device_in_allowed_groups(device, allowed_group_ids):
+            continue
+        items.append(
+            {
+                "id": str(record.id),
+                "device": {
+                    "id": int(device.id) if device and device.id else int(record.device_id),
+                    "name": device.name if device else f"device-{record.device_id}",
+                    "host": device.host if device else "",
+                },
+                "started_at": format_local_datetime(record.started_at, offset_minutes=offset_minutes),
+                "finished_at": format_local_datetime(record.finished_at, offset_minutes=offset_minutes) if record.finished_at else None,
+                "status": str(record.status or ""),
+                "status_label": task_state_service.get_backup_record_status_label(record.status),
+                "status_tone": task_state_service.get_backup_record_status_tone(record.status),
+                "success": bool(record.success),
+                "error_message": record.error_message or "",
+            }
+        )
+
+    items.sort(key=lambda item: order_map.get(str(item.get("id") or ""), 10**9))
+    running_count = sum(
+        1 for item in items if task_state_service.is_backup_record_active_status(item.get("status"))
+    )
+    return {
+        "found": True,
+        "run_id": str(run_id),
+        "run_status": str(run.status or ""),
+        "items": items,
+        "running": running_count,
+    }
+
+
+def get_recent_task_tracking_payload(
+    session: Session,
+    *,
+    offset_minutes: int = 0,
+    allowed_group_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    run_candidates = list(
+        session.exec(
+            select(BackupScheduleRun)
+            .order_by(BackupScheduleRun.started_at.desc())
+            .limit(20)
+        )
+    )
+    for run in run_candidates:
+        payload = list_task_backups_for_run(
+            session,
+            run_id=run.id,
+            offset_minutes=offset_minutes,
+            allowed_group_ids=allowed_group_ids,
+        )
+        if payload.get("found") and payload.get("items"):
+            return {
+                "found": True,
+                "track": {"kind": "run", "id": str(run.id)},
+                "requested_at": format_local_datetime(run.started_at, offset_minutes=offset_minutes),
+                **payload,
+            }
+
+    backup_candidates = list(
+        session.exec(
+            select(BackupRecord, Device)
+            .join(Device, Device.id == BackupRecord.device_id, isouter=True)
+            .order_by(BackupRecord.started_at.desc())
+            .limit(20)
+        )
+    )
+    for record, device in backup_candidates:
+        if not _device_in_allowed_groups(device, allowed_group_ids):
+            continue
+        payload = get_task_backup(
+            session,
+            backup_id=record.id,
+            offset_minutes=offset_minutes,
+            allowed_group_ids=allowed_group_ids,
+        )
+        if payload.get("found") and payload.get("items"):
+            return {
+                "found": True,
+                "track": {"kind": "backup", "id": str(record.id)},
+                "requested_at": format_local_datetime(record.started_at, offset_minutes=offset_minutes),
+                **payload,
+            }
+
+    return {"found": False, "track": None, "items": [], "running": 0}
 
 
 def list_device_backups_payload(
@@ -574,11 +814,18 @@ def trigger_backup(
         device_id=device_id,
         template_id=template_id,
     )
+    worker_available = task_orchestration_service.celery_worker_available()
     enqueued = task_orchestration_service.enqueue_single_backup(
         session,
         planned=planned,
         skip_email=skip_email,
     )
+    enqueue_status = "all"
+    enqueue_error_message = ""
+    enqueue_warning_message = WORKER_UNAVAILABLE_MESSAGE if enqueued and not worker_available else ""
+    if not enqueued:
+        enqueue_status, enqueue_error_message = _enqueue_failure_from_records(session, [planned.record_id])
+        enqueue_warning_message = ""
 
     return TriggerBackupResult(
         record_id=planned.record_id,
@@ -586,6 +833,10 @@ def trigger_backup(
         started_at=planned.started_at,
         template_id=planned.template_id,
         enqueued=bool(enqueued),
+        enqueue_status=enqueue_status,
+        enqueue_error_message=enqueue_error_message,
+        enqueue_warning_message=enqueue_warning_message,
+        run_id=None,
     )
 
 
@@ -608,6 +859,8 @@ def trigger_bulk_backup(
             jobs=[],
             enqueued=False,
             enqueue_status="none",
+            enqueue_error_message="",
+            enqueue_warning_message="",
             enqueued_record_ids=[],
         )
 
@@ -628,6 +881,8 @@ def trigger_bulk_backup(
             jobs=[],
             enqueued=False,
             enqueue_status="none",
+            enqueue_error_message="",
+            enqueue_warning_message="",
             enqueued_record_ids=[],
         )
 
@@ -645,6 +900,8 @@ def trigger_bulk_backup(
         jobs=jobs,
         enqueued=enqueue_result.enqueued,
         enqueue_status=enqueue_result.enqueue_status,
+        enqueue_error_message=enqueue_result.enqueue_error_message,
+        enqueue_warning_message=enqueue_result.enqueue_warning_message,
         enqueued_record_ids=enqueue_result.enqueued_record_ids,
     )
 
@@ -684,18 +941,31 @@ def enqueue_schedule_jobs(
     run_id: UUID,
     jobs: list[tuple[int, UUID, int | None]],
 ) -> EnqueueScheduleRunResult:
+    worker_available = task_orchestration_service.celery_worker_available()
     enqueue_status, enqueued_record_ids = task_orchestration_service.enqueue_schedule_run(
         session,
         run_id=run_id,
         jobs=jobs,
         skip_email=True,
     )
+    enqueue_error_message = ""
+    enqueue_warning_message = (
+        WORKER_UNAVAILABLE_MESSAGE if enqueue_status in ("all", "partial") and not worker_available else ""
+    )
+    if enqueue_status == "none":
+        enqueue_status, enqueue_error_message = _enqueue_failure_from_records(
+            session,
+            [backup_id for _, backup_id, __ in jobs],
+        )
+        enqueue_warning_message = ""
 
     return EnqueueScheduleRunResult(
         run_id=run_id,
         jobs=jobs,
-        enqueued=enqueue_status != "none",
+        enqueued=enqueue_status in ("all", "partial"),
         enqueue_status=enqueue_status,
+        enqueue_error_message=enqueue_error_message,
+        enqueue_warning_message=enqueue_warning_message,
         enqueued_record_ids=enqueued_record_ids,
     )
 

@@ -3,11 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% if page_title %}{% if not no_title_prefix %}网络设备备份 - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}网络设备备份{% endif %}</title>
+    <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}{{ app_name }}{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/static/css/app.css" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
+    {% block head %}{% endblock %}
     <script>
       // 初始化暗黑模式
       (function() {
@@ -32,7 +33,7 @@
           <div class="brand">
             <img src="/static/img/logo_abstract.svg" alt="Logo" class="brand-logo-img" style="width: 32px; height: 32px; margin-right: 12px;">
             <div class="brand-info">
-              <div class="brand-title">网络设备备份</div>
+              <div class="brand-title">{{ app_name }}</div>
               <div class="brand-subtitle">网络设备备份系统</div>
             </div>
           </div>
@@ -188,152 +189,7 @@
           </div>
         </aside>
 
-        <script>
-          document.addEventListener('DOMContentLoaded', function() {
-            const themeToggle = document.getElementById('themeToggle');
-            const icon = themeToggle.querySelector('i');
-            
-            function updateIcon(theme) {
-              if (theme === 'dark') {
-                icon.className = 'bi bi-sun';
-              } else {
-                icon.className = 'bi bi-moon-stars';
-              }
-            }
-
-            // 初始化图标
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
-            updateIcon(currentTheme);
-
-            // 全屏切换
-            const fullscreenToggle = document.getElementById('fullscreenToggle');
-            const fullscreenIcon = fullscreenToggle.querySelector('i');
-            
-            fullscreenToggle.addEventListener('click', function() {
-              if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                  console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-              } else {
-                if (document.exitFullscreen) {
-                  document.exitFullscreen();
-                }
-              }
-            });
-
-            document.addEventListener('fullscreenchange', function() {
-              if (document.fullscreenElement) {
-                fullscreenIcon.className = 'bi bi-fullscreen-exit';
-                fullscreenToggle.setAttribute('title', '退出全屏');
-              } else {
-                fullscreenIcon.className = 'bi bi-arrows-fullscreen';
-                fullscreenToggle.setAttribute('title', '全屏显示');
-              }
-              
-              // 全屏切换后触发 resize 事件，确保图表等组件适配新尺寸
-              setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-              }, 300);
-            });
-
-            themeToggle.addEventListener('click', function(event) {
-              const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
-              const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-              
-              const toggleTheme = () => {
-                document.documentElement.setAttribute('data-bs-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateIcon(newTheme);
-                
-                // Dispatch theme change event for other components (e.g., ECharts)
-                const themeEvent = new CustomEvent('themeChanged', { detail: { theme: newTheme } });
-                window.dispatchEvent(themeEvent);
-              };
-
-              if (!document.startViewTransition) {
-                toggleTheme();
-                return;
-              }
-
-              const x = event.clientX;
-              const y = event.clientY;
-              const endRadius = Math.hypot(
-                Math.max(x, innerWidth - x),
-                Math.max(y, innerHeight - y)
-              );
-
-              const transition = document.startViewTransition(() => {
-                toggleTheme();
-              });
-
-              transition.ready.then(() => {
-                const clipPath = [
-                  `circle(0px at ${x}px ${y}px)`,
-                  `circle(${endRadius}px at ${x}px ${y}px)`,
-                ];
-                document.documentElement.animate(
-                  {
-                    clipPath: clipPath,
-                  },
-                  {
-                    duration: 400,
-                    easing: 'ease-in-out',
-                    pseudoElement: '::view-transition-new(root)',
-                  }
-                );
-              });
-            });
-
-            // 侧边栏折叠
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const sidebar = document.querySelector('.sidebar');
-            const toggleIcon = sidebarToggle.querySelector('i');
-            
-            function updateToggleIcon(isCollapsed) {
-              if (isCollapsed) {
-                toggleIcon.className = 'bi bi-text-indent-left';
-                sidebarToggle.setAttribute('title', '展开菜单');
-              } else {
-                toggleIcon.className = 'bi bi-list';
-                sidebarToggle.setAttribute('title', '折叠菜单');
-              }
-            }
-
-            // 从 localStorage 读取状态 (这一步其实在 aside 标签处已经通过 inline script 处理了 class，这里同步一下变量和图标)
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            updateToggleIcon(isCollapsed);
-
-            sidebarToggle.addEventListener('click', function() {
-              sidebar.classList.toggle('collapsed');
-              const isNowCollapsed = sidebar.classList.contains('collapsed');
-              localStorage.setItem('sidebarCollapsed', isNowCollapsed);
-              updateToggleIcon(isNowCollapsed);
-              
-              // 切换折叠状态时，如果是收起状态，禁用 Bootstrap 的 collapse 自动触发
-              document.querySelectorAll('.sidebar-group-label').forEach(label => {
-                if (isNowCollapsed) {
-                  label.removeAttribute('data-bs-toggle');
-                } else {
-                  label.setAttribute('data-bs-toggle', 'collapse');
-                }
-              });
-
-              // 触发 resize 事件以更新图表等组件
-              // 由于侧边栏有 0.3s 的过渡动画，我们在动画开始和结束时都触发一次
-              window.dispatchEvent(new Event('resize'));
-              setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-              }, 350);
-            });
-
-            // 初始化时也执行一次
-            if (isCollapsed) {
-              document.querySelectorAll('.sidebar-group-label').forEach(label => {
-                label.removeAttribute('data-bs-toggle');
-              });
-            }
-          });
-        </script>
+        <script src="/static/js/core/shell-controls.js"></script>
 
         <main class="content position-relative">
           <!-- Top Header -->
@@ -342,7 +198,7 @@
               <button class="sidebar-toggle" id="sidebarToggle" title="折叠菜单">
                 <i class="bi bi-list"></i>
               </button>
-              
+
               <nav class="breadcrumb-container d-none d-md-flex">
                 <div class="breadcrumb-item">
                   <a href="/dashboard" class="breadcrumb-link">
@@ -367,7 +223,7 @@
                   {% elif active == 'profile' %}
                     <div class="breadcrumb-item"><span class="breadcrumb-link">用户中心</span></div>
                   {% endif %}
-                  
+
                   <div class="breadcrumb-item">
                     <span class="breadcrumb-link active">
                       {% if active == 'devices' %}设备管理
@@ -401,25 +257,109 @@
             </div>
 
             <div class="header-actions">
-              <div class="nb-job-panel" id="nb-job-panel" style="display: none;">
-                <div class="nb-job-header">
-                  <span class="nb-job-title">备份任务</span>
-                  <button type="button" class="btn-close btn-close-white btn-sm" id="nb-job-close" aria-label="关闭"></button>
+              <div class="position-relative">
+                <button class="action-icon-btn" id="nb-job-trigger" title="备份任务">
+                  <i class="bi bi-database-up"></i>
+                  <span id="nb-job-badge" class="position-absolute top-0 start-100 translate-middle d-none">
+                    <span class="nb-ping-bg"></span>
+                    <span class="nb-ping-dot"></span>
+                  </span>
+                </button>
+              </div>
+
+              <div class="offcanvas offcanvas-end nb-job-drawer" data-bs-scroll="false" data-bs-backdrop="true" tabindex="-1" id="nb-job-panel" aria-labelledby="nb-job-title">
+                <div class="offcanvas-header nb-job-header border-bottom">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="nb-job-title offcanvas-title text-body" id="nb-job-title">
+                      <i class="bi bi-database-up text-primary"></i>
+                      备份任务
+                    </span>
+                    <div id="nb-job-header-meta" class="d-flex align-items-center gap-2 ms-2"></div>
+                  </div>
+                  <button type="button" class="btn-close" id="nb-job-close" aria-label="关闭"></button>
                 </div>
-                <div class="nb-job-body">
-                  <div class="nb-job-summary small text-secondary mb-2" id="nb-job-summary"></div>
-                  <div class="nb-job-list-wrap">
-                    <table class="table table-sm mb-0">
-                      <thead>
-                        <tr>
-                          <th>设备</th>
-                          <th style="width: 140px;">状态</th>
-                          <th style="width: 140px;">开始时间</th>
-                        </tr>
-                      </thead>
-                      <tbody id="nb-job-tbody">
-                      </tbody>
-                    </table>
+                <div class="offcanvas-body nb-job-body d-flex flex-column gap-3 overflow-hidden">
+                  <!-- Action Buttons -->
+                  <div class="d-flex align-items-center gap-2 flex-wrap" id="nb-job-actions">
+                    <button
+                      type="button"
+                      class="btn btn-outline-info btn-sm d-none"
+                      id="nb-job-bulk-retry"
+                      title="重试选中的失败或已终止任务"
+                    >
+                      <i class="bi bi-arrow-clockwise"></i> 重试所选
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-danger btn-sm d-none"
+                      id="nb-job-bulk-terminate"
+                      title="终止选中的未运行任务"
+                    >
+                      <i class="bi bi-stop-circle"></i> 终止所选
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-info btn-sm d-none"
+                      id="nb-job-retry"
+                      title="重试当前批次中失败或已终止的任务"
+                    >
+                      <i class="bi bi-arrow-counterclockwise"></i> 重试失败项
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary btn-sm d-none"
+                      id="nb-job-logs-toggle"
+                      title="查看当前批次日志"
+                    >
+                      <i class="bi bi-journal-text"></i> 批次日志
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-danger btn-sm d-none"
+                      id="nb-job-terminate"
+                      title="终止当前批次中尚未开始的任务"
+                    >
+                      <i class="bi bi-x-circle"></i> 终止未运行
+                    </button>
+                    <div class="nb-job-scope-hint ms-auto">
+                      <i class="bi bi-info-circle"></i>
+                      仅显示最近一批次备份任务
+                    </div>
+                  </div>
+
+                  <div class="nb-job-summary" id="nb-job-summary"></div>
+
+                  <div class="nb-job-content flex-grow-1">
+                    <div class="nb-job-list-wrap">
+                      <table class="table table-sm mb-0">
+                        <thead class="sticky-top">
+                          <tr>
+                            <th style="width: 44px;">
+                              <input class="form-check-input d-none" type="checkbox" id="nb-job-select-all" aria-label="全选任务">
+                            </th>
+                            <th>设备</th>
+                            <th style="width: 120px;">IP地址</th>
+                            <th style="width: 100px;">状态</th>
+                            <th style="width: 80px;">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody id="nb-job-tbody">
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div id="nb-job-log-section" class="d-none">
+                      <div class="small text-secondary mb-2 d-flex align-items-center justify-content-between">
+                        <span id="nb-job-log-title" class="fw-semibold">任务实时日志</span>
+                        <span id="nb-job-log-status" class="opacity-75">未连接</span>
+                      </div>
+                      <button type="button" class="btn-close btn-sm nb-job-log-close" id="nb-job-log-close" aria-label="Close logs"></button>
+                      <div
+                        id="nb-job-log-list"
+                        class="rounded border border-secondary-subtle bg-body-tertiary small p-2 overflow-auto"
+                        style="max-height: 250px; font-family: Consolas, 'Courier New', monospace; color: var(--bs-body-color);"
+                      ></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -496,14 +436,14 @@
               </div>
             </div>
           </header>
- 
+
            <div class="px-3 pt-3 pb-4">
     {% elif blank_layout %}
       <div class="blank-layout">
     {% else %}
       <main class="container py-5" style="max-width: 520px;">
         <div class="mb-4">
-          <div class="h4 mb-1">{{ page_title or "网络设备备份" }}</div>
+          <div class="h4 mb-1">{{ page_title or app_name }}</div>
           {% if page_subtitle %}<div class="text-secondary small">{{ page_subtitle }}</div>{% endif %}
         </div>
     {% endif %}
@@ -565,6 +505,25 @@
         </div>
       </div>
 
+      <div class="modal fade" id="backup-log-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <h5 class="modal-title mb-0" id="backup-log-title">执行日志</h5>
+                <div class="text-secondary small" id="backup-log-meta"></div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+              <div class="text-secondary small d-none" id="backup-log-loading">加载中...</div>
+              <div class="alert alert-danger d-none mb-3" id="backup-log-error"></div>
+              <div id="backup-log-list" class="backup-log-list border rounded bg-body-tertiary small p-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
@@ -585,735 +544,19 @@
     {% endif %}
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/core/api.js"></script>
+    <script src="/static/js/core/ui-feedback.js"></script>
     {% if current_user %}
       <script>
-        window.NB = window.NB || {};
-        (function () {
-          // Auto-expand active menu group
-          const activeLink = document.querySelector('.sidebar .nav-link.active');
-          if (activeLink) {
-            const collapseEl = activeLink.closest('.collapse');
-            if (collapseEl) {
-              const bs = window.bootstrap;
-              if (bs && bs.Collapse) {
-                const col = new bs.Collapse(collapseEl, { toggle: false });
-                col.show();
-                
-                // Also update the label state (remove .collapsed)
-                const label = document.querySelector(`[data-bs-target="#${collapseEl.id}"]`);
-                if (label) {
-                  label.classList.remove('collapsed');
-                }
-              } else {
-                // Fallback if BS is not fully ready
-                collapseEl.classList.add('show');
-                const label = document.querySelector(`[data-bs-target="#${collapseEl.id}"]`);
-                if (label) label.classList.remove('collapsed');
-              }
-            }
-          }
-
-          // Global Confirm Modal
-          window.NB.confirm = function(options) {
-            const { title, message, onConfirm, confirmBtnText, confirmBtnClass } = options || {};
-            const modalEl = document.getElementById('deleteConfirmModal'); // Reusing the same modal structure
-            if (!modalEl) return;
-            const bs = window.bootstrap;
-            if (!bs) return;
-            
-            let modal = bs.Modal.getInstance(modalEl);
-            if (!modal) {
-                modal = new bs.Modal(modalEl);
-            }
-            
-            const titleEl = modalEl.querySelector('.modal-title');
-            const confirmBtn = document.getElementById('deleteConfirmBtn');
-            const confirmText = document.getElementById('deleteConfirmText');
-            
-            if (titleEl) titleEl.textContent = title || '确认操作';
-            if (confirmText) confirmText.textContent = message || '确定要执行此操作吗？';
-            if (confirmBtn) {
-                confirmBtn.textContent = confirmBtnText || '确定';
-                confirmBtn.className = 'btn btn-sm px-4 ' + (confirmBtnClass || 'btn-primary');
-            }
-            
-            // Clean up old event listeners
-            const newBtn = confirmBtn.cloneNode(true);
-            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
-            
-            newBtn.addEventListener('click', function() {
-                if (typeof onConfirm === 'function') onConfirm();
-                modal.hide();
-            });
-            
-            modal.show();
-          };
-
-          // Global Delete Confirm
-          window.NB.confirmDelete = function(message, onConfirm) {
-            window.NB.confirm({
-              title: '确认删除',
-              message: message || '确定要删除吗？此操作不可恢复。',
-              onConfirm: onConfirm,
-              confirmBtnText: '确认删除',
-              confirmBtnClass: 'btn-danger'
-            });
-          };
-
-          // Global Toast Message
-          window.NB.showToast = function(message, type = 'success') {
-            const toastEl = document.getElementById('nb-toast');
-            if (!toastEl) return;
-            
-            const messageEl = document.getElementById('nb-toast-message');
-            const iconEl = document.getElementById('nb-toast-icon');
-            
-            if (messageEl) messageEl.textContent = message;
-            
-            // Set styles and icons based on type
-            toastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');
-            iconEl.classList.remove('bi-check-circle-fill', 'bi-exclamation-triangle-fill', 'bi-info-circle-fill');
-            
-            if (type === 'success') {
-              toastEl.classList.add('text-bg-success');
-              iconEl.classList.add('bi-check-circle-fill');
-            } else if (type === 'error' || type === 'danger') {
-              toastEl.classList.add('text-bg-danger');
-              iconEl.classList.add('bi-exclamation-triangle-fill');
-            } else if (type === 'warning') {
-              toastEl.classList.add('text-bg-warning');
-              iconEl.classList.add('bi-exclamation-triangle-fill');
-            } else {
-              toastEl.classList.add('text-bg-info');
-              iconEl.classList.add('bi-info-circle-fill');
-            }
-            
-            const bs = window.bootstrap;
-            if (bs && bs.Toast) {
-              const toast = new bs.Toast(toastEl, { delay: 3000 });
-              toast.show();
-            }
-          };
-
-          // Check for msg/err in URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const msg = urlParams.get('msg');
-          const err = urlParams.get('err');
-          if (msg) window.NB.showToast(msg, 'success');
-          if (err) window.NB.showToast(err, 'error');
-
-          document.addEventListener('click', function(e) {
-            const btn = e.target.closest('.btn-delete-ask');
-            if (!btn) return;
-            
-            e.preventDefault();
-            const targetForm = btn.closest('form');
-            const msg = btn.getAttribute('data-confirm-msg');
-            
-            window.NB.confirmDelete(msg, function() {
-                if (targetForm) {
-                    HTMLFormElement.prototype.submit.call(targetForm);
-                }
-            });
-          });
-
-          const CAN_TRACK_BACKUPS = {{ "true" if has_permission('backups.view') else "false" }};
-          const panel = document.getElementById("nb-job-panel");
-          const tbody = document.getElementById("nb-job-tbody");
-          const summary = document.getElementById("nb-job-summary");
-          const closeBtn = document.getElementById("nb-job-close");
-          const backupViewModalEl = document.getElementById("backup-view-modal");
-          const backupViewTitle = document.getElementById("backup-view-title");
-          const backupViewMeta = document.getElementById("backup-view-meta");
-          const backupViewLoading = document.getElementById("backup-view-loading");
-          const backupViewError = document.getElementById("backup-view-error");
-          const backupViewRender = document.getElementById("backup-view-render");
-          const backupViewDownload = document.getElementById("backup-view-download");
-          const backupViewFullscreen = document.getElementById("backup-view-fullscreen");
-          const backupViewFullscreenIcon = document.getElementById("backup-view-fullscreen-icon");
-          let backupViewModal = null;
-          let backupViewIsFullscreen = false;
-
-          if (!panel || !tbody || !summary) return;
-
-          const state = {
-            jobs: [],
-            timer: null,
-          };
-
-          function setPanelVisible(visible) {
-            panel.style.display = visible ? "block" : "none";
-          }
-
-          function escapeText(text) {
-            const span = document.createElement("span");
-            span.textContent = text == null ? "" : String(text);
-            return span.innerHTML;
-          }
-
-          function countLines(text) {
-            if (!text) return 0;
-            let count = 1;
-            for (let i = 0; i < text.length; i++) {
-              if (text.charCodeAt(i) === 10) count++;
-            }
-            return count;
-          }
-
-          function renderBackupText(text) {
-            if (!backupViewRender) return;
-            const normalized = (text || "").replace(/\r\n/g, "\n");
-            backupViewRender.innerHTML = "";
-
-            const lineCount = countLines(normalized);
-            const MAX_TABLE_LINES = 1500;
-            const MAX_LINENUM_LINES = 8000;
-
-            if (lineCount <= MAX_TABLE_LINES) {
-              const table = document.createElement("table");
-              table.className = "diff-table";
-              const tbodyEl = document.createElement("tbody");
-              const lines = normalized.split("\n");
-              const frag = document.createDocumentFragment();
-              lines.forEach((line, idx) => {
-                const tr = document.createElement("tr");
-                tr.className = "diff-row diff-context";
-                const tdLn = document.createElement("td");
-                tdLn.className = "diff-ln";
-                tdLn.textContent = String(idx + 1);
-                const tdTxt = document.createElement("td");
-                tdTxt.className = "diff-code";
-                tdTxt.textContent = line;
-                tr.appendChild(tdLn);
-                tr.appendChild(tdTxt);
-                frag.appendChild(tr);
-              });
-              tbodyEl.appendChild(frag);
-              table.appendChild(tbodyEl);
-              backupViewRender.appendChild(table);
-              return;
-            }
-
-            if (lineCount <= MAX_LINENUM_LINES) {
-              const pre = document.createElement("pre");
-              pre.className = "nb-backup-pre nb-backup-pre-linenums";
-              const code = document.createElement("code");
-              const lines = normalized.split("\n");
-              const frag = document.createDocumentFragment();
-              lines.forEach((line) => {
-                const span = document.createElement("span");
-                span.textContent = line;
-                frag.appendChild(span);
-              });
-              code.appendChild(frag);
-              pre.appendChild(code);
-              backupViewRender.appendChild(pre);
-              return;
-            }
-
-            const pre = document.createElement("pre");
-            pre.className = "nb-backup-pre nb-backup-pre-plain";
-            pre.textContent = normalized;
-            backupViewRender.appendChild(pre);
-          }
-
-          function setBackupViewFullscreen(next) {
-            if (!backupViewModalEl) return;
-            const dialog = backupViewModalEl.querySelector(".modal-dialog");
-            if (!dialog) return;
-            const want = !!next;
-            backupViewIsFullscreen = want;
-            dialog.classList.toggle("modal-fullscreen", want);
-            dialog.classList.toggle("modal-xl", !want);
-            if (backupViewFullscreenIcon) {
-              backupViewFullscreenIcon.className = want ? "bi bi-fullscreen-exit" : "bi bi-arrows-fullscreen";
-            }
-            if (backupViewFullscreen) {
-              backupViewFullscreen.setAttribute("aria-label", want ? "退出全屏" : "全屏");
-            }
-          }
-
-          async function resolveBackupViewErrorMessage(resp) {
-            if (!resp) return "备份内容加载失败";
-
-            let detail = "";
-            try {
-              const payload = await resp.clone().json();
-              detail = payload && typeof payload.detail === "string" ? payload.detail : "";
-            } catch (e) {
-              detail = "";
-            }
-
-            if (resp.status === 403) return "当前账号无权限查看备份内容";
-            if (resp.status === 404) return detail || "备份记录不存在";
-            return detail || "备份内容加载失败";
-          }
-
-          async function openBackupView(backupId) {
-            if (!backupId || !backupViewModalEl) return;
-            if (!backupViewModal) {
-              const bs = window.bootstrap;
-              if (!bs || !bs.Modal) return;
-              backupViewModal = new bs.Modal(backupViewModalEl);
-            }
-            if (backupViewTitle) backupViewTitle.textContent = "备份详情";
-            if (backupViewMeta) backupViewMeta.textContent = "";
-            if (backupViewError) {
-              backupViewError.classList.add("d-none");
-              backupViewError.textContent = "";
-            }
-            if (backupViewRender) backupViewRender.innerHTML = "";
-            if (backupViewLoading) backupViewLoading.classList.remove("d-none");
-            if (backupViewDownload) {
-              backupViewDownload.classList.add("d-none");
-              backupViewDownload.href = "#";
-            }
-            if (backupViewFullscreen) {
-              backupViewFullscreen.classList.remove("d-none");
-            }
-            backupViewModal.show();
-
-            let resp;
-            try {
-              resp = await fetch(`/api/backups/${encodeURIComponent(backupId)}`);
-            } catch (e) {
-              resp = null;
-            }
-            if (backupViewLoading) backupViewLoading.classList.add("d-none");
-            if (!resp || !resp.ok) {
-              if (backupViewError) {
-                backupViewError.textContent = await resolveBackupViewErrorMessage(resp);
-                backupViewError.classList.remove("d-none");
-              }
-              return;
-            }
-            const data = await resp.json();
-            const device = data && data.device ? data.device : {};
-            const record = data && data.record ? data.record : {};
-
-            if (backupViewMeta) {
-              backupViewMeta.textContent = `${device.name || ""} · ${device.host || ""} · ${record.started_at || ""}`;
-            }
-
-            const err = record.error_message || "";
-            if (err && backupViewError) {
-              backupViewError.textContent = err;
-              backupViewError.classList.remove("d-none");
-            }
-
-            if (backupViewDownload) {
-              backupViewDownload.href = `/backups/${encodeURIComponent(backupId)}/download`;
-              backupViewDownload.classList.remove("d-none");
-            }
-
-            renderBackupText(record.config_text || "");
-          }
-
-          function isActiveBackupStatus(status) {
-            return ["planned", "queued", "running"].includes(String(status || "").trim());
-          }
-
-          function isActiveScheduleRunStatus(status) {
-            return ["planned", "dispatching", "running", "finalizing", "cancelling"].includes(String(status || "").trim());
-          }
-
-          function backupStatusMeta(status, fallbackSuccess) {
-            const normalized = String(status || "").trim();
-            const metaMap = {
-              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
-              queued: { label: "已入队", tone: "info", icon: "bi-list-task" },
-              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
-              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
-              succeeded: { label: "成功", tone: "success", icon: "bi-check-circle" },
-              failed: { label: "失败", tone: "failed", icon: "bi-x-circle" },
-            };
-            if (metaMap[normalized]) {
-              return { ...metaMap[normalized], status: normalized };
-            }
-            if (fallbackSuccess === true) {
-              return { label: "成功", tone: "success", icon: "bi-check-circle", status: "succeeded" };
-            }
-            if (fallbackSuccess === false) {
-              return { label: "失败", tone: "failed", icon: "bi-x-circle", status: "failed" };
-            }
-            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
-          }
-
-          function scheduleRunStatusMeta(status) {
-            const normalized = String(status || "").trim();
-            const metaMap = {
-              planned: { label: "待计划", tone: "info", icon: "bi-hourglass-split" },
-              dispatching: { label: "派发中", tone: "info", icon: "bi-send" },
-              running: { label: "运行中", tone: "running", icon: "bi-arrow-repeat" },
-              finalizing: { label: "收尾中", tone: "running", icon: "bi-hourglass-bottom" },
-              cancelling: { label: "终止中", tone: "warning", icon: "bi-slash-circle" },
-              cancelled: { label: "已终止", tone: "warning", icon: "bi-stop-circle" },
-              partial_cancelled: { label: "部分终止", tone: "warning", icon: "bi-exclamation-octagon" },
-              succeeded: { label: "全部成功", tone: "success", icon: "bi-check-all" },
-              partial_failed: { label: "部分失败", tone: "failed", icon: "bi-exclamation-triangle" },
-              failed: { label: "全部失败", tone: "failed", icon: "bi-x-circle" },
-            };
-            if (metaMap[normalized]) {
-              return { ...metaMap[normalized], status: normalized };
-            }
-            return { label: "未知", tone: "info", icon: "bi-question-circle", status: normalized || "unknown" };
-          }
-
-          function taskStatusMeta(kind, status, fallbackSuccess) {
-            if (String(kind || "") === "schedule_run") {
-              return scheduleRunStatusMeta(status);
-            }
-            return backupStatusMeta(status, fallbackSuccess);
-          }
-
-          function renderTaskStatusBadge(kind, record) {
-            const meta = taskStatusMeta(kind, record ? record.status : "", record ? record.success : null);
-            return `<div class="backup-status backup-status-${meta.tone}"><i class="bi ${meta.icon}"></i>${escapeText(meta.label)}</div>`;
-          }
-
-          function renderBackupStatusBadge(record) {
-            return renderTaskStatusBadge("backup_record", record);
-          }
-
-          window.NB.backupStatusMeta = backupStatusMeta;
-          window.NB.scheduleRunStatusMeta = scheduleRunStatusMeta;
-          window.NB.taskStatusMeta = taskStatusMeta;
-          window.NB.renderTaskStatusBadge = renderTaskStatusBadge;
-          window.NB.renderBackupStatusBadge = renderBackupStatusBadge;
-          window.NB.isActiveBackupStatus = isActiveBackupStatus;
-          window.NB.isActiveScheduleRunStatus = isActiveScheduleRunStatus;
-
-          function render() {
-            const jobs = state.jobs;
-            if (!jobs.length) {
-              setPanelVisible(false);
-              return;
-            }
-            setPanelVisible(true);
-            const allDevices = jobs.reduce((acc, j) => acc + (j.devices ? j.devices.length : 0), 0);
-            const runningDevices = jobs.reduce(
-              (acc, j) => acc + (j.devices ? j.devices.filter((d) => isActiveBackupStatus(d.status)).length : 0),
-              0,
-            );
-            const successDevices = jobs.reduce(
-              (acc, j) => acc + (j.devices ? j.devices.filter((d) => String(d.status || "") === "succeeded").length : 0),
-              0,
-            );
-            const failedDevices = jobs.reduce(
-              (acc, j) => acc + (j.devices ? j.devices.filter((d) => String(d.status || "") === "failed").length : 0),
-              0,
-            );
-            summary.textContent = `任务：${jobs.length} · 设备：${allDevices} 台 · 进行中：${runningDevices} · 成功：${successDevices} · 失败：${failedDevices}`;
-
-            const rows = [];
-            jobs.forEach((job, idx) => {
-              const req = job.requested_at || "";
-              const cnt = job.devices ? job.devices.length : 0;
-              rows.push(
-                `<tr>
-                  <td colspan="3" class="text-secondary small">请求：${escapeText(req)} · 设备：${cnt}</td>
-                </tr>`,
-              );
-              (job.devices || []).forEach((d) => {
-                const status = renderBackupStatusBadge(d);
-                const name = escapeText(d.name || "");
-                const host = escapeText(d.host || "");
-                const started = escapeText(d.started_at || "");
-                const backupId = d.id || "";
-                const backupAttr = backupId ? `data-backup-id=\"${backupId}\"` : "";
-                const linkOpen = backupId ? `<a class=\"text-decoration-none link-light nb-backup-link\" href=\"#\" ${backupAttr}>` : "";
-                const linkClose = backupId ? `</a>` : "";
-                const err = d.error_message ? escapeText(d.error_message) : "";
-                rows.push(
-                  `<tr>
-                    <td>
-                      ${linkOpen}<div class=\"fw-semibold small text-truncate\" title=\"${name}\">${name}</div>${linkClose}
-                      <div class=\"text-secondary small text-truncate\" title=\"${host}\">${host}</div>
-                      ${err ? `<div class=\"text-danger small text-truncate\" title=\"${err}\">${err}</div>` : ""}
-                    </td>
-                    <td>${status}</td>
-                    <td class=\"text-secondary small text-nowrap\">${started}</td>
-                  </tr>`,
-                );
-              });
-              if (idx < jobs.length - 1) {
-                rows.push(`<tr><td colspan=\"3\" style=\"height: 6px;\"></td></tr>`);
-              }
-            });
-            tbody.innerHTML = rows.join("");
-
-            tbody.querySelectorAll(".nb-backup-link").forEach((a) => {
-              a.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                const bid = a.getAttribute("data-backup-id");
-                if (!bid) return;
-                if (window.NB && typeof window.NB.openBackupView === "function") {
-                  window.NB.openBackupView(bid);
-                }
-              });
-            });
-          }
-
-          function stopTimer() {
-            if (state.timer) {
-              clearInterval(state.timer);
-              state.timer = null;
-            }
-          }
-
-          async function refreshJobs() {
-            if (!state.jobs.length) {
-              stopTimer();
-              render();
-              return;
-            }
-            const allBackupIds = Array.from(
-              new Set(
-                state.jobs.flatMap((j) => (j.backup_ids || []).filter((x) => !!x)),
-              ),
-            );
-            if (!allBackupIds.length) {
-              state.jobs = [];
-              stopTimer();
-              render();
-              return;
-            }
-            const qs = encodeURIComponent(allBackupIds.join(","));
-            let data = null;
-            try {
-              const resp = await fetch(`/api/tasks/backups?ids=${qs}&limit=30`);
-              if (resp.ok) {
-                data = await resp.json();
-              }
-            } catch (e) {
-              data = null;
-            }
-            if (!data || !data.items) {
-              render();
-              return;
-            }
-            const map = {};
-            (data.items || []).forEach((it) => {
-              if (it && it.id) {
-                map[it.id] = it;
-              }
-            });
-            state.jobs = state.jobs.map((job) => {
-              const devices = (job.backup_ids || []).map((bid) => {
-                const it = map[bid];
-                if (!it) {
-                  return { id: bid, name: "", host: "", started_at: "", finished_at: null, status: "planned", success: false, error_message: "" };
-                }
-                return {
-                  id: it.id,
-                  name: it.device ? it.device.name : "",
-                  host: it.device ? it.device.host : "",
-                  started_at: it.started_at || "",
-                  finished_at: it.finished_at || null,
-                  status: it.status || "",
-                  success: it.success,
-                  error_message: it.error_message || "",
-                };
-              });
-              return { ...job, devices };
-            });
-            render();
-
-            const running = state.jobs.some((j) => j.devices && j.devices.some((d) => isActiveBackupStatus(d.status)));
-            if (!running) {
-              stopTimer();
-            }
-          }
-
-          function ensureTimer() {
-            if (state.timer) return;
-            state.timer = setInterval(refreshJobs, 1500);
-          }
-
-          function nowStr() {
-            const d = new Date();
-            const pad = (n) => String(n).padStart(2, "0");
-            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-          }
-
-          window.NB.trackBackups = function (backupIds) {
-            if (!CAN_TRACK_BACKUPS) return;
-            const ids = Array.isArray(backupIds) ? backupIds : [backupIds];
-            const clean = ids.map((x) => (x == null ? "" : String(x))).filter((x) => x.trim() !== "");
-            if (!clean.length) return;
-            const job = {
-              id: Date.now().toString() + Math.random().toString(16).slice(2),
-              requested_at: nowStr(),
-              backup_ids: clean.slice(0),
-              devices: [],
-            };
-            state.jobs.unshift(job);
-            setPanelVisible(true);
-            ensureTimer();
-            refreshJobs();
-          };
-
-          window.NB.openBackupView = function (backupId) {
-            if (!backupId) return;
-            openBackupView(backupId);
-          };
-
-          if (backupViewFullscreen) {
-            backupViewFullscreen.addEventListener("click", () => {
-              setBackupViewFullscreen(!backupViewIsFullscreen);
-            });
-          }
-
-          if (backupViewModalEl) {
-            backupViewModalEl.addEventListener("hidden.bs.modal", () => {
-              setBackupViewFullscreen(false);
-            });
-          }
-
-          if (closeBtn) {
-            closeBtn.addEventListener("click", () => {
-              state.jobs = [];
-              stopTimer();
-              render();
-            });
-          }
-        })();
+        window.NB_TASK_CONFIG = {
+          canTrackBackups: {{ "true" if has_permission('backups.view') else "false" }},
+          canTerminateTaskRuns: {{ "true" if has_permission('schedules.update') else "false" }},
+          canRetryTaskRuns: {{ "true" if has_permission('devices.backup') else "false" }}
+        };
       </script>
+      <script src="/static/js/core/nb-common.js"></script>
     {% endif %}
-    <script>
-      (function () {
-        function shouldEnhance(select) {
-          if (!select || select.dataset.nbSelectEnhanced === "true") return false;
-          if (!select.classList.contains("form-select")) return false;
-          if (select.multiple) return false;
-          const size = Number(select.getAttribute("size") || "1");
-          if (size > 1) return false;
-          return true;
-        }
-
-        function optionLabel(option) {
-          if (!option) return "";
-          const explicitLabel = option.dataset ? option.dataset.nbLabel : "";
-          if (explicitLabel) return explicitLabel;
-          const rawText = option.textContent == null ? "" : String(option.textContent);
-          return rawText
-            .replace(/\r/g, "")
-            .replace(/\n[ \t]*/g, "")
-            .replace(/^[ \t\n]+|[ \t\n]+$/g, "");
-        }
-
-        function selectedLabel(select) {
-          const option = select.selectedOptions && select.selectedOptions[0];
-          return optionLabel(option);
-        }
-
-        function syncWrapperState(select, wrapper, button) {
-          wrapper.classList.toggle("d-none", select.classList.contains("d-none"));
-          button.disabled = select.disabled;
-          button.classList.toggle("disabled", select.disabled);
-          button.setAttribute("aria-disabled", select.disabled ? "true" : "false");
-          button.querySelector(".nb-select-text").textContent = selectedLabel(select);
-        }
-
-        function buildOptions(select, menu, button) {
-          menu.innerHTML = "";
-          Array.from(select.options).forEach((option) => {
-            if (option.hidden) return;
-            const item = document.createElement("button");
-            item.type = "button";
-            item.className = "nb-select-option";
-            item.textContent = optionLabel(option);
-            const depth = Math.max(0, Number(option.dataset && option.dataset.depth ? option.dataset.depth : "0"));
-            item.style.setProperty("--nb-option-depth", String(depth));
-            item.disabled = option.disabled;
-            item.classList.toggle("selected", option.selected);
-            item.setAttribute("role", "option");
-            item.setAttribute("aria-selected", option.selected ? "true" : "false");
-            item.addEventListener("click", () => {
-              if (option.disabled) return;
-              select.value = option.value;
-              select.dispatchEvent(new Event("change", { bubbles: true }));
-              button.querySelector(".nb-select-text").textContent = selectedLabel(select);
-              const dropdown = bootstrap.Dropdown.getInstance(button) || new bootstrap.Dropdown(button);
-              dropdown.hide();
-              setTimeout(refreshAllSelects, 0);
-            });
-            menu.appendChild(item);
-          });
-        }
-
-        function enhanceSelect(select) {
-          if (!shouldEnhance(select)) return;
-
-          select.dataset.nbSelectEnhanced = "true";
-          const wrapper = document.createElement("div");
-          wrapper.className = "dropdown nb-select-wrap";
-          wrapper.style.cssText = select.style.cssText;
-          select.style.cssText = "";
-
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = select.className
-            .replace(/\bd-none\b/g, "")
-            .trim() + " nb-select-button text-start d-flex justify-content-between align-items-center";
-          button.setAttribute("data-bs-toggle", "dropdown");
-          button.setAttribute("data-bs-auto-close", "outside");
-          button.setAttribute("aria-expanded", "false");
-          button.innerHTML = '<span class="nb-select-text text-truncate"></span>';
-
-          const menu = document.createElement("div");
-          menu.className = "dropdown-menu nb-select-menu";
-          menu.setAttribute("role", "listbox");
-
-          select.parentNode.insertBefore(wrapper, select);
-          wrapper.appendChild(select);
-          wrapper.appendChild(button);
-          wrapper.appendChild(menu);
-          select.classList.add("nb-select-native");
-
-          button.addEventListener("show.bs.dropdown", () => {
-            buildOptions(select, menu, button);
-          });
-          select.addEventListener("change", () => {
-            syncWrapperState(select, wrapper, button);
-            buildOptions(select, menu, button);
-          });
-
-          const observer = new MutationObserver(() => {
-            syncWrapperState(select, wrapper, button);
-            buildOptions(select, menu, button);
-          });
-          observer.observe(select, {
-            attributes: true,
-            childList: true,
-            subtree: true,
-            attributeFilter: ["class", "disabled", "hidden", "selected", "style"],
-          });
-
-          syncWrapperState(select, wrapper, button);
-          buildOptions(select, menu, button);
-        }
-
-        function refreshAllSelects() {
-          document.querySelectorAll("select.form-select[data-nb-select-enhanced='true']").forEach((select) => {
-            const wrapper = select.closest(".nb-select-wrap");
-            const button = wrapper ? wrapper.querySelector(".nb-select-button") : null;
-            const menu = wrapper ? wrapper.querySelector(".nb-select-menu") : null;
-            if (wrapper && button && menu) {
-              syncWrapperState(select, wrapper, button);
-              buildOptions(select, menu, button);
-            }
-          });
-        }
-
-    window.NB = window.NB || {};
-    window.NB.refreshSelectDropdowns = refreshAllSelects;
-
-    document.addEventListener("DOMContentLoaded", () => {
-      document.querySelectorAll("select.form-select").forEach(enhanceSelect);
-    });
-  })();
-</script>
+    <script src="/static/js/core/select-enhance.js"></script>
 
 {% if current_user and current_user.enable_watermark %}
 <script>
@@ -1324,7 +567,7 @@
       canvas.width = 350;
       canvas.height = 250;
       const ctx = canvas.getContext('2d');
-      
+
       ctx.translate(canvas.width / 2, canvas.height / 2);
       // 增加倾斜角度，视觉上更有纵深感
       ctx.rotate(-30 * Math.PI / 180);
@@ -1334,10 +577,10 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, 0, 0);
-      
+
       return canvas.toDataURL('image/png');
     }
-    
+
     const watermarkDiv = document.createElement('div');
     watermarkDiv.className = 'nb-watermark';
     watermarkDiv.style.pointerEvents = 'none';
@@ -1351,7 +594,7 @@
     watermarkDiv.style.opacity = '0.15';
     watermarkDiv.style.backgroundImage = 'url(' + createWatermark("{{ current_user.username }}") + ')';
     watermarkDiv.style.backgroundRepeat = 'repeat';
-    
+
     document.body.appendChild(watermarkDiv);
   })();
 </script>

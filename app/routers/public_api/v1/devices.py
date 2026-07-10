@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.security import APIKeyHeader
+from fastapi import Depends, Request
 from sqlmodel import Session
 
 from app.db import get_session
 from app.routers.support import _require_api_permission, get_user_allowed_group_ids, raise_service_api_error
+from app.routers.public_api.v1.common import limit_query, normalize_public_pagination, page_payload, page_query, public_api_router
 from app.schemas.api.backup import DeviceBackupsResponseSchema
 from app.schemas.api.device import (
     DeviceCreateSchema,
@@ -15,9 +15,7 @@ from app.schemas.api.resource import OperationStatusSchema
 from app.services import backup_service, device_service
 
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False, description="API Key for third-party integrations")
-
-router = APIRouter(prefix="/api/v1", dependencies=[Depends(api_key_header)])
+router = public_api_router()
 
 
 @router.get("/devices", summary="获取设备列表", response_model=DeviceListResponseSchema, tags=["设备管理"])
@@ -26,20 +24,52 @@ def get_devices(
     session: Session = Depends(get_session),
     q: str | None = None,
     group_id: int | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    page: int = page_query(),
+    limit: int = limit_query(),
 ):
     user = _require_api_permission(request, "devices.view")
     allowed_ids = get_user_allowed_group_ids(user, session=session)
     filters = device_service.normalize_list_filters(q=q, group_id=group_id)
-    return device_service.list_devices_payload(
+    pagination = normalize_public_pagination(page=page, limit=limit)
+    payload = device_service.list_devices_payload(
         session,
         filters=filters,
-        limit=limit,
-        offset=offset,
+        limit=pagination.limit,
+        offset=pagination.offset,
         allowed_group_ids=allowed_ids,
     )
+    return page_payload(
+        items=payload["items"],
+        page=pagination.page,
+        limit=pagination.limit,
+        total=payload["total"],
+    )
 
+
+@router.get("/devices/unreachable", summary="获取当前不可达设备列表", response_model=DeviceListResponseSchema, tags=["其它"])
+def get_unreachable_devices(
+    request: Request,
+    page: int = page_query(),
+    limit: int = limit_query(),
+    session: Session = Depends(get_session),
+):
+    user = _require_api_permission(request, "devices.view")
+    allowed_ids = get_user_allowed_group_ids(user, session=session)
+    filters = device_service.normalize_list_filters(status="offline")
+    pagination = normalize_public_pagination(page=page, limit=limit)
+    payload = device_service.list_devices_payload(
+        session,
+        filters=filters,
+        limit=pagination.limit,
+        offset=pagination.offset,
+        allowed_group_ids=allowed_ids,
+    )
+    return page_payload(
+        items=payload["items"],
+        page=pagination.page,
+        limit=pagination.limit,
+        total=payload["total"],
+    )
 
 @router.get("/devices/{device_id}", summary="获取设备详情", response_model=DeviceResponseSchema, tags=["设备管理"])
 def get_device(request: Request, device_id: int, session: Session = Depends(get_session)):
@@ -114,7 +144,13 @@ def delete_device_api(request: Request, device_id: int, session: Session = Depen
 
 
 @router.get("/devices/{device_id}/backups", summary="获取设备备份历史", response_model=DeviceBackupsResponseSchema, tags=["备份管理"])
-def get_device_backups(request: Request, device_id: int, limit: int = 10, offset: int = 0, session: Session = Depends(get_session)):
+def get_device_backups(
+    request: Request,
+    device_id: int,
+    page: int = page_query(),
+    limit: int = limit_query(default=10, maximum=200),
+    session: Session = Depends(get_session),
+):
     user = _require_api_permission(request, "backups.view")
     allowed_ids = get_user_allowed_group_ids(user, session=session)
     try:
@@ -123,31 +159,20 @@ def get_device_backups(request: Request, device_id: int, limit: int = 10, offset
             device_id=device_id,
             allowed_group_ids=allowed_ids,
         )
-        page = max(1, (max(0, int(offset or 0)) // max(1, int(limit or 10))) + 1)
+        pagination = normalize_public_pagination(page=page, limit=limit, default_limit=10, max_limit=200)
         payload = backup_service.list_device_backups_payload(
             session,
             device_id=device_id,
-            page=page,
-            limit=limit,
+            page=pagination.page,
+            limit=pagination.limit,
             offset_minutes=0,
+            allowed_group_ids=allowed_ids,
         )
     except (device_service.ServiceError, backup_service.ServiceError) as exc:
         raise_service_api_error(exc)
-    return {
-        "total": payload["pagination"]["total"],
-        "items": payload["backups"],
-    }
-
-
-@router.get("/devices/unreachable", summary="获取当前不可达设备列表", response_model=DeviceListResponseSchema, tags=["其它"])
-def get_unreachable_devices(request: Request, limit: int = 50, offset: int = 0, session: Session = Depends(get_session)):
-    user = _require_api_permission(request, "devices.view")
-    allowed_ids = get_user_allowed_group_ids(user, session=session)
-    filters = device_service.normalize_list_filters(status="offline")
-    return device_service.list_devices_payload(
-        session,
-        filters=filters,
-        limit=limit,
-        offset=offset,
-        allowed_group_ids=allowed_ids,
+    return page_payload(
+        items=payload["backups"],
+        page=payload["pagination"]["page"],
+        limit=payload["pagination"]["limit"],
+        total=payload["pagination"]["total"],
     )

@@ -186,9 +186,8 @@ def run_cleanup() -> None:
         
         if login_days > 0:
             login_count = crud.cleanup_old_login_logs(session, login_days)
-
-        # TaskEvent 固定默认只保留最近 90 天
-        crud.cleanup_old_task_events(session, 90)
+        if days > 0:
+            crud.cleanup_old_task_events(session, days)
 
 
 def sync_scheduler_from_db() -> None:

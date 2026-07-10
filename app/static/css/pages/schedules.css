@@ -1,0 +1,58 @@
+.fs-7 { font-size: 0.75rem !important; }
+.x-small { font-size: 0.7rem !important; }
+.transition-all { transition: all 0.2s ease-in-out; }
+.hover-shadow-md:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important; }
+.preview-scroll::-webkit-scrollbar { height: 4px; width: 4px; }
+.preview-scroll::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 4px; }
+.js-next-run { white-space: nowrap; }
+#scheduleModal .modal-dialog {
+  max-height: calc(100vh - 2rem);
+}
+#scheduleModal .modal-content,
+#scheduleModal .modal-content > form {
+  max-height: calc(100vh - 2rem);
+  min-height: 0;
+}
+#scheduleModal .modal-content > form {
+  display: flex;
+  flex-direction: column;
+}
+#scheduleModal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+#scheduleModal .modal-body > .row {
+  align-items: stretch;
+}
+#scheduleModal .col-lg-7 {
+  min-height: 0;
+}
+#scheduleModal .schedule-preview-card {
+  flex: 1 1 0;
+  min-height: 0;
+}
+#scheduleModal .preview-scroll {
+  flex: 1 1 0;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+#schedule-preview-devices > .w-100 > .d-flex,
+#drawer-preview-devices > .w-100 > .d-flex {
+  row-gap: 0.45rem !important;
+  padding-bottom: 0.35rem;
+}
+#scheduleModal .device-badge {
+  line-height: 1.45;
+  margin-bottom: 0.25rem !important;
+}
+#target-drawer.show,
+#target-drawer.showing {
+  z-index: 2085 !important;
+}
+.offcanvas-backdrop.schedule-target-drawer-backdrop,
+.offcanvas-backdrop.schedule-target-drawer-backdrop.show {
+  z-index: 2080 !important;
+}

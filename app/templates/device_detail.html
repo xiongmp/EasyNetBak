@@ -352,7 +352,7 @@
                 <th style="width: 220px;">时间</th>
                 <th style="width: 110px;">状态</th>
                 <th>错误</th>
-                <th style="width: 220px;">操作</th>
+                <th style="width: 220px;">查看</th>
               </tr>
             </thead>
             <tbody id="device-backups-tbody">
@@ -364,7 +364,8 @@
                   </td>
                   <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
                   <td>
-                    <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">查看</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">配置</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="{{ r.id }}">日志</button>
                   </td>
                 </tr>
               {% else %}
@@ -403,6 +404,15 @@
 
     if (els.tbody) {
       els.tbody.addEventListener("click", (ev) => {
+        const logBtn = ev.target && ev.target.closest ? ev.target.closest(".device-backup-log") : null;
+        if (logBtn) {
+          const bid = logBtn.getAttribute("data-backup-id");
+          if (!bid) return;
+          if (window.NB && typeof window.NB.openBackupLogView === "function") {
+            window.NB.openBackupLogView(bid);
+          }
+          return;
+        }
         const btn = ev.target && ev.target.closest ? ev.target.closest(".device-backup-view") : null;
         if (!btn) return;
         const bid = btn.getAttribute("data-backup-id");
@@ -454,7 +464,8 @@
             <td>${status}</td>
             <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}">${err}</td>
             <td>
-              <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">查看</button>
+              <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">配置</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="${escapeText(b.id)}">日志</button>
             </td>
           </tr>
         `;
@@ -468,7 +479,7 @@
         let detail = "";
         try {
           const data = await resp.json();
-          detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+          detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
         } catch (e) {
           detail = "";
         }
@@ -525,7 +536,7 @@
               let detail = "";
               try {
                 const data = await resp.json();
-                detail = data && (data.detail || data.message) ? String(data.detail || data.message) : "";
+                detail = data && data.error && data.error.message ? String(data.error.message) : (data && (data.detail || data.message) ? String(data.detail || data.message) : "");
               } catch (e) {
                 detail = "";
               }
@@ -536,14 +547,30 @@
               return;
             }
             const data = await resp.json();
-            if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("备份任务已提交", "success");
+            if (window.NB && typeof window.NB.trackBackups === "function" && data && data.record && data.record.id) {
+              try {
+                const enqueueWarning = data && data.enqueue_warning_message ? String(data.enqueue_warning_message) : "";
+                window.NB.trackBackups({
+                  backup_id: data.record.id,
+                  warning_message: enqueueWarning,
+                });
+              } catch (trackError) {
+                console.error("Failed to track backup task", trackError);
+              }
             }
-            
-            // 稍后刷新页面以显示新记录
-            setTimeout(() => {
-              window.location.href = `/devices/${DEVICE_ID}`;
-            }, 500);
+            const enqueueWarning = data && data.enqueue_warning_message ? String(data.enqueue_warning_message) : "";
+            if (window.NB && typeof window.NB.showToast === "function") {
+              if (enqueueWarning) {
+                window.NB.showToast(enqueueWarning, "warning");
+              } else {
+                window.NB.showToast("备份任务已提交", "success");
+              }
+            }
+            if (data && data.record && data.record.id) {
+              startPolling(data.record.id);
+            } else {
+              setDisabled(els.btn, false);
+            }
           } catch (e) {
             setDisabled(els.btn, false);
             if (window.NB && typeof window.NB.showToast === "function") {

@@ -15,6 +15,9 @@ from app.services.crypto import decrypt_secret
 logger = logging.getLogger(__name__)
 
 
+SUPPORTED_FTP_ENCODINGS = {"utf-8", "gbk", "latin-1"}
+
+
 def _safe_device_name(name: str) -> str:
     return "".join([c if c.isalnum() or c in "-_." else "_" for c in (name or "")]).strip("_") or "device"
 
@@ -35,33 +38,50 @@ def _parse_int(value: str | None, default: int, min_val: int, max_val: int) -> i
     return val
 
 
-def _ftp_connect(host: str, port: int, username: str, password: str, timeout: int, passive: bool) -> FTP:
-    encodings = ["utf-8", "gbk", "latin-1"]
-    last_exc: Exception | None = None
-    for enc in encodings:
-        ftp = FTP()
-        ftp.encoding = enc
+def _normalize_ftp_encoding(value: str | None) -> str:
+    candidate = (value or "").strip().lower()
+    if candidate in SUPPORTED_FTP_ENCODINGS:
+        return candidate
+    return "utf-8"
+
+
+def _close_ftp(ftp: FTP | None) -> None:
+    if ftp is None:
+        return
+    try:
+        ftp.quit()
+    except Exception:
         try:
-            ftp.connect(host=host, port=port, timeout=timeout)
-            ftp.login(user=username, passwd=password)
-            ftp.set_pasv(passive)
-            return ftp
-        except UnicodeDecodeError as exc:
-            last_exc = exc
-            try:
-                ftp.close()
-            except Exception:
-                pass
-            continue
+            ftp.close()
         except Exception:
-            try:
-                ftp.close()
-            except Exception:
-                pass
-            raise
-    if last_exc:
-        raise last_exc
-    raise RuntimeError("FTP connection failed")
+            pass
+
+
+def _try_enable_utf8(ftp: FTP) -> None:
+    try:
+        features = ftp.sendcmd("FEAT")
+    except all_errors:
+        features = ""
+    if "UTF8" in features.upper() or "UTF-8" in features.upper():
+        try:
+            ftp.sendcmd("OPTS UTF8 ON")
+        except all_errors:
+            pass
+
+
+def _ftp_connect(host: str, port: int, username: str, password: str, timeout: int, passive: bool, encoding: str) -> FTP:
+    ftp = FTP()
+    ftp.encoding = _normalize_ftp_encoding(encoding)
+    try:
+        ftp.connect(host=host, port=port, timeout=timeout)
+        ftp.login(user=username, passwd=password)
+        ftp.set_pasv(passive)
+        if ftp.encoding == "utf-8":
+            _try_enable_utf8(ftp)
+        return ftp
+    except Exception:
+        _close_ftp(ftp)
+        raise
 
 
 def _ensure_dir(ftp: FTP, segments: list[str]) -> None:
@@ -87,6 +107,7 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
     ftp_base_dir = (crud.get_setting(session, key="ftp_base_dir") or "").strip()
     ftp_passive = crud.get_setting(session, key="ftp_passive") or "1"
     ftp_timeout = crud.get_setting(session, key="ftp_timeout") or "15"
+    ftp_encoding = crud.get_setting(session, key="ftp_encoding") or "utf-8"
 
     if not ftp_host:
         logger.error("FTP configuration is incomplete: missing host")
@@ -97,6 +118,7 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
     port = _parse_int(ftp_port, 21, 1, 65535)
     timeout = _parse_int(ftp_timeout, 15, 1, 300)
     passive = ftp_passive in {"1", "on", "true", "yes"}
+    encoding = _normalize_ftp_encoding(ftp_encoding)
 
     tz_str = crud.get_setting(session, key="timezone_offset") or settings.timezone_offset
     offset_minutes = parse_timezone_offset_to_minutes(tz_str) or 0
@@ -116,7 +138,7 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
 
     ftp: FTP | None = None
     try:
-        ftp = _ftp_connect(ftp_host, port, username, password, timeout, passive)
+        ftp = _ftp_connect(ftp_host, port, username, password, timeout, passive, encoding)
         _ensure_dir(ftp, segments)
         header_line = f"Device-Name: {device_name or ''}\n"
         payload_text = f"{header_line}{config_text or ''}"
@@ -124,17 +146,10 @@ def upload_backup_to_ftp(session: Session, device_name: str, host: str, config_t
         ftp.storbinary(f"STOR {filename}", data)
         return True
     except Exception as exc:
-        logger.error(f"Failed to upload backup to FTP: {exc}")
+        logger.error(f"Failed to upload backup to FTP with encoding {encoding}: {exc}")
         return False
     finally:
-        if ftp is not None:
-            try:
-                ftp.quit()
-            except Exception:
-                try:
-                    ftp.close()
-                except Exception:
-                    pass
+        _close_ftp(ftp)
 
 
 def test_ftp_connection(
@@ -145,6 +160,7 @@ def test_ftp_connection(
     base_dir: str,
     passive: str,
     timeout: str,
+    encoding: str,
 ) -> tuple[bool, str]:
     ftp_host = (host or "").strip()
     if not ftp_host:
@@ -155,22 +171,16 @@ def test_ftp_connection(
     ftp_password = password or ""
     ftp_passive = (passive or "").strip().lower() in {"1", "on", "true", "yes"}
     base_clean = (base_dir or "").strip().strip("/")
+    ftp_encoding = _normalize_ftp_encoding(encoding)
 
     ftp: FTP | None = None
     try:
-        ftp = _ftp_connect(ftp_host, ftp_port, ftp_username, ftp_password, ftp_timeout, ftp_passive)
+        ftp = _ftp_connect(ftp_host, ftp_port, ftp_username, ftp_password, ftp_timeout, ftp_passive, ftp_encoding)
         if base_clean:
             segments = [s for s in base_clean.split("/") if s]
             _ensure_dir(ftp, segments)
-        return True, "FTP 连接成功"
+        return True, f"FTP 连接成功，当前路径编码: {ftp_encoding}"
     except Exception as exc:
-        return False, f"FTP 连接失败: {exc}"
+        return False, f"FTP 连接失败（路径编码: {ftp_encoding}）: {exc}"
     finally:
-        if ftp is not None:
-            try:
-                ftp.quit()
-            except Exception:
-                try:
-                    ftp.close()
-                except Exception:
-                    pass
+        _close_ftp(ftp)

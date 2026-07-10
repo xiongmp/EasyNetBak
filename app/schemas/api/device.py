@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
+from app.schemas.api.common import PageResponse
 from app.schemas.inputs import DeviceCreateInput, DeviceUpdateInput
 
 
@@ -26,9 +27,8 @@ class DeviceResponseSchema(BaseModel):
     reachability_duration_ms: int | None = None
 
 
-class DeviceListResponseSchema(BaseModel):
-    total: int
-    items: list[DeviceResponseSchema]
+class DeviceListResponseSchema(PageResponse[DeviceResponseSchema]):
+    pass
 
 
 class DeviceCreateSchema(DeviceCreateInput):
