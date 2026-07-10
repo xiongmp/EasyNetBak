@@ -1,0 +1,10 @@
+<!doctype html><html lang="{{ locale }}"><body>
+<h2>{{ _("email.summary.title") }}</h2>
+<p><strong>{{ _("email.field.task_time") }}:</strong> {{ task_time }}</p>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:800px">
+<tr><th align="left">{{ _("email.field.device_name") }}</th><td>{{ device.name }}</td></tr>
+<tr><th align="left">{{ _("email.field.device_host") }}</th><td>{{ device.host }}</td></tr>
+<tr><th align="left">{{ _("email.field.result") }}</th><td>{{ status_label }}</td></tr>
+<tr><th align="left">{{ _("email.field.duration") }}</th><td>{{ duration }}</td></tr>
+<tr><th align="left">{{ _("email.field.details") }}</th><td>{{ status_detail }}</td></tr>
+</table>{% if summary_html %}{{ summary_html|safe }}{% endif %}</body></html>

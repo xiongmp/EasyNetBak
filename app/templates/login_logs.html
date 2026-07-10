@@ -55,15 +55,9 @@
                             <span class="fw-medium">{{ log.username }}</span>
                         </td>
                         <td>
-                            {% if log.status == 'success' %}
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">登录成功</span>
-                            {% elif log.status == 'fail' %}
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">登录失败</span>
-                            {% elif log.status == 'logout' %}
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">登出</span>
-                            {% else %}
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ log.status }}</span>
-                            {% endif %}
+                            <span class="badge {% if log.status == 'success' %}bg-success-subtle text-success{% elif log.status == 'fail' %}bg-danger-subtle text-danger{% else %}bg-secondary-subtle text-secondary{% endif %} border">
+                                {{ login_status_map.get(log.status, log.status) }}
+                            </span>
                         </td>
                         <td>
                             <span class="text-secondary small">{{ log.ip_address or "-" }}</span>
@@ -73,7 +67,7 @@
                         </td>
                         <td>
                             {% if log.fail_reason %}
-                                <span class="text-danger small">{{ log.fail_reason }}</span>
+                                <span class="text-danger small">{{ translate_login_fail_reason(log.fail_reason) }}</span>
                             {% else %}
                                 -
                             {% endif %}

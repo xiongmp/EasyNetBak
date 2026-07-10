@@ -1,14 +1,20 @@
 <!doctype html>
-<html lang="zh-CN" class="{{ html_class }}">
+<html lang="{{ locale|default('zh-CN') }}" class="{{ html_class }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}{{ app_name }}{% endif %}</title>
+    <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ __legacy(page_title) }}{% elif title %}{{ __legacy(title) }}{% else %}{{ app_name }}{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/static/css/app.css" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
     {% block head %}{% endblock %}
+    <script>
+      window.NB_LOCALE = {{ locale|default('zh-CN')|tojson }};
+      window.NB_MESSAGES = {{ js_messages|default({})|tojson }};
+      window.NB_LEGACY_MESSAGES = {{ legacy_js_messages|default({})|tojson }};
+    </script>
+    <script src="/static/js/core/i18n.js"></script>
     <script>
       // 初始化暗黑模式
       (function() {
@@ -250,7 +256,7 @@
                 {% endif %}
                 {% if page_subtitle %}
                   <div class="breadcrumb-subtitle d-none d-lg-flex text-secondary">
-                    {{ page_subtitle }}
+                    {{ __legacy(page_subtitle) }}
                   </div>
                 {% endif %}
               </nav>
@@ -443,8 +449,8 @@
     {% else %}
       <main class="container py-5" style="max-width: 520px;">
         <div class="mb-4">
-          <div class="h4 mb-1">{{ page_title or app_name }}</div>
-          {% if page_subtitle %}<div class="text-secondary small">{{ page_subtitle }}</div>{% endif %}
+          <div class="h4 mb-1">{{ __legacy(page_title or app_name) }}</div>
+          {% if page_subtitle %}<div class="text-secondary small">{{ __legacy(page_subtitle) }}</div>{% endif %}
         </div>
     {% endif %}
 

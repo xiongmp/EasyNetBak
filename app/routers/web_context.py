@@ -12,9 +12,15 @@ from app.core.settings import settings
 from app.core.time import format_local_datetime
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 from app.routers.support import _current_user, has_permission, _user_effective_perms
+from app.i18n import translate
+from app.i18n.render import javascript_messages, legacy_javascript_messages
+from app.i18n.validators import supported_locales
+from app.i18n.legacy import LegacyI18nExtension, legacy_translate_for_template, translate_legacy_text
 
 
 templates = Jinja2Templates(directory="app/templates")
+templates.env.add_extension(LegacyI18nExtension)
+templates.env.globals["__legacy"] = legacy_translate_for_template
 
 
 def _dt_local_str(value: datetime | None, *, offset_minutes: int) -> str:
@@ -37,6 +43,7 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
     user = _current_user(request)
     role = getattr(user, "role", "") if user else ""
     eff = _user_effective_perms(user)
+    locale = getattr(request.state, "locale", settings.default_locale)
     return {
         "request": request,
         "active": active,
@@ -50,6 +57,15 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
         "is_operator": role in ("admin", "operator"),
         "perms": eff if eff is not None else {"*"},
         "has_permission": lambda code: has_permission(user, code),
-        "role_labels": getattr(crud, "ROLE_LABELS", {}),
+        "role_labels": {
+            code: translate_legacy_text(label, locale)
+            for code, label in getattr(crud, "ROLE_LABELS", {}).items()
+        },
         "admin_role_codes": list(getattr(crud, "ROLE_ADMIN_CODES", set())),
+        "locale": locale,
+        "supported_locales": supported_locales(),
+        "locale_label_map": {"zh-CN": "简体中文", "en-US": "English"},
+        "js_messages": javascript_messages(locale),
+        "legacy_js_messages": legacy_javascript_messages(locale),
+        "_": lambda key, params=None, fallback=None: translate(locale, key, params, fallback),
     }

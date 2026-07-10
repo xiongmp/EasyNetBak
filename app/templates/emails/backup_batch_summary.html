@@ -1,0 +1,14 @@
+<!doctype html><html lang="{{ locale }}"><body>
+<h2>{{ _("email.summary.title") }}</h2>
+<p><strong>{{ _("email.field.task_time") }}:</strong> {{ task_time }}</p>
+<p>{{ _("email.summary.counts", {"total": run.total_devices, "success": run.success_count, "failed": run.fail_count, "cancelled": cancelled|length}) }}</p>
+{% for title_key, color, items in sections %}{% if items %}
+<h3 style="color:{{ color }}">{{ _(title_key) }}</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
+<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.details") }}</th></tr>
+{% for item in items %}<tr><td>{{ item[0].name }}</td><td>{{ item[0].host }}</td><td>
+{% if item|length > 2 %}<ul>{% for line in item[2].sample_lines or [] %}<li><code>{{ line.prefix }} {{ line.text }}</code></li>{% endfor %}</ul>
+{% else %}{{ item[1].error_message or item[1].failure_type or "-" }}{% endif %}
+</td></tr>{% endfor %}
+</table>{% endif %}{% endfor %}
+</body></html>

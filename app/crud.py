@@ -941,12 +941,17 @@ def create_backup_record(
     *,
     device_id: int,
     template_id: int | None,
+    locale: str | None = None,
 ) -> BackupRecord:
+    if locale is None:
+        from app.i18n import get_current_locale
+        locale = get_current_locale()
     record = BackupRecord(
         device_id=device_id,
         template_id=template_id,
         status=task_state_service.BACKUP_RECORD_STATUS_PLANNED,
         success=False,
+        locale=locale,
     )
     session.add(record)
     return _flush_and_refresh(session, record)
@@ -1627,6 +1632,7 @@ def create_user(
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
     enable_watermark: bool = True,
+    locale: str = "zh-CN",
 ) -> User:
     username = username.strip()
     role = (role or "").strip().lower()
@@ -1643,6 +1649,7 @@ def create_user(
         allowed_group_ids=allowed_group_ids,
         mfa_enabled=mfa_enabled,
         enable_watermark=enable_watermark,
+        locale=locale,
     )
     if mfa_secret:
         user.mfa_secret = mfa_secret
@@ -1741,6 +1748,7 @@ def update_user(
     recovery_codes: list[str] | None | object = _UNSET,
     recovery_codes_enabled: bool | None = None,
     enable_watermark: bool | None = None,
+    locale: str | None = None,
 ) -> User | None:
     user = session.get(User, user_id)
     if user is None:
@@ -1784,6 +1792,9 @@ def update_user(
 
     if enable_watermark is not None:
         user.enable_watermark = bool(enable_watermark)
+
+    if locale is not None:
+        user.locale = locale
 
     session.add(user)
     return _flush_and_refresh(session, user)

@@ -17,6 +17,8 @@ from app.db import session_scope
 from app.core.time import format_local_datetime
 from app.models import TaskEvent
 from app.services import backup_service, task_event_bus_service, task_state_service
+from app.i18n import has_key, translate
+from app.i18n.validators import normalize_locale
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ class TaskRealtimeSubscription:
     track_id: str
     allowed_group_ids: tuple[int, ...] | None
     tz_offset_minutes: int
+    locale: str = "zh-CN"
 
     @property
     def scope_key(self) -> str:
@@ -35,7 +38,7 @@ class TaskRealtimeSubscription:
             groups_key = "*"
         else:
             groups_key = ",".join(str(x) for x in self.allowed_group_ids)
-        return f"{self.kind}:{self.track_id}:tz:{self.tz_offset_minutes}:groups:{groups_key}"
+        return f"{self.kind}:{self.track_id}:tz:{self.tz_offset_minutes}:locale:{self.locale}:groups:{groups_key}"
 
     @property
     def track_key(self) -> str:
@@ -62,6 +65,7 @@ def build_subscription(
     backup_id: UUID | str | None = None,
     allowed_group_ids: list[int] | tuple[int, ...] | None,
     tz_offset_minutes: int,
+    locale: str = "zh-CN",
 ) -> TaskRealtimeSubscription:
     if bool(run_id) == bool(backup_id):
         raise ValueError("subscribe requires exactly one of run_id or backup_id")
@@ -71,12 +75,14 @@ def build_subscription(
             track_id=str(UUID(str(run_id))),
             allowed_group_ids=_normalize_allowed_group_ids(allowed_group_ids),
             tz_offset_minutes=int(tz_offset_minutes or 0),
+            locale=normalize_locale(locale),
         )
     return TaskRealtimeSubscription(
         kind="backup",
         track_id=str(UUID(str(backup_id))),
         allowed_group_ids=_normalize_allowed_group_ids(allowed_group_ids),
         tz_offset_minutes=int(tz_offset_minutes or 0),
+        locale=normalize_locale(locale),
     )
 
 
@@ -159,7 +165,7 @@ def _load_subscription_snapshot(subscription: TaskRealtimeSubscription) -> dict[
         }
 
 
-def _task_event_message(event: TaskEvent, details: dict[str, Any]) -> tuple[str, str]:
+def _task_event_message_legacy(event: TaskEvent, details: dict[str, Any]) -> tuple[str, str]:
     event_name = str(event.event or "").strip()
     error = str(details.get("error") or "").strip()
     storage_type = str(event.storage_type or details.get("storage_type") or "").strip()
@@ -479,19 +485,35 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any]) -> tuple[str,
     return ("info", error or event_name or "任务事件")
 
 
-def _serialize_task_event(event: TaskEvent, *, offset_minutes: int) -> dict[str, Any]:
+def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: str = "zh-CN") -> tuple[str, str]:
+    tone, fallback = _task_event_message_legacy(event, details)
+    event_name = str(event.event or "").strip()
+    key = f"task.event.{event_name}"
+    normalized = normalize_locale(locale)
+    if has_key(key, normalized):
+        return tone, translate(normalized, key, details, fallback=fallback)
+    if normalized == "en-US":
+        label = event_name.replace("_", " ").strip().capitalize() or "Task event"
+        error = str(details.get("error") or "").strip()
+        return tone, f"{label}: {error}" if error else label
+    return tone, fallback
+
+
+def _serialize_task_event(event: TaskEvent, *, offset_minutes: int, locale: str = "zh-CN") -> dict[str, Any]:
     try:
         details = json.loads(event.details or "{}")
         if not isinstance(details, dict):
             details = {}
     except Exception:
         details = {}
-    tone, message = _task_event_message(event, details)
+    tone, message = _task_event_message(event, details, locale=locale)
     return {
         "id": int(event.id or 0),
         "event": str(event.event or ""),
         "tone": tone,
         "message": message,
+        "message_key": f"task.event.{str(event.event or '').strip()}",
+        "message_params": details,
         "created_at": format_local_datetime(event.created_at, offset_minutes=offset_minutes),
         "task_id": str(event.task_id or ""),
         "record_id": str(event.record_id or ""),
@@ -523,7 +545,7 @@ def _parse_event_created_at(value: Any) -> datetime | None:
         return None
 
 
-def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: int) -> dict[str, Any]:
+def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: int, locale: str = "zh-CN") -> dict[str, Any]:
     details_raw = payload.get("details")
     details = details_raw if isinstance(details_raw, dict) else {}
     task_event = TaskEvent(
@@ -542,7 +564,7 @@ def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: 
         created_at=_parse_event_created_at(payload.get("created_at")),
         details=json.dumps(details, ensure_ascii=False) if details else None,
     )
-    serialized = _serialize_task_event(task_event, offset_minutes=offset_minutes)
+    serialized = _serialize_task_event(task_event, offset_minutes=offset_minutes, locale=locale)
     if not serialized.get("id"):
         serialized["id"] = int(payload.get("event_id") or 0)
     return serialized
@@ -608,7 +630,10 @@ def _load_log_payload(
         else:
             rows = list(session.exec(stmt.order_by(TaskEvent.id.desc()).limit(limit)))
             rows.reverse()
-        serialized_items = [_serialize_task_event(row, offset_minutes=offset_minutes) for row in rows]
+        serialized_items = [
+            _serialize_task_event(row, offset_minutes=offset_minutes, locale=subscription.locale)
+            for row in rows
+        ]
         if subscription.kind == "backup":
             items = [item for item in serialized_items if not _should_hide_device_log_event(item)]
         else:
@@ -843,7 +868,11 @@ class TaskRealtimeHub:
         if not targets:
             return
         for connection_id, subscription in targets:
-            item = _serialize_broadcast_task_event(payload, offset_minutes=subscription.tz_offset_minutes)
+            item = _serialize_broadcast_task_event(
+                payload,
+                offset_minutes=subscription.tz_offset_minutes,
+                locale=subscription.locale,
+            )
             if subscription.kind == "backup" and _should_hide_device_log_event(item):
                 continue
             next_after_id = int(item.get("id") or event_id or 0)

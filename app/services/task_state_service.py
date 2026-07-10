@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.i18n import get_current_locale, translate
+
 BACKUP_RECORD_STATUS_PLANNED = "planned"
 BACKUP_RECORD_STATUS_QUEUED = "queued"
 BACKUP_RECORD_STATUS_RUNNING = "running"
@@ -116,9 +118,10 @@ def backup_record_terminal_status(*, success: bool) -> str:
     return BACKUP_RECORD_STATUS_SUCCEEDED if bool(success) else BACKUP_RECORD_STATUS_FAILED
 
 
-def get_backup_record_status_label(status: str | None) -> str:
+def get_backup_record_status_label(status: str | None, locale: str | None = None) -> str:
     normalized = str(status or "").strip()
-    return _BACKUP_RECORD_STATUS_LABELS.get(normalized, normalized or "unknown")
+    fallback = _BACKUP_RECORD_STATUS_LABELS.get(normalized, normalized or "unknown")
+    return translate(locale or get_current_locale(), f"status.backup.{normalized or 'unknown'}", fallback=fallback)
 
 
 def get_backup_record_status_tone(status: str | None) -> str:
@@ -126,9 +129,10 @@ def get_backup_record_status_tone(status: str | None) -> str:
     return _BACKUP_RECORD_STATUS_TONES.get(normalized, "info")
 
 
-def get_schedule_run_status_label(status: str | None) -> str:
+def get_schedule_run_status_label(status: str | None, locale: str | None = None) -> str:
     normalized = str(status or "").strip()
-    return _SCHEDULE_RUN_STATUS_LABELS.get(normalized, normalized or "unknown")
+    fallback = _SCHEDULE_RUN_STATUS_LABELS.get(normalized, normalized or "unknown")
+    return translate(locale or get_current_locale(), f"status.schedule_run.{normalized or 'unknown'}", fallback=fallback)
 
 
 def get_schedule_run_status_tone(status: str | None) -> str:

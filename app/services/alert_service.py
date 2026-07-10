@@ -12,8 +12,63 @@ from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minute
 from app.models import BackupRecord, Device
 from app.services.notification_service import send_email
 from app.services import task_state_service
+from app.i18n import get_current_locale, translate
+from app.i18n.email import render_email_template
+from app.i18n.validators import normalize_locale
 
 logger = logging.getLogger(__name__)
+
+
+_EMAIL_EN_REPLACEMENTS = {
+    "【备份汇总报告】": "[Backup Summary] ",
+    "【告警】设备备份失败": "[Alert] Device backup failed",
+    "【提醒】设备配置已变更": "[Notice] Device configuration changed",
+    "备份汇总报告": "Backup summary",
+    "设备备份失败": "Device backup failed",
+    "设备配置已变更": "Device configuration changed",
+    "检测到配置与上一次成功备份相比发生了变更，请确认是否为预期操作。": "The configuration differs from the previous successful backup. Please verify that this change was expected.",
+    "任务时间": "Task time",
+    "统计结果": "Summary",
+    "设备名称": "Device name",
+    "设备地址": "Device address",
+    "执行结果": "Result",
+    "备份时间": "Backup time",
+    "错误类型": "Error type",
+    "错误详情": "Error details",
+    "失败详情": "Failure details",
+    "配置变更摘要": "Configuration change summary",
+    "变更片段": "Changed lines",
+    "已应用 Diff 忽略规则": "Diff ignore rules applied",
+    "耗时": "Duration",
+    "详情": "Details",
+    "失败列表": "Failed devices",
+    "终止列表": "Cancelled tasks",
+    "配置变更列表": "Configuration changes",
+    "全部备份成功": "All backups succeeded",
+    "发现": "Found ",
+    "台设备备份失败": " device backup failures",
+    "台任务被终止": " cancelled tasks",
+    "台设备配置变更": " device configuration changes",
+    "成功": " succeeded",
+    "失败": " failed",
+    "终止": " cancelled",
+    "总计": "Total",
+    "未知错误": "Unknown error",
+    "空行": "blank line",
+    "含前后各": "with ",
+    "当前仅展示前": "Showing the first ",
+    "行片段": " lines",
+    "行": " lines",
+}
+
+
+def _localize_email_text(value: str, locale: str | None = None) -> str:
+    if normalize_locale(locale or get_current_locale()) != "en-US":
+        return value
+    localized = value
+    for source, target in sorted(_EMAIL_EN_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True):
+        localized = localized.replace(source, target)
+    return localized
 
 
 def _alert_result(
@@ -41,9 +96,21 @@ def _alert_result(
     return result
 
 
-def _send_alert_email(subject: str, content: str, *, mode: str, reason: str) -> dict:
+def _send_alert_email(
+    subject: str,
+    content: str,
+    *,
+    mode: str,
+    reason: str,
+    locale: str | None = None,
+    localized: bool = False,
+) -> dict:
     try:
-        email_sent = send_email(subject, content, content_type="html")
+        email_sent = send_email(
+            subject if localized else _localize_email_text(subject, locale),
+            content if localized else _localize_email_text(content, locale),
+            content_type="html",
+        )
         return _alert_result(
             mode=mode,
             rule_enabled=True,
@@ -204,6 +271,19 @@ def _render_config_change_summary_compact_html(summary: dict) -> str:
     return "".join(parts)
 
 
+def _render_localized_change_summary_html(summary: dict, locale: str) -> str:
+    if normalize_locale(locale) != "en-US":
+        return _render_config_change_summary_compact_html(summary)
+    items = []
+    for item in list(summary.get("sample_lines") or []):
+        prefix = escape(str(item.get("prefix") or ""))
+        text = escape(str(item.get("text") or "") or "(blank line)")
+        items.append(f"<li><code>{prefix} {text}</code></li>")
+    if not items:
+        return ""
+    return '<div><strong>Changed lines</strong><ul style="padding-left:18px">' + "".join(items) + "</ul></div>"
+
+
 def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     检查备份记录并根据规则触发告警
@@ -287,7 +367,34 @@ def _send_single_backup_summary_email(session: Session, device: Device, record: 
     </body>
     </html>
     """
-    return _send_alert_email(subject, content, mode="single_summary", reason="always_send_summary")
+    locale = normalize_locale(getattr(record, "locale", None) or get_current_locale())
+    subject = translate(
+        locale,
+        "email.summary.subject",
+        {"device": device.name, "host": device.host, "status": task_state_service.get_backup_record_status_label(record.status, locale)},
+    )
+    if change_summary:
+        detail_key = "email.summary.detail.changed"
+    elif str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED:
+        detail_key = "email.summary.detail.cancelled"
+    elif record.success:
+        detail_key = "email.summary.detail.succeeded"
+    else:
+        detail_key = "email.summary.detail.failed"
+    content = render_email_template(
+        "backup_single_summary.html",
+        locale=locale,
+        context={
+            "device": device,
+            "record": record,
+            "task_time": _format_datetime(record.started_at, session),
+            "status_label": task_state_service.get_backup_record_status_label(record.status, locale),
+            "status_detail": translate(locale, detail_key, fallback=status_detail),
+            "duration": duration_str,
+            "summary_html": _render_localized_change_summary_html(change_summary, locale) if change_summary else "",
+        },
+    )
+    return _send_alert_email(subject, content, mode="single_summary", reason="always_send_summary", locale=locale, localized=True)
 
 def _handle_failure_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
@@ -319,7 +426,19 @@ def _handle_failure_alert(session: Session, device: Device, record: BackupRecord
     </html>
     """
     
-    return _send_alert_email(subject, content, mode="failure", reason="failure_rule_matched")
+    locale = normalize_locale(getattr(record, "locale", None) or get_current_locale())
+    subject = translate(locale, "email.backup_failure.subject", {"device": device.name, "host": device.host})
+    content = render_email_template(
+        "backup_failure.html",
+        locale=locale,
+        context={
+            "device": device,
+            "record": record,
+            "backup_time": _format_datetime(record.started_at, session),
+            "duration": duration_str,
+        },
+    )
+    return _send_alert_email(subject, content, mode="failure", reason="failure_rule_matched", locale=locale, localized=True)
 
 def _handle_config_change_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
@@ -364,7 +483,14 @@ def _handle_config_change_alert(session: Session, device: Device, record: Backup
         </body>
         </html>
         """
-        return _send_alert_email(subject, content, mode="config_change", reason="config_changed")
+        locale = normalize_locale(getattr(record, "locale", None) or get_current_locale())
+        subject = translate(locale, "email.config_changed.subject", {"device": device.name, "host": device.host})
+        content = render_email_template(
+            "backup_config_changed.html",
+            locale=locale,
+            context={"device": device, "record": record, "summary_html": _render_localized_change_summary_html(summary, locale)},
+        )
+        return _send_alert_email(subject, content, mode="config_change", reason="config_changed", locale=locale, localized=True)
 
     return _alert_result(
         mode="config_change",
@@ -557,6 +683,33 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     </html>
     """
 
+    locale = normalize_locale(
+        getattr(records[0], "locale", None) if records else get_current_locale()
+    )
+    subject_key = "email.batch.subject.failed" if failed_records else (
+        "email.batch.subject.cancelled" if cancelled_records else (
+            "email.batch.subject.changed" if changed_records else "email.batch.subject.succeeded"
+        )
+    )
+    subject = translate(
+        locale,
+        subject_key,
+        {"failed": len(failed_records), "cancelled": len(cancelled_records), "changed": len(changed_records)},
+    )
+    content = render_email_template(
+        "backup_batch_summary.html",
+        locale=locale,
+        context={
+            "run": run,
+            "task_time": _format_datetime(run.started_at, session),
+            "cancelled": cancelled_records,
+            "sections": [
+                ("email.section.failed", "#d9534f", failed_records),
+                ("email.section.cancelled", "#f0ad4e", cancelled_records),
+                ("email.section.changed", "#f0ad4e", changed_records),
+            ],
+        },
+    )
     try:
         email_sent = send_email(subject, content, content_type="html")
         reason = "batch_summary_sent" if email_sent else "smtp_incomplete"

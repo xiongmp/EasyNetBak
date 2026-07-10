@@ -11,10 +11,20 @@ from app.services import identity_service
 
 
 class ApiError(Exception):
-    def __init__(self, *, status_code: int, detail: str, code: str = "API_ERROR"):
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        detail: str = "",
+        code: str = "API_ERROR",
+        message_key: str | None = None,
+        params: dict[str, Any] | None = None,
+    ):
         self.status_code = int(status_code)
         self.detail = detail
         self.code = code
+        self.message_key = message_key
+        self.params = params or {}
         super().__init__(detail)
 
 
@@ -63,15 +73,30 @@ def _require_any_permission(request: Request, codes: Iterable[str]):
     raise HTTPException(status_code=403, detail="Require permission")
 
 
-def raise_api_error(*, status_code: int, detail: str, code: str = "API_ERROR") -> NoReturn:
-    raise ApiError(status_code=status_code, detail=detail, code=code)
+def raise_api_error(
+    *,
+    status_code: int,
+    detail: str = "",
+    code: str = "API_ERROR",
+    message_key: str | None = None,
+    params: dict[str, Any] | None = None,
+) -> NoReturn:
+    raise ApiError(
+        status_code=status_code,
+        detail=detail,
+        code=code,
+        message_key=message_key,
+        params=params,
+    )
 
 
 def raise_service_api_error(exc) -> NoReturn:
-    raise_api_error(
+    raise ApiError(
         status_code=int(getattr(exc, "status_code", 400)),
         detail=getattr(exc, "message", str(exc)),
         code=getattr(exc, "code", "SERVICE_ERROR"),
+        message_key=getattr(exc, "message_key", None),
+        params=getattr(exc, "params", None),
     )
 
 

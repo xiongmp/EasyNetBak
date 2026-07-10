@@ -1,0 +1,7 @@
+<!doctype html><html lang="{{ locale }}"><body>
+<h2 style="color:#f0ad4e">{{ _("email.config_changed.title") }}</h2>
+<p>{{ _("email.config_changed.description") }}</p>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:800px">
+<tr><th align="left">{{ _("email.field.device_name") }}</th><td>{{ device.name }}</td></tr>
+<tr><th align="left">{{ _("email.field.device_host") }}</th><td>{{ device.host }}</td></tr>
+</table>{{ summary_html|safe }}</body></html>

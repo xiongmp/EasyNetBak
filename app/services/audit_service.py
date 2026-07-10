@@ -6,6 +6,7 @@ from app import crud
 from app.models import AuditLog
 from app.routers.web_context import _dt_local_str
 from app.services import export_service, pagination_service
+from app.i18n import get_current_locale, translate
 
 
 AUDIT_ACTION_MAP = {
@@ -76,6 +77,33 @@ LOGIN_STATUS_TEXT = {
 }
 
 
+def translate_audit_action(action: str, locale: str | None = None) -> str:
+    selected_locale = locale or get_current_locale()
+    value = translate(selected_locale, f"audit.action.{action}", fallback=AUDIT_ACTION_MAP.get(action, action))
+    if selected_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in value):
+        return action.replace("_", " ").strip().title()
+    return value
+
+
+def translate_audit_resource(resource_type: str, locale: str | None = None) -> str:
+    selected_locale = locale or get_current_locale()
+    value = translate(selected_locale, f"audit.resource.{resource_type}", fallback=AUDIT_RESOURCE_MAP.get(resource_type, resource_type))
+    if selected_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in value):
+        return resource_type.replace("_", " ").strip().title()
+    return value
+
+
+def translate_login_status(status: str, locale: str | None = None) -> str:
+    return translate(locale or get_current_locale(), f"login.status.{status}", fallback=LOGIN_STATUS_TEXT.get(status, status))
+
+
+def translate_login_fail_reason(reason: str | None, locale: str | None = None) -> str:
+    if not reason:
+        return ""
+    code = reason.strip().lower().replace(" ", "_")
+    return translate(locale or get_current_locale(), f"login.fail_reason.{code}", fallback=reason)
+
+
 def normalize_login_status(status: str | None) -> str | None:
     value = (status or "").strip().lower()
     return value if value in LOGIN_STATUS_TEXT else None
@@ -127,8 +155,8 @@ def get_audit_logs_page_payload(
         "pagination_base": pagination_base,
         "all_actions": all_actions,
         "all_resource_types": all_resource_types,
-        "action_map": AUDIT_ACTION_MAP,
-        "resource_map": AUDIT_RESOURCE_MAP,
+        "action_map": {value: translate_audit_action(value) for value in all_actions},
+        "resource_map": {value: translate_audit_resource(value) for value in all_resource_types},
     }
 
 
@@ -146,8 +174,8 @@ def export_audit_logs_csv(
             _dt_local_str(log.created_at, offset_minutes=offset_minutes),
             log.user_id or "",
             log.username or "",
-            log.action,
-            log.resource_type,
+            translate_audit_action(log.action),
+            translate_audit_resource(log.resource_type),
             log.resource_id or "",
             log.details or "",
             log.ip_address or "",
@@ -155,8 +183,15 @@ def export_audit_logs_csv(
         for log in logs
     )
     return export_service.csv_streaming_response(
-        filename="audit_logs.csv",
-        headers=["时间", "用户ID", "用户名", "操作", "资源类型", "资源ID", "详情", "IP地址"],
+        filename=f"audit_logs_{get_current_locale()}.csv",
+        headers=[
+            translate(get_current_locale(), f"audit.csv.{key}", fallback=label)
+            for key, label in (
+                ("time", "时间"), ("user_id", "用户ID"), ("username", "用户名"),
+                ("action", "操作"), ("resource_type", "资源类型"), ("resource_id", "资源ID"),
+                ("details", "详情"), ("ip_address", "IP地址"),
+            )
+        ],
         rows=rows,
     )
 
@@ -191,6 +226,8 @@ def get_login_logs_page_payload(
         "status": status or "",
         "pagination": pagination.as_dict(),
         "pagination_base": pagination_base,
+        "login_status_map": {value: translate_login_status(value) for value in LOGIN_STATUS_TEXT},
+        "translate_login_fail_reason": translate_login_fail_reason,
     }
 
 
@@ -208,15 +245,21 @@ def export_login_logs_csv(
             log.id,
             _dt_local_str(log.created_at, offset_minutes=offset_minutes),
             log.username,
-            LOGIN_STATUS_TEXT.get(log.status, log.status or "未知"),
+            translate_login_status(log.status or "unknown"),
             log.ip_address or "",
             log.user_agent or "",
-            log.fail_reason or "",
+            translate_login_fail_reason(log.fail_reason),
         )
         for log in logs
     )
     return export_service.csv_streaming_response(
-        filename="login_logs.csv",
-        headers=["ID", "时间", "用户名", "状态", "IP地址", "浏览器/客户端", "失败原因"],
+        filename=f"login_logs_{get_current_locale()}.csv",
+        headers=[
+            translate(get_current_locale(), f"login.csv.{key}", fallback=label)
+            for key, label in (
+                ("id", "ID"), ("time", "时间"), ("username", "用户名"), ("status", "状态"),
+                ("ip_address", "IP地址"), ("user_agent", "浏览器/客户端"), ("fail_reason", "失败原因"),
+            )
+        ],
         rows=rows,
     )

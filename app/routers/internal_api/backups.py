@@ -86,6 +86,7 @@ async def _handle_task_ws_message(
     user,
     allowed_group_ids: list[int] | None,
     tz_offset_minutes: int,
+    locale: str = "zh-CN",
 ) -> None:
     action = str(payload.get("action") or "").strip().lower()
     if action == "ping":
@@ -109,6 +110,7 @@ async def _handle_task_ws_message(
                 backup_id=payload.get("backup_id"),
                 allowed_group_ids=allowed_group_ids,
                 tz_offset_minutes=tz_offset_minutes,
+                locale=locale,
             )
         except Exception as exc:
             await task_realtime_service.task_realtime_hub.send(
@@ -126,6 +128,7 @@ async def _handle_task_ws_message(
                 backup_id=payload.get("backup_id"),
                 allowed_group_ids=allowed_group_ids,
                 tz_offset_minutes=tz_offset_minutes,
+                locale=locale,
             )
         except Exception as exc:
             await task_realtime_service.task_realtime_hub.send(
@@ -546,6 +549,7 @@ async def ws_tasks_backups(websocket: WebSocket):
                 user=user,
                 allowed_group_ids=context["allowed_group_ids"],
                 tz_offset_minutes=int(context["tz_offset_minutes"] or 0),
+                locale=str(getattr(user, "locale", settings.default_locale) or settings.default_locale),
             )
     except WebSocketDisconnect:
         pass

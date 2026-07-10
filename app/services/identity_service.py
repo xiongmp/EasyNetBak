@@ -80,6 +80,7 @@ def create_user(
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
     enable_watermark: bool = True,
+    locale: str = "zh-CN",
 ):
     try:
         return crud.create_user(
@@ -93,6 +94,7 @@ def create_user(
             mfa_enabled=mfa_enabled,
             mfa_secret=mfa_secret,
             enable_watermark=enable_watermark,
+            locale=locale,
         )
     except RuntimeError as exc:
         raise ServiceError(str(exc), code="USER_SAVE_FAILED") from exc
@@ -282,6 +284,7 @@ def upsert_user(
     generate_recovery: bool,
     enable_recovery: bool,
     enable_watermark: bool = True,
+    locale: str | None = None,
 ) -> UserMutationResult:
     ensure_default_roles(session)
     role = (role or "").strip().lower()
@@ -305,9 +308,15 @@ def upsert_user(
             "allowed_group_ids": allowed_ids_str,
             "enable_watermark": enable_watermark,
         }
+        if locale is not None:
+            from app.i18n.validators import validate_locale
+            update_payload["locale"] = validate_locale(locale)
 
         if target.username == "admin":
             update_payload = {"mfa_enabled": enable_mfa, "enable_watermark": enable_watermark}
+            if locale is not None:
+                from app.i18n.validators import validate_locale
+                update_payload["locale"] = validate_locale(locale)
             if enable_mfa:
                 if reset_mfa:
                     update_payload["mfa_secret"] = None
@@ -371,6 +380,7 @@ def upsert_user(
         mfa_enabled=enable_mfa,
         mfa_secret=None,
         enable_watermark=enable_watermark,
+        locale=locale or "zh-CN",
     )
     return UserMutationResult(user=user, action="create", recovery_codes=[])
 

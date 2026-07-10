@@ -22,6 +22,9 @@ from app.routers.support import _current_user, _log_action, _require_any_permiss
 from app.routers.web_context import _layout_context, templates
 from app.schemas.inputs import EditableListQueryInput
 from app.services import identity_service
+from app.i18n import translate
+from app.i18n.middleware import LOCALE_COOKIE
+from app.i18n.validators import validate_locale
 from app.services.auth import (
     build_mfa_uri,
     create_session_token,
@@ -172,7 +175,7 @@ def login_submit(
             ip_address=ip_address,
             user_agent=user_agent,
             status="fail",
-            fail_reason="Invalid credentials",
+            fail_reason="invalid_credentials",
         )
         return RedirectResponse(url="/login?err=账号或密码错误", status_code=303)
 
@@ -370,7 +373,7 @@ def mfa_verify_submit(
                 ip_address=get_remote_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 status="fail",
-                fail_reason="Invalid recovery code",
+                fail_reason="invalid_recovery_code",
             )
             return RedirectResponse(url="/mfa-verify?err=恢复码错误或已失效", status_code=303)
         remaining = [item for item in codes if not hmac.compare_digest(hashed, item)]
@@ -385,7 +388,7 @@ def mfa_verify_submit(
                 ip_address=get_remote_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 status="fail",
-                fail_reason="Invalid MFA",
+                fail_reason="invalid_mfa",
             )
             return RedirectResponse(url="/mfa-verify?err=MFA验证码错误", status_code=303)
     crud.create_login_log(
@@ -475,8 +478,8 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         name="profile.html",
         context={
             **_layout_context(request=request, active="profile"),
-            "page_title": "个人设置",
-            "page_subtitle": "管理您的个人信息和安全选项",
+            "page_title": translate(request.state.locale, "page.profile.title"),
+            "page_subtitle": translate(request.state.locale, "page.profile.subtitle"),
             "user": user,
             "msg": request.query_params.get("msg") or "",
             "err": request.query_params.get("err") or "",
@@ -484,6 +487,27 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
+
+
+@router.post("/profile/locale", summary="Update profile language")
+def profile_update_locale(
+    request: Request,
+    session: Session = Depends(get_session),
+    csrf_protect: CsrfProtect = Depends(),
+    locale: str = Form(...),
+):
+    csrf_protect.validate_csrf(request)
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        normalized = validate_locale(locale)
+    except ValueError:
+        return RedirectResponse(url="/profile?err=Unsupported+language", status_code=303)
+    crud.update_user(session, user.id, locale=normalized)
+    response = RedirectResponse(url="/profile?msg=language.saved", status_code=303)
+    response.set_cookie(LOCALE_COOKIE, normalized, path="/", samesite="lax")
     return response
 
 

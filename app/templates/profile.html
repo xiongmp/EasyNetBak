@@ -3,6 +3,25 @@
 {% set page_subtitle = "管理您的账户安全与个性化配置" %}
 
 {% block content %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <h6 class="fw-bold mb-1"><i class="bi bi-translate me-2"></i>{{ _("language.settings") }}</h6>
+    <p class="small text-secondary mb-3">{{ _("language.description") }}</p>
+    <form method="post" action="/profile/locale" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <div class="col-sm-8 col-md-6">
+        <select class="form-select form-select-sm" name="locale" aria-label="{{ _('language.settings') }}">
+          {% for locale_code in supported_locales %}
+            <option value="{{ locale_code }}" {% if locale_code == locale %}selected{% endif %}>{{ locale_label_map.get(locale_code, locale_code) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm px-4">{{ _("button.save") }}</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="row g-4">
   <div class="col-12">
     <!-- 统一的大卡片容器 -->
@@ -80,14 +99,14 @@
             {% if msg %}
               <div class="alert alert-success border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
                 <i class="bi bi-check-circle-fill me-2"></i>
-                <div>{{ msg }}</div>
+                <div>{{ _(msg, fallback=msg) }}</div>
               </div>
             {% endif %}
             
             {% if err %}
               <div class="alert alert-danger border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <div>{{ err }}</div>
+                <div>{{ __legacy(err) }}</div>
               </div>
             {% endif %}
 
