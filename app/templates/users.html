@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "用户管理" %}
 {% set page_subtitle = "管理系统登录账号与角色分配" %}
 {% set can_user_create = has_permission('users.create') %}
@@ -39,24 +39,24 @@
             {% for u in items %}
               <tr>
                 <td>{{ u.id }}</td>
-                <td>{{ u.username }}</td>
+                <td data-i18n-preserve>{{ u.username }}</td>
                 <td>
                   {% set role_info = role_map.get(u.role) %}
                   {% set role_label = role_info.name if role_info else u.role %}
                   {% if u.role in admin_role_codes %}
-                    <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system and u.role not in admin_role_codes %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-badge-fill"></i>{{ role_label }}
                     </div>
                   {% elif u.role == 'operator' %}
-                    <div class="backup-status" style="background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); border-color: var(--bs-success-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); border-color: var(--bs-success-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-gear-fill"></i>{{ role_label }}
                     </div>
                   {% elif u.role == 'readonly' %}
-                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-fill"></i>{{ role_label }}
                     </div>
                   {% else %}
-                    <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-gear"></i>{{ role_label }}
                     </div>
                   {% endif %}
@@ -88,7 +88,7 @@
                     {% if can_user_delete and u.username != 'admin' %}
                       <form method="post" action="/users/{{ u.id }}/delete" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此用户吗？">
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.user" data-confirm-msg="确定要删除此用户吗？">
                           <i class="bi bi-trash me-1"></i>删除
                         </button>
                       </form>
@@ -160,7 +160,7 @@
                     <option value="" selected disabled>请选择角色</option>
                   {% endif %}
                   {% for r in roles %}
-                    <option value="{{ r.code }}" {% if current and current.role == r.code %}selected{% endif %}>
+                    <option value="{{ r.code }}" data-nb-label="{{ (r.name ~ (' (Full Access)' if r.is_admin else ''))|e }}" {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %} {% if current and current.role == r.code %}selected{% endif %}>
                       {{ r.name }}{% if r.is_admin %} (Full Access){% endif %}
                     </option>
                   {% endfor %}
@@ -440,6 +440,7 @@
               
               const text = document.createElement('span');
               text.className = textClass;
+              text.setAttribute('data-i18n-preserve', '');
               text.textContent = node.name;
               
               content.appendChild(toggle);
@@ -584,11 +585,11 @@
           }
           try {
             await navigator.clipboard.writeText(codes);
-            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.textContent = window.NB.tr('已复制');
             copyRecoveryCodes.classList.remove('btn-outline-secondary');
             copyRecoveryCodes.classList.add('btn-success');
             setTimeout(() => {
-              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.textContent = window.NB.tr('复制恢复码');
               copyRecoveryCodes.classList.add('btn-outline-secondary');
               copyRecoveryCodes.classList.remove('btn-success');
             }, 1500);
@@ -601,11 +602,11 @@
             fallback.select();
             document.execCommand('copy');
             document.body.removeChild(fallback);
-            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.textContent = window.NB.tr('已复制');
             copyRecoveryCodes.classList.remove('btn-outline-secondary');
             copyRecoveryCodes.classList.add('btn-success');
             setTimeout(() => {
-              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.textContent = window.NB.tr('复制恢复码');
               copyRecoveryCodes.classList.add('btn-outline-secondary');
               copyRecoveryCodes.classList.remove('btn-success');
             }, 1500);

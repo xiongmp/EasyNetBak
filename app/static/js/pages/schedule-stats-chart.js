@@ -1,5 +1,6 @@
 (function () {
       const scheduleStatsConfig = window.SCHEDULE_STATS_CONFIG || {};
+      const tr = (text) => window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
       const TREND = Array.isArray(scheduleStatsConfig.trend) ? scheduleStatsConfig.trend : [];
       const chartDom = document.getElementById("trend-chart");
       if (!chartDom) return;
@@ -55,12 +56,12 @@
             return '<div style="font-weight:600;margin-bottom:6px;color:' + (isDark ? '#e2e8f0' : '#1e293b') + '">' + (item.started_at || '') + '</div>'
               + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
               + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>'
-              + '<span>成功率: <b style="color:' + rateColor + '">' + rate + '%</b></span>'
+              + '<span>' + tr('成功率') + ': <b style="color:' + rateColor + '">' + rate + '%</b></span>'
               + '</div>'
               + '<div style="font-size:11px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">'
-              + '<span style="color:#22c55e;">成功 ' + (item.success || 0) + '</span>'
-              + ' / <span style="color:#ef4444;">失败 ' + (item.fail || 0) + '</span>'
-              + ' / 总计 ' + (item.total || 0)
+              + '<span style="color:#22c55e;">' + tr('成功') + ' ' + (item.success || 0) + '</span>'
+              + ' / <span style="color:#ef4444;">' + tr('失败') + ' ' + (item.fail || 0) + '</span>'
+              + ' / ' + tr('总计') + ' ' + (item.total || 0)
               + '</div>';
           }
         },

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "自定义模板" %}
 {% set page_subtitle = "为不同设备类型配置备份命令，便于统一执行和管理" %}
 {% set can_template_create = has_permission('templates.create') %}
@@ -141,8 +141,8 @@
             {% for t in items %}
               <tr>
                 <td class="text-secondary small text-start">{{ t.id }}</td>
-                <td class="fw-medium text-start">{{ t.name }}</td>
-                <td class="text-start"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2">{{ t.platform }}</span></td>
+                <td class="fw-medium text-start" data-i18n-preserve>{{ t.name }}</td>
+                <td class="text-start"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2" data-i18n-preserve>{{ t.platform }}</span></td>
                 <td class="text-secondary small text-start">
                   {% if t.commands %}
                     {% for cmd in t.commands.split('\n') %}
@@ -171,7 +171,7 @@
                       {% endif %}
                       {% if can_template_delete %}
                         <form method="post" action="/templates/{{ t.id }}/delete" class="m-0 text-nowrap">
-                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此模板吗？">
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.template" data-confirm-msg="确定要删除此模板吗？">
                             <i class="bi bi-trash me-1"></i>删除
                           </button>
                         </form>
@@ -232,7 +232,7 @@
           document.querySelector('#templateModal textarea[name="commands"]').value = '';
           loginSelect.value = 'ssh';
           loginSelect.dispatchEvent(new Event('change'));
-          document.querySelector('#templateModal .modal-title').textContent = '新增自定义模板';
+          document.querySelector('#templateModal .modal-title').textContent = window.NB.tr('新增自定义模板');
         };
 
         document.querySelectorAll('.btn-edit-template').forEach(btn => {
@@ -254,7 +254,7 @@
             loginSelect.dispatchEvent(new Event('change'));
             platformSelect.value = platform;
             
-            document.querySelector('#templateModal .modal-title').textContent = '编辑自定义模板';
+            document.querySelector('#templateModal .modal-title').textContent = window.NB.tr('编辑自定义模板');
             const modal = new bootstrap.Modal(document.getElementById('templateModal'));
             modal.show();
           });
@@ -274,7 +274,7 @@
         {% endif %}
         loginSelect.dispatchEvent(new Event('change'));
         platformSelect.value = '{{ current.platform }}';
-        document.querySelector('#templateModal .modal-title').textContent = '编辑自定义模板';
+        document.querySelector('#templateModal .modal-title').textContent = window.NB.tr('编辑自定义模板');
         const modal = new bootstrap.Modal(document.getElementById('templateModal'));
         modal.show();
         {% endif %}

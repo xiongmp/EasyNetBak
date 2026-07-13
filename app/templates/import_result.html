@@ -44,9 +44,9 @@
                     <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px; padding: 1px 6px;">skip</div>
                   {% endif %}
                 </td>
-                <td>{{ r.name }}</td>
-                <td class="text-secondary small">{{ r.host }}</td>
-                <td class="text-secondary small">{{ r.message }}</td>
+                <td data-i18n-preserve>{{ r.name }}</td>
+                <td class="text-secondary small" data-i18n-preserve>{{ r.host }}</td>
+                <td class="text-secondary small" data-i18n-preserve>{{ r.message }}</td>
               </tr>
             {% else %}
               <tr>

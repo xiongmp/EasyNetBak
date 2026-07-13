@@ -225,6 +225,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return span.innerHTML;
       }
 
+      function tr(text) {
+        return window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+      }
+
+      function trHtml(html) {
+        return window.NB && typeof window.NB.trHtml === 'function' ? window.NB.trHtml(html) : html;
+      }
+
       function renderReachBadge(item) {
         if (item && item.success === true) {
           return `<div class="status-pill status-online"><span class="status-dot"></span><span>${window.NB.t('status.device.reachable')}</span></div>`;
@@ -259,9 +267,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!items || !items.length) {
            if (lastReachItems.length > 0) {
-             reachTbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">没有符合条件的记录</td></tr>';
+             reachTbody.innerHTML = trHtml('<tr><td colspan="7" class="text-center text-secondary py-3">没有符合条件的记录</td></tr>');
            } else {
-             reachTbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">暂无检测结果</td></tr>';
+             reachTbody.innerHTML = trHtml('<tr><td colspan="7" class="text-center text-secondary py-3">暂无检测结果</td></tr>');
            }
            return;
         }
@@ -293,18 +301,18 @@ document.addEventListener('DOMContentLoaded', function() {
       function updateReachSummary(summary) {
          if (!reachSummary) return;
          if (!summary) {
-             reachSummary.innerHTML = '<span class="text-secondary">准备就绪</span>';
+             reachSummary.innerHTML = trHtml('<span class="text-secondary">准备就绪</span>');
              return;
          }
          const total = summary.total || 0;
          const ok = summary.success || 0;
          const bad = summary.failed || 0;
 
-         reachSummary.innerHTML = `
+         reachSummary.innerHTML = trHtml(`
            <div class="backup-status" style="background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color);">共 ${total}</div>
            <div class="backup-status backup-status-success">${window.NB.t('status.device.reachable')} ${ok}</div>
            <div class="backup-status backup-status-failed">${window.NB.t('status.device.unreachable')} ${bad}</div>
-         `;
+         `);
       }
 
       if (reachFilterGroup) {
@@ -364,10 +372,10 @@ document.addEventListener('DOMContentLoaded', function() {
               reachProgressBar.classList.remove('bg-success');
           }
           if (reachProgressPercent) reachProgressPercent.textContent = '0%';
-          if (reachProgressText) reachProgressText.textContent = '准备开始...';
+          if (reachProgressText) reachProgressText.textContent = tr('准备开始...');
 
           if (reachSummary) {
-            reachSummary.innerHTML = '<span class="text-secondary">正在启动任务...</span>';
+            reachSummary.innerHTML = trHtml('<span class="text-secondary">正在启动任务...</span>');
           }
 
           // Reset filter
@@ -419,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const taskId = data.task_id;
 
             if (!taskId) {
-                if (reachSummary) reachSummary.innerHTML = '<span class="text-warning">未找到可检测的设备</span>';
+                if (reachSummary) reachSummary.innerHTML = trHtml('<span class="text-warning">未找到可检测的设备</span>');
                 if (reachProgressContainer) reachProgressContainer.style.display = 'none';
                 startReachTestBtn.disabled = false;
                 startReachTestBtn.classList.remove('disabled');
@@ -442,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (reachProgressBar) reachProgressBar.style.width = `${percent}%`;
                     if (reachProgressPercent) reachProgressPercent.textContent = `${percent}%`;
-                    if (reachProgressText) reachProgressText.textContent = `正在检测 ${processed}/${total}`;
+                    if (reachProgressText) reachProgressText.textContent = tr(`正在检测 ${processed}/${total}`);
 
                     // Update Summary
                     updateReachSummary({
@@ -470,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             reachProgressBar.classList.remove('progress-bar-animated');
                             reachProgressBar.classList.add('bg-success');
                         }
-                        if (reachProgressText) reachProgressText.textContent = '检测完成';
+                        if (reachProgressText) reachProgressText.textContent = tr('检测完成');
 
                         startReachTestBtn.disabled = false;
                         startReachTestBtn.classList.remove('disabled');
@@ -487,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
 
           } catch (e) {
-            if (reachSummary) reachSummary.innerHTML = '<span class="text-danger">请求失败</span>';
+            if (reachSummary) reachSummary.innerHTML = trHtml('<span class="text-danger">请求失败</span>');
             if (reachProgressContainer) reachProgressContainer.style.display = 'none';
             console.error(e);
             startReachTestBtn.disabled = false;

@@ -28,6 +28,7 @@ from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
 from app.i18n import get_current_locale, translate
+from app.i18n.legacy import translate_legacy_text
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
 
@@ -161,6 +162,7 @@ def _api_error_json(
         params,
         fallback=message or code,
     )
+    localized_message = translate_legacy_text(str(localized_message), response_locale)
     if response_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in localized_message):
         localized_message = code.replace("_", " ").strip().capitalize()
     response = JSONResponse(

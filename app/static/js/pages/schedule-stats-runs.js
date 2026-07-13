@@ -20,11 +20,19 @@
           return span.innerHTML;
         }
 
+        function tr(text) {
+          return window.NB && typeof window.NB.tr === "function" ? window.NB.tr(text) : text;
+        }
+
+        function trHtml(html) {
+          return window.NB && typeof window.NB.trHtml === "function" ? window.NB.trHtml(html) : html;
+        }
+
         function renderRuns(items) {
           if (!runsTbody) return;
           const rows = Array.isArray(items) ? items : [];
           if (!rows.length) {
-            runsTbody.innerHTML = `
+            runsTbody.innerHTML = trHtml(`
               <tr>
                 <td colspan="8" class="text-center text-secondary py-5">
                   <div class="my-3">
@@ -32,7 +40,7 @@
                     <p class="mt-2 text-xs">暂无运行记录</p>
                   </div>
                 </td>
-              </tr>`;
+              </tr>`);
             return;
           }
 
@@ -40,7 +48,7 @@
             return ["planned", "dispatching", "running", "finalizing"].includes(String(status || "").trim());
           }
 
-          runsTbody.innerHTML = rows.map((r) => {
+          runsTbody.innerHTML = trHtml(rows.map((r) => {
             const statusHtml = window.NB && typeof window.NB.renderTaskStatusBadge === "function"
               ? window.NB.renderTaskStatusBadge("schedule_run", { status: r.status, success: null })
               : escapeText(r.status_label || r.status || "");
@@ -66,7 +74,7 @@
               }
             }
             const actionHtml = canTerminateRuns && canTerminateRun(r.status)
-              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${isTerminating ? "处理中..." : "终止未运行任务"}</button>`
+              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${tr(isTerminating ? "处理中..." : "终止未运行任务")}</button>`
               : '<span class="text-secondary opacity-50 text-xs">—</span>';
 
             return `
@@ -94,7 +102,7 @@
                 <td class="text-nowrap">${actionHtml}</td>
                 <td class="text-truncate text-secondary text-xs error-summary-cell" title="${escapeText(r.error_message || "")}">${escapeText(r.error_summary || r.error_message || "")}</td>
               </tr>`;
-          }).join("");
+          }).join(""));
         }
 
         async function refreshRuns() {
@@ -158,7 +166,7 @@
           if (!btn) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
+          btn.innerHTML = trHtml('<span class="spinner-border spinner-border-sm me-1"></span>执行中');
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};

@@ -331,7 +331,7 @@
         btnTestS3.addEventListener('click', async function() {
           const originalText = btnTestS3.innerHTML;
           btnTestS3.disabled = true;
-          btnTestS3.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+          btnTestS3.innerHTML = window.NB.trHtml('<span class="spinner-border spinner-border-sm me-1"></span>测试中...');
 
           const formData = new FormData();
           formData.append('s3_endpoint', document.getElementById('s3_endpoint').value);
@@ -374,7 +374,7 @@
         btnTestFtp.addEventListener('click', async function() {
           const originalText = btnTestFtp.innerHTML;
           btnTestFtp.disabled = true;
-          btnTestFtp.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+          btnTestFtp.innerHTML = window.NB.trHtml('<span class="spinner-border spinner-border-sm me-1"></span>测试中...');
 
           const formData = new FormData();
           formData.append('ftp_host', document.getElementById('ftp_host').value);

@@ -45,7 +45,7 @@
 {% set badge_label = label or raw_status %}
 {% set badge_tone = tone or "info" %}
 {% set badge_icon = icon or "bi-question-circle" %}
-<div class="backup-status backup-status-{{ badge_tone }}"><i class="bi {{ badge_icon }}"></i>{{ badge_label }}{% if show_raw %}<span class="ms-1 opacity-75">{{ raw_status }}</span>{% endif %}</div>
+<div class="backup-status backup-status-{{ badge_tone }}"><i class="bi {{ badge_icon }}"></i>{{ __legacy(badge_label) }}{% if show_raw %}<span class="ms-1 opacity-75">{{ raw_status }}</span>{% endif %}</div>
 {% endmacro %}
 
 {% macro render_backup_record_status(status, label=None, tone=None, show_raw=False) %}

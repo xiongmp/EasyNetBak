@@ -14,7 +14,7 @@
       window.NB_MESSAGES = {{ js_messages|default({})|tojson }};
       window.NB_LEGACY_MESSAGES = {{ legacy_js_messages|default({})|tojson }};
     </script>
-    <script src="/static/js/core/i18n.js"></script>
+    <script src="/static/js/core/i18n.js?v={{ app_version }}-i18n-confirm-3"></script>
     <script>
       // 初始化暗黑模式
       (function() {
@@ -516,15 +516,15 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title">确认删除</h5>
+              <h5 class="modal-title" data-i18n-key="dialog.delete.title">确认删除</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
-              <p id="deleteConfirmText" class="mb-0">确定要删除吗？此操作不可恢复。</p>
+              <p id="deleteConfirmText" class="mb-0" data-i18n-key="dialog.delete.default_message">确定要删除此项吗？此操作不可恢复。</p>
             </div>
             <div class="modal-footer p-2">
-              <button type="button" class="btn btn-sm btn-outline-secondary border px-4" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-sm btn-danger px-4" id="deleteConfirmBtn">确认删除</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary border px-4" data-bs-dismiss="modal" data-i18n-key="button.cancel">取消</button>
+              <button type="button" class="btn btn-sm btn-danger px-4" id="deleteConfirmBtn" data-i18n-key="dialog.delete.confirm">确认删除</button>
             </div>
           </div>
         </div>
@@ -532,8 +532,8 @@
     {% endif %}
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/core/api.js"></script>
-    <script src="/static/js/core/ui-feedback.js"></script>
+    <script src="/static/js/core/api.js?v={{ app_version }}-i18n-confirm-3"></script>
+    <script src="/static/js/core/ui-feedback.js?v={{ app_version }}-i18n-confirm-3"></script>
     {% if current_user %}
       <script>
         window.NB_TASK_CONFIG = {
@@ -542,9 +542,9 @@
           canRetryTaskRuns: {{ "true" if has_permission('devices.backup') else "false" }}
         };
       </script>
-      <script src="/static/js/core/nb-common.js"></script>
+      <script src="/static/js/core/nb-common.js?v={{ app_version }}-i18n-confirm-3"></script>
     {% endif %}
-    <script src="/static/js/core/select-enhance.js"></script>
+    <script src="/static/js/core/select-enhance.js?v={{ app_version }}-i18n-confirm-3"></script>
 
 {% if current_user and current_user.enable_watermark %}
 <script>

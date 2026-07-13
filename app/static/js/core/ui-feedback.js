@@ -1,6 +1,26 @@
 window.NB = window.NB || {};
 
 (function () {
+  function normalizeConfirmText(value) {
+    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(text) { return text; };
+    let text = tr(value == null ? '' : String(value));
+    const replacements = [
+      [/Confirm要Delete此Group\?\?/gi, 'Delete this group?'],
+      [/Confirm要Delete此Template\?\?/gi, 'Delete this template?'],
+      [/Confirm要Delete此Role\?\?/gi, 'Delete this role?'],
+      [/Confirm要Delete此Schedules?\?\?/gi, 'Delete this schedule?'],
+      [/Confirm要Delete此(?:用户|User)\?\?/gi, 'Delete this user?'],
+      [/Confirm要Delete此Device\?\?/gi, 'Delete this device?'],
+      [/Confirm要Delete此Credential\?\?/gi, 'Delete this credential?'],
+      [/Confirm要Delete此Backup record\?\?/gi, 'Delete this backup record?'],
+      [/Confirm要Permanent移除这itemsIgnore rules\?\?/gi, 'Permanently remove these ignore rules?']
+    ];
+    replacements.forEach(function(entry) {
+      text = text.replace(entry[0], entry[1]);
+    });
+    return text;
+  }
+
   window.NB.confirm = function(options) {
     const { title, message, onConfirm, confirmBtnText, confirmBtnClass } = options || {};
     const modalEl = document.getElementById('deleteConfirmModal');
@@ -17,10 +37,12 @@ window.NB = window.NB || {};
     const confirmBtn = document.getElementById('deleteConfirmBtn');
     const confirmText = document.getElementById('deleteConfirmText');
 
-    if (titleEl) titleEl.textContent = title || '确认操作';
-    if (confirmText) confirmText.textContent = message || '确定要执行此操作吗？';
+    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(value) { return value; };
+
+    if (titleEl) titleEl.textContent = normalizeConfirmText(title || '确认操作');
+    if (confirmText) confirmText.textContent = normalizeConfirmText(message || '确定要执行此操作吗？');
     if (confirmBtn) {
-        confirmBtn.textContent = confirmBtnText || '确定';
+        confirmBtn.textContent = normalizeConfirmText(confirmBtnText || '确定');
         confirmBtn.className = 'btn btn-sm px-4 ' + (confirmBtnClass || 'btn-primary');
     }
 
@@ -36,11 +58,14 @@ window.NB = window.NB || {};
   };
 
   window.NB.confirmDelete = function(message, onConfirm) {
+    const t = window.NB && typeof window.NB.t === 'function'
+      ? window.NB.t
+      : function(key, params, fallback) { return fallback || key; };
     window.NB.confirm({
-      title: '确认删除',
-      message: message || '确定要删除吗？此操作不可恢复。',
+      title: t('dialog.delete.title'),
+      message: message || t('dialog.delete.default_message'),
       onConfirm: onConfirm,
-      confirmBtnText: '确认删除',
+      confirmBtnText: t('dialog.delete.confirm'),
       confirmBtnClass: 'btn-danger'
     });
   };
@@ -52,7 +77,8 @@ window.NB = window.NB || {};
     const messageEl = document.getElementById('nb-toast-message');
     const iconEl = document.getElementById('nb-toast-icon');
 
-    if (messageEl) messageEl.textContent = message;
+    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(value) { return value; };
+    if (messageEl) messageEl.textContent = tr(message);
     if (!iconEl) return;
 
     toastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');

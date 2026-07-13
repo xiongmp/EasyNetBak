@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "设备列表" %}
 {% set page_subtitle = "维护设备资产与登录信息，用于定时/手动备份" %}
 {% set can_device_create = has_permission('devices.create') %}
@@ -74,7 +74,7 @@
           ]
         });
       </script>
-      <script src="/static/js/pages/devices-groups.js"></script>
+      <script src="/static/js/pages/devices-groups.js?v={{ app_version }}-i18n-prepaint-1"></script>
 
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -257,8 +257,8 @@
                   </td>
                 {% endif %}
                 <td class="text-secondary small text-start">{{ d.id }}</td>
-                <td class="text-start"><a class="text-decoration-none fw-medium" href="/devices/{{ d.id }}">{{ d.name }}</a></td>
-                <td class="text-secondary small text-start">{{ d.host }}:{{ d.port }}</td>
+                <td class="text-start"><a class="text-decoration-none fw-medium" href="/devices/{{ d.id }}" data-i18n-preserve>{{ d.name }}</a></td>
+                <td class="text-secondary small text-start" data-i18n-preserve>{{ d.host }}:{{ d.port }}</td>
                 <td id="device-status-{{ d.id }}" class="text-start">
                   {% if d.reachability_status == True %}
                     <div class="status-pill status-online" title="{{ _('label.test_time') }}: {{ d.last_reachability_check|dt_local }}">
@@ -285,19 +285,19 @@
                   {% endif %}
                 </td>
                 <td class="text-start">
-                  <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">{{ d.platform }}</div>
+                  <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;" data-i18n-preserve>{{ d.platform }}</div>
                 </td>
                 <td class="text-start">
-                  <div class="backup-status" style="background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-color: var(--bs-warning-border-subtle); font-size: 10px;">{{ d.encoding or 'utf-8' }}</div>
+                  <div class="backup-status" style="background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-color: var(--bs-warning-border-subtle); font-size: 10px;" data-i18n-preserve>{{ d.encoding or 'utf-8' }}</div>
                 </td>
                 <td class="text-secondary small text-start">
                   {% if d.group_id and group_paths.get(d.group_id) %}
-                    <span class="text-body">{{ group_paths.get(d.group_id) }}</span>
+                    <span class="text-body" data-i18n-preserve>{{ group_paths.get(d.group_id) }}</span>
                   {% else %}
                     <span class="opacity-50">-</span>
                   {% endif %}
                 </td>
-                <td class="text-secondary small text-start">
+                <td class="text-secondary small text-start" data-i18n-preserve>
                   {% if d.credential_id and credential_map.get(d.credential_id) %}
                     {{ credential_map.get(d.credential_id).name }} <span class="opacity-50">·</span> {{ credential_map.get(d.credential_id).username }}
                   {% else %}
@@ -456,7 +456,7 @@
                   </label>
                   <select name="credential_id" class="form-select form-select-lg fs-6" required>
                     {% for c in credentials %}
-                      <option value="{{ c.id }}">{{ c.name }} · {{ c.username }}</option>
+                      <option value="{{ c.id }}" data-i18n-preserve data-nb-label="{{ (c.name ~ ' · ' ~ c.username)|e }}">{{ c.name }} · {{ c.username }}</option>
                     {% endfor %}
                   </select>
                   <div class="form-text x-small mt-2">
@@ -470,7 +470,7 @@
                   <select name="default_template_id" class="form-select form-select-lg fs-6">
                     <option value="0">使用设备类型默认命令</option>
                     {% for t in templates %}
-                      <option value="{{ t.id }}">{{ t.name }} · {{ t.platform }}</option>
+                      <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}">{{ t.name }} · {{ t.platform }}</option>
                     {% endfor %}
                   </select>
                 </div>
@@ -486,7 +486,7 @@
         </div>
       </div>
     </div>
-    <script src="/static/js/pages/devices-create-modal.js"></script>
+    <script src="/static/js/pages/devices-create-modal.js?v={{ app_version }}-i18n-prepaint-1"></script>
   {% endif %}
 
   {% if can_device_create or can_device_update %}
@@ -621,7 +621,7 @@
                   <select class="form-select form-select-lg fs-6" name="value" id="bulk-update-group-select">
                     <option value="0">无分组</option>
                     {% for g in groups %}
-                      <option value="{{ g.id }}" data-depth="{{ g.depth }}" data-nb-label="{{ g.name }}">
+                      <option value="{{ g.id }}" data-depth="{{ g.depth }}" data-nb-label="{{ g.name }}" data-i18n-preserve>
                         {{ g.name }}
                       </option>
                     {% endfor %}
@@ -629,7 +629,7 @@
 
                   <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-credential-select" disabled>
                     {% for c in credentials %}
-                    <option value="{{ c.id }}">{{ c.name }} ({{ c.username }})</option>
+                    <option value="{{ c.id }}" data-i18n-preserve data-nb-label="{{ (c.name ~ ' (' ~ c.username ~ ')')|e }}">{{ c.name }} ({{ c.username }})</option>
                     {% endfor %}
                   </select>
 

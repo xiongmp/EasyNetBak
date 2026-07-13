@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_schedule_run_status %}
+{% from "macros.html" import render_schedule_run_status with context %}
 {% set page_title = "定时任务统计" %}
 {% set page_subtitle = schedule.name if schedule else "" %}
 {% set html_class = "page-schedule-stats-html" %}
@@ -192,7 +192,7 @@
                   {% for g in group_summary %}
                     {% set rate = g.rate or 0 %}
                     <tr>
-                      <td class="fw-bold" style="font-size: 0.75rem;">{{ g.group }}</td>
+                      <td class="fw-bold" style="font-size: 0.75rem;" data-i18n-preserve>{{ g.group }}</td>
                       <td>
                         <div class="d-flex align-items-center gap-2">
                           <div class="progress flex-grow-1 progress-sm-custom">
@@ -307,7 +307,7 @@
                         <span class="text-secondary opacity-50 text-xs">—</span>
                       {% endif %}
                     </td>
-                    <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}">
+                    <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}" data-i18n-preserve>
                       {{ run_error_summaries.get(r.id|string, r.error_message or "") }}
                     </td>
                   </tr>
@@ -338,7 +338,7 @@
         hasActiveRuns: {{ (runs | selectattr('status', 'in', ['planned', 'dispatching', 'running', 'finalizing', 'cancelling']) | list | length > 0) | tojson }}
       });
     </script>
-    <script src="/static/js/pages/schedule-stats-runs.js"></script>
+    <script src="/static/js/pages/schedule-stats-runs.js?v={{ app_version }}-i18n-prepaint-1"></script>
   {% endif %}
 
   <script>
@@ -347,7 +347,7 @@
     });
   </script>
   <script src="/static/js/echarts.min.js"></script>
-  <script src="/static/js/pages/schedule-stats-chart.js"></script>
+  <script src="/static/js/pages/schedule-stats-chart.js?v={{ app_version }}-i18n-prepaint-1"></script>
   {% block scripts %}
     <script src="/static/js/cronstrue-i18n.min.js"></script>
     <script src="/static/js/pages/schedule-stats-cron.js"></script>

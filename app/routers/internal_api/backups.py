@@ -650,6 +650,7 @@ def api_backup_logs(request: Request, backup_id: UUID, limit: int = 300, session
             offset_minutes=offset_minutes,
             allowed_group_ids=allowed_group_ids,
             limit=limit,
+            locale=request.state.locale,
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":

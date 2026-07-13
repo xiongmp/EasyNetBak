@@ -19,6 +19,7 @@ from app.models import BackupRecord, BackupScheduleRun, BackupScheduleRunItem, D
 from app.platforms import DEFAULT_COMMANDS, normalize_platform_id
 from app.platforms import platforms_compatible
 from app.core.time import format_local_datetime
+from app.i18n import get_current_locale
 from app.services import device_service, pagination_service, task_orchestration_service, task_state_service
 from app.services.netmiko_client import run_netmiko_commands
 
@@ -235,6 +236,7 @@ def get_backup_log_payload(
     offset_minutes: int = 0,
     allowed_group_ids: list[int] | None = None,
     limit: int = 300,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     detail = _ensure_backup_access(
         get_backup_detail(session, backup_id),
@@ -255,7 +257,11 @@ def get_backup_log_payload(
     events = [
         item
         for item in (
-            task_realtime_service._serialize_task_event(event, offset_minutes=offset_minutes)
+            task_realtime_service._serialize_task_event(
+                event,
+                offset_minutes=offset_minutes,
+                locale=locale or get_current_locale(),
+            )
             for event in session.exec(stmt)
         )
         if not task_realtime_service._should_hide_device_log_event(item)

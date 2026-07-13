@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "配置搜索" %}
 {% set page_subtitle = "在备份配置中搜索关键词" %}
 
@@ -44,7 +44,7 @@
         </span>
         {% if q %}
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal py-2 px-3">
-            关键词: <span class="fw-bold">{{ q }}</span>
+            关键词: <span class="fw-bold" data-i18n-preserve>{{ q }}</span>
         </span>
         {% endif %}
     </div>
@@ -66,9 +66,9 @@
         <div class="device-header d-flex justify-content-between align-items-center py-2 px-3 {% if not loop.first %}collapsed{% endif %}" role="button" data-bs-toggle="collapse" data-bs-target="#device-{{ device_id }}">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-hdd-network text-primary"></i>
-                <span class="fw-bold">{{ device.name }}</span>
-                <span class="text-secondary small">({{ device.host }})</span>
-                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 ms-2 fw-normal">{{ device.platform }}</span>
+                <span class="fw-bold" data-i18n-preserve>{{ device.name }}</span>
+                <span class="text-secondary small" data-i18n-preserve>({{ device.host }})</span>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 ms-2 fw-normal" data-i18n-preserve>{{ device.platform }}</span>
             </div>
             <div class="d-flex align-items-center gap-3">
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 fw-normal">{{ device_records|length }} 个匹配</span>
@@ -151,6 +151,20 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    function escapeText(text) {
+        const span = document.createElement('span');
+        span.textContent = text == null ? '' : String(text);
+        return span.innerHTML;
+    }
+
+    function tr(text) {
+        return window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+    }
+
+    function trHtml(html) {
+        return window.NB && typeof window.NB.trHtml === 'function' ? window.NB.trHtml(html) : html;
+    }
+
     // Search form enhancements
     const searchForm = document.getElementById('search-form');
     const searchBtn = document.getElementById('search-btn');
@@ -267,8 +281,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('backup-view-modal');
             const modal = new bootstrap.Modal(modalEl);
             
-            document.getElementById('backup-view-title').textContent = '配置查看 - ' + deviceName;
-            document.getElementById('backup-view-meta').textContent = '备份时间: ' + timeStr;
+            document.getElementById('backup-view-title').innerHTML = tr('配置查看') + ' - <span data-i18n-preserve>' + escapeText(deviceName) + '</span>';
+            document.getElementById('backup-view-meta').textContent = tr('备份时间: ') + timeStr;
             
             const renderEl = document.getElementById('backup-view-render');
             const loadingEl = document.getElementById('backup-view-loading');
@@ -297,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
                      dialog.classList.remove('modal-fullscreen');
                      dialog.classList.add('modal-xl');
                      icon.className = 'bi bi-arrows-fullscreen';
-                     this.setAttribute('aria-label', '全屏');
+                     this.setAttribute('aria-label', tr('全屏'));
                      if (pre) {
                          pre.classList.remove('config-view-pre-full');
                          pre.classList.add('config-view-pre-normal');
@@ -306,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
                      dialog.classList.add('modal-fullscreen');
                      dialog.classList.remove('modal-xl');
                      icon.className = 'bi bi-fullscreen-exit';
-                     this.setAttribute('aria-label', '退出全屏');
+                     this.setAttribute('aria-label', tr('退出全屏'));
                      if (pre) {
                          pre.classList.remove('config-view-pre-normal');
                          pre.classList.add('config-view-pre-full');
@@ -332,9 +346,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     } catch (e) {
                         detail = '';
                     }
-                    if (resp.status === 403) throw new Error('当前账号无权限查看备份内容');
-                    if (resp.status === 404) throw new Error(detail || '备份记录不存在');
-                    throw new Error(detail || '备份内容加载失败');
+                    if (resp.status === 403) throw new Error(tr('当前账号无权限查看备份内容'));
+                    if (resp.status === 404) throw new Error(detail || tr('备份记录不存在'));
+                    throw new Error(detail || tr('备份内容加载失败'));
                 }
                 const data = await resp.json();
                 
@@ -363,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     downloadBtn.href = `/api/backups/${backupId}/download`;
                     downloadBtn.classList.remove('d-none');
                 } else {
-                    errorEl.textContent = '未找到配置内容';
+                    errorEl.textContent = tr('未找到配置内容');
                     errorEl.classList.remove('d-none');
                 }
             } catch (err) {

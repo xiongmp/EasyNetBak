@@ -250,7 +250,7 @@
       removeBtn.addEventListener("click", () => {
         if (!CAN_DELETE_RULES) return;
         if (window.NB && typeof window.NB.confirmDelete === "function") {
-          window.NB.confirmDelete("确定要永久移除这条忽略规则吗？", () => {
+          window.NB.confirmDelete(window.NB.t('dialog.delete.ignore_rule'), () => {
             row.style.opacity = "0";
             row.style.transform = "scale(0.95) translateX(30px)";
             setTimeout(() => {

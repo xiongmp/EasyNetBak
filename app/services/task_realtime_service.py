@@ -491,7 +491,50 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
     key = f"task.event.{event_name}"
     normalized = normalize_locale(locale)
     if has_key(key, normalized):
-        return tone, translate(normalized, key, details, fallback=fallback)
+        params = dict(details)
+        host = str(details.get("host") or "").strip()
+        port = str(details.get("port") or "").strip()
+        target = host or ("device" if normalized == "en-US" else "设备")
+        if port:
+            target = f"{target}:{port}"
+        login_method = str(details.get("login_method") or "").strip()
+        command = str(details.get("command") or "-").strip() or "-"
+        command_index = int(details.get("command_index") or 0)
+        command_count = int(details.get("command_count") or 0)
+        if command_index and command_count:
+            command = f"[{command_index}/{command_count}] {command}"
+        elif command_index:
+            command = f"[{command_index}] {command}"
+        read_timeout = int(details.get("read_timeout") or 0)
+        content_bytes = int(details.get("content_bytes") or details.get("output_bytes") or 0)
+        if content_bytes >= 1024 * 1024:
+            content_size = f"{content_bytes / (1024 * 1024):.2f} MB"
+        elif content_bytes >= 1024:
+            content_size = f"{content_bytes / 1024:.1f} KB"
+        else:
+            content_size = f"{content_bytes} B"
+        duration_seconds = details.get("duration_seconds")
+        params.update(
+            {
+                "target": target,
+                "login_method_suffix": f" ({login_method})" if login_method else "",
+                "device_type": str(details.get("device_type") or "-").strip() or "-",
+                "conn_timeout": str(details.get("conn_timeout") or "-").strip() or "-",
+                "command": command,
+                "read_timeout_suffix": (
+                    f"; read timeout: {read_timeout}s"
+                    if normalized == "en-US" and read_timeout
+                    else f"，读取超时时间为 {read_timeout} 秒" if read_timeout else ""
+                ),
+                "content_size": content_size,
+                "duration_suffix": (
+                    f"; duration: {duration_seconds}s"
+                    if normalized == "en-US" and duration_seconds is not None
+                    else f"，耗时 {duration_seconds}s" if duration_seconds is not None else ""
+                ),
+            }
+        )
+        return tone, translate(normalized, key, params, fallback=fallback)
     if normalized == "en-US":
         label = event_name.replace("_", " ").strip().capitalize() or "Task event"
         error = str(details.get("error") or "").strip()

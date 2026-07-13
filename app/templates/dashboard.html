@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_backup_record_status %}
+{% from "macros.html" import render_backup_record_status with context %}
 
 {% block content %}
 <div class="dashboard-layout d-flex flex-column h-100">
@@ -120,7 +120,7 @@
           <div class="alert alert-warning py-1 px-2 small mb-2 flex-shrink-0" role="alert">
             <div class="fw-semibold mb-1">任务链路存在降级</div>
             {% for item in task_health.degraded_components %}
-            <div>{{ item.component }}: {{ item.message }}</div>
+            <div>{{ item.component }}: {{ __legacy(item.message) }}</div>
             {% endfor %}
           </div>
           {% endif %}
@@ -205,10 +205,10 @@
         <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
           <ul class="nav nav-tabs card-header-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active py-1" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 ({{ dashboard_window.label }}，{{ trend_stats.granularity_label }})</button>
+              <button class="nav-link active py-1" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 ({{ dashboard_window.label }})</button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link py-1" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率 ({{ change_heatmap.range_label }})</button>
+              <button class="nav-link py-1" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率 ({{ __legacy(change_heatmap.range_label) }})</button>
             </li>
           </ul>
         </div>

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
     const successLabel = isEnglish ? 'Succeeded' : '成功';
     const failedLabel = isEnglish ? 'Failed' : '失败';
+    const changeCountLabel = isEnglish ? 'Changes' : '变更次数';
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const chartTextColor = isDark ? '#94a3b8' : '#64748b';
     const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
@@ -331,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 inRange: {
                     color: colorList
                 },
-                text: isEnglish ? ['High', 'Low'] : ['多', '少'],
+                text: isEnglish ? ['High', 'Low'] : ['\u591a', '\u5c11'],
                 textStyle: { fontSize: 12, color: textColor },
                 itemWidth: 16,
                 itemHeight: 200
@@ -349,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const val = params.value && params.value.length > 2 ? params.value[2] : 0;
                         const xLabel = (heatmapData.x_labels || [])[xIndex] || '';
                         const yLabel = (heatmapData.y_labels || [])[yIndex] || '';
-                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>${changeCountLabel}: <span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
                     },
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
@@ -422,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formatter: function (params) {
                     const label = params.value && params.value.length > 1 ? params.value[0] : '';
                     const val = params.value && params.value.length > 1 ? params.value[1] : 0;
-                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>${changeCountLabel}: <span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
                 },
                 backgroundColor: tooltipBg,
                 borderColor: tooltipBorder,
@@ -450,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     show: false
                 },
                 dayLabel: {
-                    nameMap: isEnglish ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['日', '一', '二', '三', '四', '五', '六'],
+                    nameMap: isEnglish ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'],
                     firstDay: 1,
                     color: textColor,
                     fontSize: 10

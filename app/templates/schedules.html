@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "定时任务" %}
 {% set page_subtitle = "创建定时备份任务，支持按设备/分组/平台选择目标" %}
 {% set can_schedule_create = has_permission('schedules.create') %}
@@ -181,7 +181,7 @@
                     <span class="badge bg-primary bg-opacity-10 text-primary p-1 me-2 rounded-circle">
                       <i class="bi bi-calendar-check fs-7"></i>
                     </span>
-                    <div class="fw-bold text-primary text-truncate" style="max-width: 180px;" title="{{ s.name }}">{{ s.name }}</div>
+                    <div class="fw-bold text-primary text-truncate" style="max-width: 180px;" title="{{ s.name }}" data-i18n-preserve>{{ s.name }}</div>
                   </div>
                 </td>
                 <td class="text-start text-nowrap">
@@ -191,7 +191,7 @@
                 <td class="text-start text-nowrap">
                   {% if nr %}
                     <div class="small fw-medium js-next-run {% if nr.tone == 'danger' %}text-danger{% elif nr.tone == 'primary' %}text-primary{% else %}text-secondary{% endif %}">
-                      <i class="bi bi-clock me-1"></i>{{ nr.text }}
+                      <i class="bi bi-clock me-1"></i>{{ __legacy(nr.text) }}
                     </div>
                   {% else %}
                     <span class="text-muted x-small italic">-</span>
@@ -237,7 +237,7 @@
                   {% set target_count = title_parts|length %}
                   {% set resolved_title = title_parts|join(', ') %}
                 {% endif %}
-                <td class="small text-start" title="{{ resolved_title|e }}">
+                <td class="small text-start" title="{{ resolved_title|e }}" data-i18n-preserve>
                   <div class="d-flex align-items-center">
                     <i class="bi bi-geo-alt text-secondary me-1"></i>
                     <div class="text-truncate" style="max-width: 250px;">
@@ -284,7 +284,7 @@
 
                     {% if can_schedule_delete %}
                       <form method="post" action="/schedules/{{ s.id }}/delete" class="m-0 d-inline text-nowrap">
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此定时任务吗？">
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.schedule" data-confirm-msg="确定要删除此定时任务吗？">
                           <i class="bi bi-trash me-1"></i>删除
                         </button>
                       </form>
@@ -446,6 +446,6 @@
   <script src="/static/js/cronstrue-i18n.min.js"></script>
   <script src="/static/js/pages/schedules-cron.js"></script>
   {% if can_schedule_update %}
-    <script src="/static/js/pages/schedules.js"></script>
+    <script src="/static/js/pages/schedules.js?v={{ app_version }}-i18n-prepaint-2"></script>
   {% endif %}
 {% endblock %}

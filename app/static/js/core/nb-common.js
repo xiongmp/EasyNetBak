@@ -37,7 +37,11 @@ window.NB = window.NB || {};
             
             e.preventDefault();
             const targetForm = btn.closest('form');
-            const msg = btn.getAttribute('data-confirm-msg');
+            const messageKey = btn.getAttribute('data-confirm-key');
+            const rawMsg = btn.getAttribute('data-confirm-msg');
+            const msg = messageKey && window.NB && typeof window.NB.t === 'function'
+              ? window.NB.t(messageKey)
+              : (window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(rawMsg) : rawMsg);
             
             window.NB.confirmDelete(msg, function() {
                 if (targetForm) {
@@ -283,15 +287,15 @@ window.NB = window.NB || {};
           function getTaskChannelModeMeta() {
             switch (String(state.taskChannelMode || "idle")) {
               case "connecting":
-                return { text: "实时通道连接中", badgeClass: "text-secondary" };
+                return { text: tr("实时通道连接中"), badgeClass: "text-secondary" };
               case "websocket_event_bus":
-                return { text: "事件实时推送", badgeClass: "text-success" };
+                return { text: tr("事件实时推送"), badgeClass: "text-success" };
               case "websocket_snapshot":
-                return { text: "WebSocket 轮询同步", badgeClass: "text-info" };
+                return { text: tr("WebSocket 轮询同步"), badgeClass: "text-info" };
               case "http_fallback":
-                return { text: "已降级为 HTTP 轮询", badgeClass: "text-warning" };
+                return { text: tr("已降级为 HTTP 轮询"), badgeClass: "text-warning" };
               default:
-                return { text: "等待建立同步通道", badgeClass: "text-secondary" };
+                return { text: tr("等待建立同步通道"), badgeClass: "text-secondary" };
             }
           }
 
@@ -380,10 +384,10 @@ window.NB = window.NB || {};
             const payload = getCurrentTrackPayload("subscribe_logs");
             if (!payload) return null;
             if (payload.run_id) {
-              return { kind: "run", id: String(payload.run_id), label: "批次实时日志" };
+              return { kind: "run", id: String(payload.run_id), label: tr("批次实时日志") };
             }
             if (payload.backup_id) {
-              return { kind: "backup", id: String(payload.backup_id), label: "任务实时日志" };
+              return { kind: "backup", id: String(payload.backup_id), label: tr("任务实时日志") };
             }
             return null;
           }
@@ -429,7 +433,7 @@ window.NB = window.NB || {};
             state.taskLogTarget = {
               kind: "backup",
               id: String(device.id || ""),
-              label: suffix ? `设备实时日志: ${suffix}` : "设备实时日志",
+              label: suffix ? `${tr("设备实时日志")}: ${suffix}` : tr("设备实时日志"),
             };
           }
 
@@ -473,31 +477,31 @@ window.NB = window.NB || {};
             if (targetKind !== "run") return [];
             const details = item && item.details && typeof item.details === "object" ? item.details : {};
             const labels = [];
-            const labelMap = {
-              schedule_id: "计划",
-              trigger: "触发",
-              status: "状态",
-              planned_count: "计划",
-              total_devices: "设备",
-              job_count: "任务",
-              backup_count: "跟踪",
-              enqueued_count: "入队",
-              failed_count: "失败",
-              success_count: "成功",
-              fail_count: "失败",
-              cancelled_count: "已终止",
-              unfinished_count: "未完成",
-              terminated_records: "终止",
-              skipped_records: "跳过",
-              running_records: "运行中",
-              selected_records: "已选",
-              retried_records: "重试",
-              enqueue_status: "入队状态",
-              poll_seconds: "检查间隔",
-              time_limit_seconds: "超时",
-              failure_type: "失败类型",
-              reason: "原因",
-              source_run_id: "来源批次",
+              const labelMap = {
+              schedule_id: tr("计划"),
+              trigger: tr("触发"),
+              status: tr("状态"),
+              planned_count: tr("计划"),
+              total_devices: tr("设备"),
+              job_count: tr("任务"),
+              backup_count: tr("跟踪"),
+              enqueued_count: tr("入队"),
+              failed_count: tr("失败"),
+              success_count: tr("成功"),
+              fail_count: tr("失败"),
+              cancelled_count: tr("已终止"),
+              unfinished_count: tr("未完成"),
+              terminated_records: tr("终止"),
+              skipped_records: tr("跳过"),
+              running_records: tr("运行中"),
+              selected_records: tr("已选"),
+              retried_records: tr("重试"),
+              enqueue_status: tr("入队状态"),
+              poll_seconds: tr("检查间隔"),
+              time_limit_seconds: tr("超时"),
+              failure_type: tr("失败类型"),
+              reason: tr("原因"),
+              source_run_id: tr("来源批次"),
             };
             const orderedKeys = [
               "schedule_id",
@@ -550,19 +554,19 @@ window.NB = window.NB || {};
             if (!logSection || !logList || !logStatus || !logTitle) return;
             logSection.classList.toggle("d-none", !state.taskLogsVisible || !state.jobs.length);
             if (!state.jobs.length) {
-              logTitle.textContent = "任务实时日志";
-              logStatus.textContent = "未跟踪任务";
-              logList.innerHTML = '<div class="text-secondary opacity-75">暂无实时日志</div>';
+              logTitle.textContent = tr("任务实时日志");
+              logStatus.textContent = tr("未跟踪任务");
+              logList.innerHTML = trHtml('<div class="text-secondary opacity-75">暂无实时日志</div>');
               return;
             }
             if (!state.taskLogsVisible) {
               return;
             }
             syncTaskLogTargetWithJobs();
-            logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || "任务实时日志";
-            logStatus.textContent = getTaskChannelModeMeta().text;
+            logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || tr("任务实时日志");
+            logStatus.textContent = tr(getTaskChannelModeMeta().text);
             if (!state.taskLogs.length) {
-              logList.innerHTML = '<div class="text-secondary opacity-75">暂无日志</div>';
+              logList.innerHTML = trHtml('<div class="text-secondary opacity-75">暂无日志</div>');
               return;
             }
             const toneMap = {
@@ -1152,6 +1156,18 @@ window.NB = window.NB || {};
             return span.innerHTML;
           }
 
+          function tr(text) {
+            return window.NB && typeof window.NB.tr === "function" ? window.NB.tr(text) : text;
+          }
+
+          function trHtml(html) {
+            return window.NB && typeof window.NB.trHtml === "function" ? window.NB.trHtml(html) : html;
+          }
+
+          function isEnglishUi() {
+            return Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
+          }
+
           function countLines(text) {
             if (!text) return 0;
             let count = 1;
@@ -1230,7 +1246,7 @@ window.NB = window.NB || {};
               backupViewFullscreenIcon.className = want ? "bi bi-fullscreen-exit" : "bi bi-arrows-fullscreen";
             }
             if (backupViewFullscreen) {
-              backupViewFullscreen.setAttribute("aria-label", want ? "退出全屏" : "全屏");
+              backupViewFullscreen.setAttribute("aria-label", tr(want ? "退出全屏" : "全屏"));
             }
           }
 
@@ -1253,7 +1269,7 @@ window.NB = window.NB || {};
               if (!bs || !bs.Modal) return;
               backupViewModal = new bs.Modal(backupViewModalEl);
             }
-            if (backupViewTitle) backupViewTitle.textContent = "备份详情";
+            if (backupViewTitle) backupViewTitle.textContent = tr("备份详情");
             if (backupViewMeta) backupViewMeta.textContent = "";
             if (backupViewError) {
               backupViewError.classList.add("d-none");
@@ -1289,7 +1305,7 @@ window.NB = window.NB || {};
             const record = data && data.record ? data.record : {};
 
             if (backupViewMeta) {
-              backupViewMeta.textContent = `${device.name || ""} · ${device.host || ""} · ${record.started_at || ""}`;
+              backupViewMeta.innerHTML = `<span data-i18n-preserve>${escapeText(device.name || "")} · ${escapeText(device.host || "")} · ${escapeText(record.started_at || "")}</span>`;
             }
 
             const err = record.error_message || "";
@@ -1309,7 +1325,7 @@ window.NB = window.NB || {};
           function renderBackupLogItems(items) {
             if (!backupLogList) return;
             if (!items || !items.length) {
-              backupLogList.innerHTML = '<div class="text-secondary opacity-75 p-2">暂无执行日志</div>';
+              backupLogList.innerHTML = trHtml('<div class="text-secondary opacity-75 p-2">暂无执行日志</div>');
               return;
             }
             backupLogList.innerHTML = items.map((item) => {
@@ -1341,7 +1357,7 @@ window.NB = window.NB || {};
               if (!bs || !bs.Modal) return;
               backupLogModal = new bs.Modal(backupLogModalEl);
             }
-            if (backupLogTitle) backupLogTitle.textContent = "执行日志";
+            if (backupLogTitle) backupLogTitle.textContent = tr("执行日志");
             if (backupLogMeta) backupLogMeta.textContent = "";
             if (backupLogError) {
               backupLogError.classList.add("d-none");
@@ -1369,7 +1385,7 @@ window.NB = window.NB || {};
             const device = data && data.device ? data.device : {};
             const record = data && data.record ? data.record : {};
             if (backupLogMeta) {
-              backupLogMeta.textContent = `${device.name || ""} · ${device.host || ""} · ${record.started_at || ""}`;
+              backupLogMeta.innerHTML = `<span data-i18n-preserve>${escapeText(device.name || "")} · ${escapeText(device.host || "")} · ${escapeText(record.started_at || "")}</span>`;
             }
             renderBackupLogItems(data.items || []);
           }
@@ -1540,7 +1556,7 @@ window.NB = window.NB || {};
               0,
             );
             
-            summary.innerHTML = `
+            summary.innerHTML = trHtml(`
               <div class="nb-job-summary-item" data-filter="all">
                 <span class="nb-job-summary-label">设备总数</span>
                 <span class="nb-job-summary-value text-primary">${allDevices}</span>
@@ -1561,7 +1577,7 @@ window.NB = window.NB || {};
                 <span class="nb-job-summary-label">已终止</span>
                 <span class="nb-job-summary-value">${cancelledDevices}</span>
               </div>
-            `;
+            `);
             syncSummaryCardActiveState();
             bindSummaryCardClicks();
 
@@ -1571,44 +1587,44 @@ window.NB = window.NB || {};
               const selectedDevices = getSelectedDevices(latest);
               const channelMeta = getTaskChannelModeMeta();
               const batchStartedAt = latest.requested_at ? escapeText(latest.requested_at) : "";
-              headerMeta.innerHTML = `
+              headerMeta.innerHTML = trHtml(`
                 <span class="nb-header-badge ${channelMeta.badgeClass}">
                   <i class="bi bi-broadcast"></i>${channelMeta.text}
                 </span>
-                ${batchStartedAt ? `<span class="nb-header-badge"><i class="bi bi-clock"></i>任务开始时间: ${batchStartedAt}</span>` : ""}
+                ${batchStartedAt ? `<span class="nb-header-badge"><i class="bi bi-clock"></i>任务开始时间: <span data-i18n-preserve>${batchStartedAt}</span></span>` : ""}
                 ${selectedDevices.length ? `<span class="nb-header-badge"><i class="bi bi-check2-square"></i>已选 ${selectedDevices.length} 台</span>` : ""}
-              `;
+              `);
               if (bulkTerminateBtn) {
                 const canBulkTerminate = canBulkTerminateTrackedRun(latest);
                 const bulkTerminating = state.bulkTerminatingRunId && latest.run_id && state.bulkTerminatingRunId === latest.run_id;
                 bulkTerminateBtn.classList.toggle("d-none", !selectedDevices.length);
                 bulkTerminateBtn.disabled = !canBulkTerminate || !!bulkTerminating;
-                bulkTerminateBtn.textContent = bulkTerminating ? "处理中..." : "终止所选";
+                bulkTerminateBtn.textContent = tr(bulkTerminating ? "处理中..." : "终止所选");
               }
               if (bulkRetryBtn) {
                 const canBulkRetry = canBulkRetryTrackedRun(latest);
                 const bulkRetrying = state.bulkRetryingRunId && latest.run_id && state.bulkRetryingRunId === latest.run_id;
                 bulkRetryBtn.classList.toggle("d-none", !selectedDevices.length);
                 bulkRetryBtn.disabled = !canBulkRetry || !!bulkRetrying;
-                bulkRetryBtn.textContent = bulkRetrying ? "处理中..." : "重试所选";
+                bulkRetryBtn.textContent = tr(bulkRetrying ? "处理中..." : "重试所选");
               }
               if (terminateBtn) {
                 const canTerminate = canTerminateTrackedRun(latest);
                 const terminating = state.terminatingRunId && latest.run_id && state.terminatingRunId === latest.run_id;
                 terminateBtn.classList.toggle("d-none", !canTerminate);
                 terminateBtn.disabled = !!terminating;
-                terminateBtn.textContent = terminating ? "处理中..." : "终止未运行任务";
+                terminateBtn.textContent = tr(terminating ? "处理中..." : "终止未运行任务");
               }
               if (retryBtn) {
                 const canRetry = canRetryTrackedRun(latest);
                 const retrying = state.retryingRunId && latest.run_id && state.retryingRunId === latest.run_id;
                 retryBtn.classList.toggle("d-none", !canRetry);
                 retryBtn.disabled = !!retrying;
-                retryBtn.textContent = retrying ? "处理中..." : "重试失败项";
+                retryBtn.textContent = tr(retrying ? "处理中..." : "重试失败项");
               }
               if (logsToggleBtn) {
                 logsToggleBtn.classList.remove("d-none");
-                logsToggleBtn.textContent = "批次日志";
+                logsToggleBtn.textContent = tr("批次日志");
                 const isShowingBatchLogs = !!(
                   state.taskLogsVisible &&
                   state.taskLogTarget &&
@@ -1622,28 +1638,28 @@ window.NB = window.NB || {};
               if (bulkTerminateBtn) {
                 bulkTerminateBtn.classList.add("d-none");
                 bulkTerminateBtn.disabled = false;
-                bulkTerminateBtn.textContent = "终止所选";
+                bulkTerminateBtn.textContent = tr("终止所选");
               }
               if (bulkRetryBtn) {
                 bulkRetryBtn.classList.add("d-none");
                 bulkRetryBtn.disabled = false;
-                bulkRetryBtn.textContent = "重试所选";
+                bulkRetryBtn.textContent = tr("重试所选");
               }
               if (terminateBtn) {
                 terminateBtn.classList.add("d-none");
                 terminateBtn.disabled = false;
-                terminateBtn.textContent = "终止未运行任务";
+                terminateBtn.textContent = tr("终止未运行任务");
               }
               if (retryBtn) {
                 retryBtn.classList.add("d-none");
                 retryBtn.disabled = false;
-                retryBtn.textContent = "重试失败项";
+                retryBtn.textContent = tr("重试失败项");
               }
               if (logsToggleBtn) {
                 logsToggleBtn.classList.add("d-none");
                 logsToggleBtn.classList.remove("btn-outline-primary");
                 logsToggleBtn.classList.add("btn-outline-secondary");
-                logsToggleBtn.textContent = "批次日志";
+                logsToggleBtn.textContent = tr("批次日志");
               }
             }
             renderTaskLogs();
@@ -1701,7 +1717,7 @@ window.NB = window.NB || {};
                 rows.push(
                   `<tr class="nb-job-row" data-status="${escapeText(d.status || '')}">
                     <td class="align-middle text-center">
-                      ${canSelect ? `<input class="form-check-input nb-job-select-item" type="checkbox" data-backup-id="${backupId}" ${selected ? "checked" : ""} aria-label="选择任务">` : ""}
+                      ${canSelect ? `<input class="form-check-input nb-job-select-item" type="checkbox" data-backup-id="${backupId}" ${selected ? "checked" : ""} aria-label="${tr("选择任务")}">` : ""}
                     </td>
                     <td>
                       <div class="d-flex flex-column">
@@ -1711,7 +1727,7 @@ window.NB = window.NB || {};
                     <td class="text-secondary small text-nowrap opacity-75 align-middle">${host}</td>
                     <td>${status}</td>
                     <td class="align-middle text-center">
-                      ${backupId ? `<button type="button" class="btn ${isCurrentDeviceLog ? "btn-secondary" : "btn-outline-secondary"} btn-sm py-0 px-2 nb-device-log-btn text-nowrap" data-device-log-id="${backupId}" data-device-log-name="${logNameAttr}" data-device-log-host="${logHostAttr}">${isCurrentDeviceLog ? "查看中" : "设备日志"}</button>` : ""}
+                      ${backupId ? `<button type="button" class="btn ${isCurrentDeviceLog ? "btn-secondary" : "btn-outline-secondary"} btn-sm py-0 px-2 nb-device-log-btn text-nowrap" data-device-log-id="${backupId}" data-device-log-name="${logNameAttr}" data-device-log-host="${logHostAttr}">${tr(isCurrentDeviceLog ? "查看中" : "设备日志")}</button>` : ""}
                     </td>
                   </tr>`,
                 );
@@ -1939,7 +1955,9 @@ window.NB = window.NB || {};
               const job = getCurrentTrackedJob();
               const selectedCount = getSelectedBackupIds().length;
               if (!canBulkTerminateTrackedRun(job) || !selectedCount) return;
-              const message = `确认终止当前选中的 ${selectedCount} 个未运行任务吗？已在执行中的任务不会被停止。`;
+              const message = isEnglishUi()
+                ? `Cancel the ${selectedCount} selected pending tasks? Running tasks will not be stopped.`
+                : `确认终止当前选中的 ${selectedCount} 个未运行任务吗？已在执行中的任务不会被停止。`;
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: "确认批量终止",
@@ -1963,7 +1981,9 @@ window.NB = window.NB || {};
               const job = getCurrentTrackedJob();
               const selectedCount = getSelectedBackupIds().length;
               if (!canBulkRetryTrackedRun(job) || !selectedCount) return;
-              const message = `确认重试当前选中的 ${selectedCount} 个失败或已终止任务吗？`;
+              const message = isEnglishUi()
+                ? `Retry the ${selectedCount} selected failed or cancelled tasks?`
+                : `确认重试当前选中的 ${selectedCount} 个失败或已终止任务吗？`;
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: "确认批量重试",
@@ -1991,7 +2011,7 @@ window.NB = window.NB || {};
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: "确认终止",
-                  message: "确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。",
+                  message: tr("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。"),
                   confirmBtnText: "确认终止",
                   confirmBtnClass: "btn-danger",
                   onConfirm: () => {
@@ -2000,7 +2020,7 @@ window.NB = window.NB || {};
                 });
                 return;
               }
-              if (window.confirm("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。")) {
+              if (window.confirm(tr("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。"))) {
                 terminateTrackedRun();
               }
             });
@@ -2015,7 +2035,7 @@ window.NB = window.NB || {};
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: "确认重试",
-                  message: "确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。",
+                  message: tr("确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。"),
                   confirmBtnText: "确认重试",
                   confirmBtnClass: "btn-warning",
                   onConfirm: () => {
@@ -2024,7 +2044,7 @@ window.NB = window.NB || {};
                 });
                 return;
               }
-              if (window.confirm("确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。")) {
+              if (window.confirm(tr("确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。"))) {
                 retryTrackedRun();
               }
             });

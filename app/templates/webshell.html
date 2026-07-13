@@ -88,14 +88,14 @@
     <div class="flex-grow-1 position-relative overflow-hidden d-flex flex-column">
       <div class="d-flex justify-content-between align-items-center flex-wrap px-3 py-2 bg-dark text-white border-bottom border-secondary webshell-topbar">
         <div class="d-flex align-items-center gap-2 flex-wrap topbar-left">
-           <span class="fw-bold webshell-device-name" id="topbar-device-name" title="{{ device.name }}"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
+           <span class="fw-bold webshell-device-name" id="topbar-device-name" title="{{ device.name }}" data-i18n-preserve><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-host" id="topbar-device-host" title="{{ device.host }}:{{ device.port }}">{{ device.host }}:{{ device.port }}</span>
+           <span class="small text-light opacity-75 webshell-meta-host" id="topbar-device-host" title="{{ device.host }}:{{ device.port }}" data-i18n-preserve>{{ device.host }}:{{ device.port }}</span>
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-platform" id="topbar-device-platform" title="{{ device.platform }}">{{ device.platform }}</span>
+           <span class="small text-light opacity-75 webshell-meta-platform" id="topbar-device-platform" title="{{ device.platform }}" data-i18n-preserve>{{ device.platform }}</span>
            {% if credential %}
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-user" title="{{ credential.username }}"><i class="bi bi-person me-1"></i><span id="topbar-username">{{ credential.username }}</span></span>
+           <span class="small text-light opacity-75 webshell-meta-user" title="{{ credential.username }}" data-i18n-preserve><i class="bi bi-person me-1"></i><span id="topbar-username">{{ credential.username }}</span></span>
            {% else %}
            <span class="text-secondary small webshell-meta-sep" id="topbar-username-separator">|</span>
            <span class="small text-light opacity-75 webshell-meta-user" id="topbar-username-container"><i class="bi bi-person me-1"></i><span id="topbar-username"></span></span>
@@ -251,5 +251,5 @@
     csrfToken: {{ csrf_token | tojson }}
   };
 </script>
-<script src="/static/js/pages/webshell.js"></script>
+<script src="/static/js/pages/webshell.js?v={{ app_version }}-i18n-prepaint-1"></script>
 {% endblock %}

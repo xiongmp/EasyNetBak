@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_backup_record_status, render_pagination %}
+{% from "macros.html" import render_backup_record_status, render_pagination with context %}
 {% set page_title = "设备详情" %}
 {% set page_subtitle = "查看备份历史并手动触发备份" %}
 {% set can_device_view = has_permission('devices.view') %}
@@ -16,13 +16,13 @@
             <i class="bi bi-hdd-network-fill text-primary fs-5"></i>
           </div>
           <div class="d-flex flex-wrap align-items-center gap-3">
-            <h5 class="mb-0 fw-bold text-body">{{ device.name }}</h5>
+            <h5 class="mb-0 fw-bold text-body" data-i18n-preserve>{{ device.name }}</h5>
             <div class="text-secondary small d-flex flex-wrap gap-3">
-              <span><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
-              <span><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
-              <span><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
+              <span data-i18n-preserve><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
+              <span data-i18n-preserve><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
+              <span data-i18n-preserve><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
               {% if device.group_id and group_map.get(device.group_id) %}
-                <span><i class="bi bi-grid me-1"></i>{{ group_map.get(device.group_id).name }}</span>
+                <span data-i18n-preserve><i class="bi bi-grid me-1"></i>{{ group_map.get(device.group_id).name }}</span>
               {% endif %}
               {% if device.credential_id and credentials.get(device.credential_id) %}
                 <span><i class="bi bi-shield-lock me-1"></i>{{ credentials.get(device.credential_id).name }}</span>
@@ -99,7 +99,7 @@
               <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-shield-lock me-1"></i>登录凭据</label>
               <select name="credential_id" class="form-select form-select-sm" required>
                 {% for cid, c in credentials.items() %}
-                  <option value="{{ cid }}" {% if device.credential_id == cid %}selected{% endif %}>{{ c.name }} · {{ c.username }}</option>
+                  <option value="{{ cid }}" data-i18n-preserve data-nb-label="{{ (c.name ~ ' · ' ~ c.username)|e }}" {% if device.credential_id == cid %}selected{% endif %}>{{ c.name }} · {{ c.username }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -108,7 +108,7 @@
               <select name="default_template_id" class="form-select form-select-sm">
                 <option value="0" {% if not device.default_template_id %}selected{% endif %}>使用设备类型默认命令</option>
                 {% for t in templates %}
-                  <option value="{{ t.id }}" {% if device.default_template_id == t.id %}selected{% endif %}>{{ t.name }} · {{ t.platform }}</option>
+                  <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}" {% if device.default_template_id == t.id %}selected{% endif %}>{{ t.name }} · {{ t.platform }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -140,7 +140,7 @@
               <select name="template_id" class="form-select form-select-sm" id="device-backup-template">
                 <option value="0">使用设备默认模板</option>
                 {% for t in templates %}
-                  <option value="{{ t.id }}">{{ t.name }} · {{ t.platform }}</option>
+                  <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}">{{ t.name }} · {{ t.platform }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -225,6 +225,9 @@
                   
                   const text = document.createElement('span');
                   text.className = textClass;
+                  if (node.id !== 0) {
+                      text.setAttribute('data-i18n-preserve', '');
+                  }
                   text.textContent = node.name;
                   
                   content.appendChild(toggle);
@@ -274,15 +277,15 @@
                     updateGroupIdInput.value = nodeId;
                     const selectedText = document.getElementById('updateGroupSelectedText');
                     if (nodeId == 0) {
-                        selectedText.textContent = '未分组';
+                        selectedText.textContent = window.NB.tr('未分组');
                     } else {
                         // 使用 group_paths 获取全路径，如果不存在则退回使用 name
                         const pathData = {{ group_paths|tojson }};
                         const selectedGroup = groupItems.find(g => g.id == nodeId);
                         if (pathData && pathData[nodeId]) {
-                            selectedText.textContent = pathData[nodeId];
+                            selectedText.innerHTML = '<span data-i18n-preserve>' + escapeText(pathData[nodeId]) + '</span>';
                         } else {
-                            selectedText.textContent = selectedGroup ? selectedGroup.name : '未分组';
+                            selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : window.NB.tr('未分组');
                         }
                     }
                     
@@ -362,7 +365,7 @@
                   <td>
                     {{ render_backup_record_status(r.status) }}
                   </td>
-                  <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
+                  <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}" data-i18n-preserve>{{ r.error_message or "" }}</td>
                   <td>
                     <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">配置</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="{{ r.id }}">日志</button>
@@ -450,7 +453,7 @@
       const items = backups || [];
       if (!els.tbody) return;
       if (!items.length) {
-        els.tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td></tr>';
+        els.tbody.innerHTML = window.NB.trHtml('<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td></tr>');
         return;
       }
       const rows = items.map((b, idx) => {
@@ -462,7 +465,7 @@
           <tr>
             <td class="text-secondary small">${escapeText(b.started_at || "")}</td>
             <td>${status}</td>
-            <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}">${err}</td>
+            <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}" data-i18n-preserve>${err}</td>
             <td>
               <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">配置</button>
               <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="${escapeText(b.id)}">日志</button>

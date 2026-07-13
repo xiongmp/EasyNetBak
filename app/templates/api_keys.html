@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "API Key 管理" %}
 {% set page_subtitle = "查看和管理用于外部接入的 API Keys" %}
 
@@ -36,8 +36,8 @@
         <tbody>
           {% for key in api_keys %}
           <tr>
-            <td class="ps-4">{{ key.name }}</td>
-            <td><code>{{ key.prefix }}***</code></td>
+            <td class="ps-4" data-i18n-preserve>{{ key.name }}</td>
+            <td><code data-i18n-preserve>{{ key.prefix }}***</code></td>
             <td>
               {% if key.is_active %}
                 <span class="badge bg-success-subtle text-success">正常</span>
@@ -129,7 +129,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">确定要吊销 API Key <strong id="revokeKeyName" class="text-dark"></strong> 吗？</p>
+        <p class="mb-1 fs-6">确定要吊销 API Key <strong id="revokeKeyName" class="text-dark" data-i18n-preserve></strong> 吗？</p>
         <p class="text-muted small mb-0">吊销后该 Key 将立即失效，无法再用于任何 API 访问，但记录会保留。</p>
       </div>
       <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
@@ -149,7 +149,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">确定要彻底删除 API Key <strong id="deleteKeyName" class="text-dark"></strong> 吗？</p>
+        <p class="mb-1 fs-6">确定要彻底删除 API Key <strong id="deleteKeyName" class="text-dark" data-i18n-preserve></strong> 吗？</p>
         <div class="alert alert-danger border-danger-subtle py-2 px-3 mt-3 mb-0 small">
           <i class="bi bi-shield-exclamation me-1"></i>此操作不可恢复！如果您只是想暂时停用，建议使用<strong>吊销</strong>功能。
         </div>
@@ -252,12 +252,12 @@ async function copyApiKey(buttonEl) {
     }
 
     if (!copied) {
-        alert('复制失败，请手动选中后 Ctrl+C 复制。');
+        alert(window.NB && typeof window.NB.tr === 'function' ? window.NB.tr('复制失败，请手动选中后 Ctrl+C 复制。') : '复制失败，请手动选中后 Ctrl+C 复制。');
         return;
     }
 
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
+    btn.innerHTML = window.NB && typeof window.NB.trHtml === 'function' ? window.NB.trHtml('<i class="bi bi-check2 me-1"></i> 已复制') : '<i class="bi bi-check2 me-1"></i> 已复制';
     btn.classList.remove('btn-primary');
     btn.classList.add('btn-success');
     setTimeout(() => {

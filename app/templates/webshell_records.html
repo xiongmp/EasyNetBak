@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "Webshell 回放" %}
 {% set page_subtitle = "查看和回放 WebShell 的操作录像" %}
 {% set can_webshell_records = has_permission('webshell_records.view') %}
@@ -59,14 +59,14 @@
                                 <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px;">
                                     <i class="bi bi-person-fill small"></i>
                                 </div>
-                                <span class="fw-medium">{{ record.username }}</span>
+                                <span class="fw-medium" data-i18n-preserve>{{ record.username }}</span>
                             </div>
                         </td>
-                        <td class="fw-medium">{{ record.device_name }}</td>
-                        <td><span class="text-secondary font-monospace" style="font-size: 0.85rem;">{{ record.device_host }}</span></td>
+                        <td class="fw-medium" data-i18n-preserve>{{ record.device_name }}</td>
+                        <td><span class="text-secondary font-monospace" style="font-size: 0.85rem;" data-i18n-preserve>{{ record.device_host }}</span></td>
                         <td>
                             {% if record.device_login_name %}
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border fw-normal">{{ record.device_login_name }}</span>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border fw-normal" data-i18n-preserve>{{ record.device_login_name }}</span>
                             {% else %}
                             <span class="text-muted">-</span>
                             {% endif %}
@@ -176,6 +176,16 @@ let playbackModal = null;
 let currentRecordId = null;
 let isMaximized = false;
 
+  function escapeText(text) {
+    const span = document.createElement('span');
+    span.textContent = text == null ? '' : String(text);
+    return span.innerHTML;
+  }
+
+  function tr(text) {
+    return window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+  }
+
 document.addEventListener('DOMContentLoaded', () => {
     const modalEl = document.getElementById('playbackModal');
     playbackModal = new bootstrap.Modal(modalEl);
@@ -237,9 +247,9 @@ function playRecord(id, deviceName, deviceHost, startedAt, duration, username, l
         }
     }
     
-    document.getElementById('metaDevice').innerHTML = `设备: <span class="text-light fw-medium">${deviceName}</span> <span class="text-info opacity-75 font-monospace ms-1">[${deviceHost}]</span>`;
-    document.getElementById('metaUser').innerHTML = `操作用户: <span class="text-light fw-medium">${username}</span> <span class="mx-1 opacity-50">/</span> 登录名: <span class="text-light fw-medium">${loginName || '-'}</span>`;
-    document.getElementById('metaTime').innerHTML = `时间: <span class="text-light fw-medium">${startedAt}${endTimeStr}</span> <span class="mx-1 opacity-50">|</span> 历时: <span class="text-light fw-medium">${formatDuration(duration)}</span>`;
+    document.getElementById('metaDevice').innerHTML = `${tr('设备')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(deviceName)}</span> <span class="text-info opacity-75 font-monospace ms-1" data-i18n-preserve>[${escapeText(deviceHost)}]</span>`;
+    document.getElementById('metaUser').innerHTML = `${tr('操作用户')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(username)}</span> <span class="mx-1 opacity-50">/</span> ${tr('登录名')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(loginName || '-')}</span>`;
+    document.getElementById('metaTime').innerHTML = `${tr('时间')}: <span class="text-light fw-medium" data-i18n-preserve>${startedAt}${endTimeStr}</span> <span class="mx-1 opacity-50">|</span> ${tr('历时')}: <span class="text-light fw-medium">${formatDuration(duration)}</span>`;
     
     document.getElementById('playbackSpeed').value = "1";
     

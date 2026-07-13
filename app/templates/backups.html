@@ -46,11 +46,11 @@
                       data-device-id="{{ d.id }}"
                       data-search="{{ (d.name ~ ' ' ~ d.host ~ ' ' ~ d.platform)|lower }}">
                     <td class="text-start">
-                      <div class="fw-medium">{{ d.name }}</div>
+                      <div class="fw-medium" data-i18n-preserve>{{ d.name }}</div>
                     </td>
-                    <td class="text-secondary small text-start">{{ d.host }}</td>
+                    <td class="text-secondary small text-start" data-i18n-preserve>{{ d.host }}</td>
                     <td class="text-start">
-                      <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2">{{ d.platform }}</span>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2" data-i18n-preserve>{{ d.platform }}</span>
                     </td>
                     <td class="text-start">
                       <span class="badge bg-secondary-subtle text-secondary px-2">{{ d.backup_count }}</span>
@@ -255,6 +255,14 @@
       return span.innerHTML;
     }
 
+    function tr(text) {
+      return window.NB && typeof window.NB.tr === "function" ? window.NB.tr(text) : text;
+    }
+
+    function trHtml(html) {
+      return window.NB && typeof window.NB.trHtml === "function" ? window.NB.trHtml(html) : html;
+    }
+
     function updateActionButtons() {
       setDisabled(els.viewBtn, selectedBackups.length !== 1);
       setDisabled(els.diffBtn, selectedBackups.length !== 2);
@@ -337,7 +345,7 @@
       };
 
       if (!selectedDeviceIds.length) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`);
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
         els.paneHeader1.classList.add("d-none");
@@ -353,7 +361,7 @@
       const renderDevice = (did, tbody, headerEl) => {
         const info = deviceBackupsMap[did];
         if (!info) {
-          tbody.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>`;
+          tbody.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>`);
           return;
         }
         const device = info || {};
@@ -363,10 +371,10 @@
         if (isMultiDeviceMode) {
           headerEl.innerHTML = `
             <div class="d-flex align-items-center justify-content-between px-2 py-1 bg-body-tertiary border-bottom">
-              <span class="fw-bold text-primary small text-truncate me-2" title="${escapeText(device.name)}">
+              <span class="fw-bold text-primary small text-truncate me-2" title="${escapeText(device.name)}" data-i18n-preserve>
                 <i class="bi bi-hdd-network me-1"></i>${escapeText(device.name)}
               </span>
-              <span class="text-secondary small opacity-75 text-truncate flex-shrink-0">${escapeText(device.host)}</span>
+              <span class="text-secondary small opacity-75 text-truncate flex-shrink-0" data-i18n-preserve>${escapeText(device.host)}</span>
             </div>
           `;
         } else {
@@ -375,7 +383,7 @@
 
         let html = "";
         if (!backups.length) {
-          html += `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>`;
+          html += trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>`);
         } else {
           backups.forEach(b => {
             const checked = selectedBackups.includes(b.id) ? "checked" : "";
@@ -384,7 +392,7 @@
             const isActive = window.NB && typeof window.NB.isActiveBackupStatus === "function"
               ? window.NB.isActiveBackupStatus(b.status)
               : !b.finished_at;
-            const deleteTitle = isActive ? "执行中的备份任务无法删除" : "删除";
+            const deleteTitle = tr(isActive ? "执行中的备份任务无法删除" : "删除");
             const opCell = CAN_DELETE_BACKUP
               ? `<td><button class="btn btn-outline-danger btn-sm py-0 px-2 backup-delete-row" title="${escapeText(deleteTitle)}" data-backup-id="${escapeText(b.id)}" ${isActive ? "disabled" : ""}><i class="bi bi-trash"></i></button></td>`
               : "";
@@ -393,8 +401,8 @@
                 <td><input class="form-check-input backup-select" type="checkbox" ${checked} /></td>
                 <td class="backup-time-cell text-secondary small">${escapeText(b.started_at)}</td>
                 <td>${status}</td>
-                <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}">${err}</td>
-                <td><button class="btn btn-outline-secondary btn-sm py-0 px-2 backup-log-row" title="查看执行日志" data-backup-id="${escapeText(b.id)}"><i class="bi bi-journal-text"></i></button></td>
+                <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}" data-i18n-preserve>${err}</td>
+                <td><button class="btn btn-outline-secondary btn-sm py-0 px-2 backup-log-row" title="${tr("查看执行日志")}" data-backup-id="${escapeText(b.id)}"><i class="bi bi-journal-text"></i></button></td>
                 ${opCell}
               </tr>
             `;
@@ -477,18 +485,18 @@
 
     async function loadSelectedDevicesBackups() {
       if (selectedDeviceIds.length === 0) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`);
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
-        els.selectedDeviceMeta.textContent = "未选择设备";
+        els.selectedDeviceMeta.textContent = tr("未选择设备");
         return;
       }
       
-      els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
+      els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`);
       
       const isDualPane = isMultiDeviceMode && selectedDeviceIds.length === 2;
       if (isDualPane) {
-        els.backupTbody2.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
+        els.backupTbody2.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`);
         els.pane2.classList.remove("d-none");
       } else {
         els.pane2.classList.add("d-none");
@@ -498,12 +506,12 @@
       if (selectedDeviceIds.length === 1) {
          const d = DEVICE_ROWS.find(x => String(x.id) === String(selectedDeviceIds[0]));
          if (d) {
-            els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+            els.selectedDeviceMeta.innerHTML = `<span data-i18n-preserve>${escapeText(d.name || "")} - ${escapeText(d.host || "")}</span>`;
          } else {
-            els.selectedDeviceMeta.textContent = "加载中...";
+            els.selectedDeviceMeta.textContent = tr("加载中...");
          }
       } else {
-         els.selectedDeviceMeta.textContent = `已选 ${selectedDeviceIds.length} 台设备`;
+         els.selectedDeviceMeta.textContent = tr(`已选 ${selectedDeviceIds.length} 台设备`);
       }
 
       // Fetch all
@@ -521,14 +529,14 @@
       });
       
       if (successCount === 0) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-danger py-4">加载失败</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-danger py-4">加载失败</td></tr>`);
         return;
       }
       
       // Update meta title for single device
       if (selectedDeviceIds.length === 1) {
          const d = deviceBackupsMap[selectedDeviceIds[0]] || {};
-         els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+         els.selectedDeviceMeta.innerHTML = `<span data-i18n-preserve>${escapeText(d.name || "")} - ${escapeText(d.host || "")}</span>`;
       }
 
       renderBackupsTable();
@@ -860,7 +868,7 @@
         } catch (e) {
           detail = "";
         }
-        els.diffRender.innerHTML = `<div class="text-danger small p-3">${escapeText(detail || "差异加载失败")}</div>`;
+        els.diffRender.innerHTML = `<div class="text-danger small p-3">${escapeText(detail || tr("差异加载失败"))}</div>`;
         return;
       }
       const data = await resp.json();

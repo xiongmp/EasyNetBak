@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = "分组管理" %}
 {% set page_subtitle = "用于按区域/业务/类型组织设备（便于批量操作）" %}
 {% set can_group_create = has_permission('groups.create') %}
@@ -45,13 +45,13 @@
                     
                     {% if g.depth == 0 %}
                       <i class="bi bi-house-door-fill text-secondary me-2 fs-5"></i>
-                      <span class="fw-medium text-body">{{ g.name }}</span>
+                      <span class="fw-medium text-body" data-i18n-preserve>{{ g.name }}</span>
                     {% elif g.depth == 1 %}
                       <i class="bi bi-folder-fill text-secondary me-2 fs-5"></i>
-                      <span class="fw-medium text-body">{{ g.name }}</span>
+                      <span class="fw-medium text-body" data-i18n-preserve>{{ g.name }}</span>
                     {% else %}
                       <i class="bi bi-folder text-secondary opacity-75 me-2 fs-5"></i>
-                      <span class="text-secondary">{{ g.name }}</span>
+                      <span class="text-secondary" data-i18n-preserve>{{ g.name }}</span>
                     {% endif %}
                   </div>
                 </td>
@@ -88,7 +88,7 @@
                       {% endif %}
                       {% if can_group_delete %}
                         <form method="post" action="/groups/{{ g.id }}/delete" class="m-0 text-nowrap">
-                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？" title="删除分组">
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.group" data-confirm-msg="确定要删除此分组吗？" title="删除分组">
                             <i class="bi bi-trash me-1"></i>删除
                           </button>
                         </form>
@@ -165,6 +165,12 @@
         {% endfor %}
       ];
 
+      function escapeText(text) {
+          const span = document.createElement('span');
+          span.textContent = text == null ? '' : String(text);
+          return span.innerHTML;
+      }
+
       function buildTree(flatList) {
           const map = new Map();
           const roots = [];
@@ -227,6 +233,9 @@
               
               const text = document.createElement('span');
               text.className = textClass;
+              if (node.id !== 0) {
+                  text.setAttribute('data-i18n-preserve', '');
+              }
               text.textContent = node.name;
               
               content.appendChild(toggle);
@@ -277,7 +286,7 @@
             const nameInput = modal.querySelector('#modalGroupName');
             const parentIdInput = modal.querySelector('#modalGroupParentId');
             
-            title.textContent = id !== '0' ? '编辑分组' : '新增分组';
+            title.textContent = window.NB.tr(id !== '0' ? '编辑分组' : '新增分组');
             idInput.value = id;
             nameInput.value = name;
             parentIdInput.value = parentId;
@@ -295,10 +304,10 @@
                 parentIdInput.value = nodeId;
                 const selectedText = document.getElementById('parentGroupSelectedText');
                 if (nodeId == 0) {
-                    selectedText.textContent = '作为一级根分组';
+                    selectedText.textContent = window.NB.tr('作为一级根分组');
                 } else {
                     const selectedGroup = groupItems.find(g => g.id == nodeId);
-                    selectedText.textContent = selectedGroup ? selectedGroup.name : '作为一级根分组';
+                    selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : window.NB.tr('作为一级根分组');
                 }
                 
                 // Re-render tree to update selected state
