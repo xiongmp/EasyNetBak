@@ -23,7 +23,7 @@ from app.routers.web_context import _layout_context, templates
 from app.schemas.inputs import EditableListQueryInput
 from app.services import identity_service
 from app.i18n import translate
-from app.i18n.middleware import LOCALE_COOKIE
+from app.i18n.middleware import set_locale_cookie
 from app.i18n.validators import validate_locale
 from app.services.auth import (
     build_mfa_uri,
@@ -507,7 +507,7 @@ def profile_update_locale(
         return RedirectResponse(url="/profile?err=Unsupported+language", status_code=303)
     crud.update_user(session, user.id, locale=normalized)
     response = RedirectResponse(url="/profile?msg=language.saved", status_code=303)
-    response.set_cookie(LOCALE_COOKIE, normalized, path="/", samesite="lax")
+    set_locale_cookie(response, normalized)
     return response
 
 

@@ -12,7 +12,7 @@ from app.core.settings import settings
 from app.core.time import format_local_datetime
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 from app.routers.support import _current_user, has_permission, _user_effective_perms
-from app.i18n import translate
+from app.i18n import get_messages, translate
 from app.i18n.render import javascript_messages, legacy_javascript_messages
 from app.i18n.validators import supported_locales
 from app.i18n.legacy import LegacyI18nExtension, legacy_translate_for_template, translate_legacy_text
@@ -86,7 +86,10 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
         "admin_role_codes": list(getattr(crud, "ROLE_ADMIN_CODES", set())),
         "locale": locale,
         "supported_locales": supported_locales(),
-        "locale_label_map": {"zh-CN": "简体中文", "en-US": "English"},
+        "locale_label_map": {
+            locale_code: get_messages(locale_code).get("language.name", locale_code)
+            for locale_code in supported_locales()
+        },
         "js_messages": javascript_messages(locale),
         "legacy_js_messages": legacy_javascript_messages(locale),
         "_": lambda key, params=None, fallback=None: translate(locale, key, params, fallback),

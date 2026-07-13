@@ -3,6 +3,7 @@ from app.i18n.context import get_current_locale, reset_current_locale, set_curre
 from app.i18n.validators import normalize_locale, validate_locale
 
 __all__ = [
+    "CatalogValidationError",
     "get_current_locale",
     "get_messages",
     "has_key",
@@ -13,4 +14,3 @@ __all__ = [
     "validate_catalogs",
     "validate_locale",
 ]
-    "CatalogValidationError",

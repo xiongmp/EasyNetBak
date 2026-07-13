@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 
-from app.core.settings import settings
-from app.i18n.validators import normalize_locale
+from app.i18n.validators import default_locale, normalize_locale
 
 
-_current_locale: ContextVar[str] = ContextVar("nb_current_locale", default=settings.default_locale)
+_current_locale: ContextVar[str] = ContextVar("nb_current_locale", default=default_locale())
 
 
 def get_current_locale() -> str:

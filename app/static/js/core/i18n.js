@@ -137,6 +137,21 @@
         text = text.split("{" + name + "}").join(String(value));
       });
       return translateLegacy(text);
+    },
+    formatNumber(value, options) {
+      return new Intl.NumberFormat(this.locale, options || {}).format(value);
+    },
+    formatDateTime(value, options) {
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value == null ? "" : value);
+      return new Intl.DateTimeFormat(this.locale, options || {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      }).format(date);
+    },
+    formatList(values, options) {
+      if (typeof Intl.ListFormat !== "function") return Array.from(values || []).join(", ");
+      return new Intl.ListFormat(this.locale, options || {}).format(Array.from(values || []));
     }
   };
   NB.t = NB.i18n.t.bind(NB.i18n);
@@ -297,7 +312,6 @@
     }
     document.addEventListener("DOMContentLoaded", () => {
       document.documentElement.lang = NB.i18n.locale;
-      if (NB.i18n.isEnglish) document.documentElement.lang = "en";
       localizePageText(document.body);
       localizeDynamicUi(document.body);
       document.querySelectorAll("input, select, textarea").forEach((field) => {
@@ -310,19 +324,36 @@
         field.addEventListener("input", () => field.setCustomValidity(""));
         field.addEventListener("change", () => field.setCustomValidity(""));
       });
+      const pendingRoots = new Set();
+      let localizationQueued = false;
+      function flushLocalizationQueue() {
+        localizationQueued = false;
+        const roots = Array.from(pendingRoots);
+        pendingRoots.clear();
+        roots.forEach((root) => {
+          localizePageText(root);
+          localizeDynamicUi(root);
+        });
+      }
+      function queueLocalization(root) {
+        if (!root) return;
+        pendingRoots.add(root);
+        if (localizationQueued) return;
+        localizationQueued = true;
+        queueMicrotask(flushLocalizationQueue);
+      }
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
           if (mutation.type === "characterData") {
-            localizePageText(mutation.target);
+            queueLocalization(mutation.target);
             return;
           }
           if (mutation.type === "attributes") {
-            localizePageText(mutation.target);
+            queueLocalization(mutation.target);
             return;
           }
           mutation.addedNodes.forEach((node) => {
-            localizePageText(node);
-            localizeDynamicUi(node);
+            queueLocalization(node);
           });
         });
       });

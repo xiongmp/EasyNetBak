@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 from string import Formatter
 from typing import Any, Mapping
 
-from app.core.settings import settings
 from app.i18n.validators import default_locale, normalize_locale, supported_locales
 
 
 _LOCALES_DIR = Path(__file__).with_name("locales")
+logger = logging.getLogger(__name__)
 
 
 class CatalogValidationError(RuntimeError):
     pass
+
+
+@lru_cache(maxsize=1024)
+def _warn_missing_key(locale: str, key: str) -> None:
+    logger.warning("Missing i18n key %r for locale %s", key, locale)
 
 
 def _load_catalog_file(locale: str) -> dict[str, str]:
@@ -33,7 +39,7 @@ def _load_catalog_file(locale: str) -> dict[str, str]:
     return dict(data)
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=None)
 def get_messages(locale: str) -> dict[str, str]:
     normalized = normalize_locale(locale)
     return _load_catalog_file(normalized)
@@ -41,7 +47,16 @@ def get_messages(locale: str) -> dict[str, str]:
 
 def _placeholders(message: str) -> set[str]:
     try:
-        return {field_name for _, field_name, _, _ in Formatter().parse(message) if field_name}
+        fields: set[str] = set()
+        for _, field_name, format_spec, conversion in Formatter().parse(message):
+            if not field_name:
+                continue
+            if format_spec or conversion:
+                raise CatalogValidationError(
+                    f"Message placeholders must not use format specs or conversions: {message!r}"
+                )
+            fields.add(field_name)
+        return fields
     except ValueError as exc:
         raise CatalogValidationError(f"Invalid message format string: {message!r}") from exc
 
@@ -89,11 +104,13 @@ def translate(
         message = get_messages(fallback_locale).get(key)
     if message is None:
         message = fallback if fallback is not None else key
+        if fallback is None:
+            _warn_missing_key(normalized, key)
     if params:
         try:
             message = message.format_map(_SafeParams(params))
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.warning("Failed to interpolate i18n key %r: %s", key, exc)
     return message
 
 

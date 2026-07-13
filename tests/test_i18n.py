@@ -5,11 +5,11 @@ import json
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from app.i18n import get_current_locale, reset_current_locale, set_current_locale, translate
+from app.i18n import get_current_locale, reset_current_locale, set_current_locale, translate, validate_catalogs
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
 from app.i18n.legacy import translate_legacy_text
-from app.i18n.validators import normalize_locale, validate_locale
+from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
 from app.models import TaskEvent
@@ -49,12 +49,24 @@ def test_locale_normalization_and_validation():
     assert normalize_locale("zh") == "zh-CN"
     assert normalize_locale("en") == "en-US"
     assert validate_locale("en-us") == "en-US"
+    assert validate_locale("EN_us") == "en-US"
     try:
         validate_locale("fr-FR")
     except ValueError:
         pass
     else:
         raise AssertionError("unsupported locale must be rejected")
+
+
+def test_catalogs_have_matching_keys_and_placeholders():
+    validate_catalogs()
+
+
+def test_accept_language_quality_and_exclusions():
+    assert locale_from_accept_language("zh-CN;q=0,en-US;q=0.5") == "en-US"
+    assert locale_from_accept_language("en-US;level=1;q=0.2,zh;q=0.8") == "zh-CN"
+    assert locale_from_accept_language("fr-FR;q=1,*;q=0.5") == "zh-CN"
+    assert locale_from_accept_language("en-US;q=0") is None
 
 
 def test_request_locale_priority():
@@ -75,7 +87,26 @@ def test_request_locale_priority():
         locale, persist = resolve_request_locale(request, user=type("User", (), {"locale": "zh-CN"})())
         return {"locale": locale, "persist": persist}
 
-    assert client.get("/user?lang=en-US").json() == {"locale": "zh-CN", "persist": False}
+    assert client.get("/user?lang=en-US").json() == {"locale": "en-US", "persist": False}
+
+    @app.get("/api/v1/language")
+    def api_endpoint(request: Request):
+        locale, persist = resolve_request_locale(
+            request,
+            user=type("User", (), {"locale": "zh-CN"})(),
+        )
+        return {"locale": locale, "persist": persist}
+
+    assert client.get(
+        "/api/v1/language",
+        headers={"Accept-Language": "en-US"},
+    ).json() == {"locale": "en-US", "persist": False}
+
+    client.cookies.set("nb_locale", "unsupported")
+    assert client.get(
+        "/",
+        headers={"Accept-Language": "en-US"},
+    ).json() == {"locale": "en-US", "persist": False}
 
 
 def test_middleware_sets_context_header_and_cookie():
@@ -90,7 +121,12 @@ def test_middleware_sets_context_header_and_cookie():
     response = client.get("/?lang=en-US")
     assert response.json() == {"locale": "en-US"}
     assert response.headers["Content-Language"] == "en-US"
+    assert "Accept-Language" in response.headers["Vary"]
+    assert "Cookie" in response.headers["Vary"]
     assert response.cookies["nb_locale"] == "en-US"
+    assert response.cookies.get("nb_locale") == "en-US"
+    assert "Max-Age=31536000" in response.headers["Set-Cookie"]
+    assert "HttpOnly" in response.headers["Set-Cookie"]
 
 
 def test_api_error_keeps_code_and_localizes_message():

@@ -8,21 +8,40 @@ from app.i18n.validators import locale_from_accept_language, normalize_locale
 
 
 LOCALE_COOKIE = "nb_locale"
+LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+
+
+def set_locale_cookie(response, locale: str) -> None:
+    response.set_cookie(
+        LOCALE_COOKIE,
+        normalize_locale(locale),
+        max_age=LOCALE_COOKIE_MAX_AGE,
+        path="/",
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def resolve_request_locale(request: Request, user=None) -> tuple[str, bool]:
-    user_locale = getattr(user, "locale", None) if user is not None else None
-    if user_locale:
-        return normalize_locale(user_locale), False
     query_locale = request.query_params.get("lang")
     if query_locale:
         normalized = normalize_locale(query_locale, fallback="")
         if normalized:
-            return normalized, True
+            return normalized, user is None
+    header_locale = locale_from_accept_language(request.headers.get("Accept-Language"))
+    if request.url.path.startswith("/api/v1/") and header_locale:
+        return header_locale, False
+    user_locale = getattr(user, "locale", None) if user is not None else None
+    if user_locale:
+        normalized = normalize_locale(user_locale, fallback="")
+        if normalized:
+            return normalized, False
     cookie_locale = request.cookies.get(LOCALE_COOKIE)
     if cookie_locale:
-        return normalize_locale(cookie_locale), False
-    header_locale = locale_from_accept_language(request.headers.get("Accept-Language"))
+        normalized = normalize_locale(cookie_locale, fallback="")
+        if normalized:
+            return normalized, False
     return normalize_locale(header_locale or settings.default_locale), False
 
 
@@ -35,6 +54,8 @@ async def i18n_http_middleware(request: Request, call_next):
     finally:
         reset_current_locale(token)
     response.headers["Content-Language"] = getattr(request.state, "locale", locale)
+    response.headers.add_vary_header("Accept-Language")
+    response.headers.add_vary_header("Cookie")
     if persist_cookie:
-        response.set_cookie(LOCALE_COOKIE, locale, path="/", samesite="lax")
+        set_locale_cookie(response, locale)
     return response
