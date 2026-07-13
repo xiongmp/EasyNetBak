@@ -609,6 +609,7 @@ def api_device_backups(request: Request, device_id: int, page: int = 1, limit: i
             limit=limit,
             offset_minutes=offset_minutes,
             allowed_group_ids=allowed_group_ids,
+            locale=request.state.locale,
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_DEVICE_NOT_FOUND":
@@ -629,6 +630,7 @@ def api_backup_view(request: Request, backup_id: UUID, session: Session = Depend
             backup_id,
             offset_minutes=offset_minutes,
             allowed_group_ids=allowed_group_ids,
+            locale=request.state.locale,
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":

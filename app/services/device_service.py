@@ -20,6 +20,7 @@ _SUPPORTED_DEVICE_ENCODINGS = {"utf-8", "gb18030", "gbk", "gb2312"}
 
 
 from app.services.errors import ServiceError
+from app.services.backup_error_service import localize_backup_error_message
 
 
 _DEVICE_INTEGRITY_RULES = (
@@ -732,6 +733,7 @@ def get_device_detail_page_payload(
     include_limit_param: bool = False,
     include_backups: bool = True,
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     device = get_device_detail(
         session,
@@ -800,7 +802,19 @@ def get_device_detail_page_payload(
 
     return {
         "device": device,
-        "backups": backups,
+        "backups": [
+            {
+                "id": record.id,
+                "started_at": record.started_at,
+                "status": record.status,
+                "error_message": localize_backup_error_message(
+                    record.error_message,
+                    record.failure_type,
+                    locale=locale,
+                ),
+            }
+            for record in backups
+        ],
         "templates": templates,
         "groups": flat_groups,
         "group_map": group_map,

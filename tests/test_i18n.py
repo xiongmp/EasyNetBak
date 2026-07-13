@@ -16,6 +16,7 @@ from app.models import TaskEvent
 from app.routers.web_context import templates
 from app.services import task_realtime_service, task_state_service
 from app.services.alert_service import _localize_email_text
+from app.services.backup_error_service import localize_backup_error_message
 
 
 def test_catalog_translation_params_and_fallback():
@@ -365,6 +366,25 @@ def test_backup_execution_log_messages_are_fully_localized():
         item = task_realtime_service._serialize_task_event(event, offset_minutes=0, locale="en-US")
         assert item["message"] == expected
         assert not any("\u4e00" <= char <= "\u9fff" for char in item["message"])
+
+
+def test_backup_error_message_is_fully_localized_and_keeps_technical_detail():
+    raw = (
+        "连接超时: 设备不可达或端口不通 "
+        "(TCP connection to device failed. Common causes include an incorrect hostname or IP address.)"
+    )
+    localized = localize_backup_error_message(raw, "TIMEOUT", locale="en-US")
+    assert localized == (
+        "Connection timed out: the device is unreachable or the port is unavailable "
+        "(TCP connection to device failed. Common causes include an incorrect hostname or IP address.)"
+    )
+    assert not any("\u4e00" <= char <= "\u9fff" for char in localized)
+    assert localize_backup_error_message(raw, "TIMEOUT", locale="zh-CN") == raw
+
+
+def test_backup_error_message_leaves_already_english_errors_unchanged():
+    raw = "Authentication failure: invalid credentials"
+    assert localize_backup_error_message(raw, "AUTH_FAILED", locale="en-US") == raw
 
 
 def test_email_legacy_content_is_localized():

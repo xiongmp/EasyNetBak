@@ -21,6 +21,7 @@ from app.platforms import platforms_compatible
 from app.core.time import format_local_datetime
 from app.i18n import get_current_locale
 from app.services import device_service, pagination_service, task_orchestration_service, task_state_service
+from app.services.backup_error_service import localize_backup_error_message
 from app.services.netmiko_client import run_netmiko_commands
 
 
@@ -204,6 +205,7 @@ def get_backup_view_payload(
     *,
     offset_minutes: int = 0,
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     detail = _ensure_backup_access(
         get_backup_detail(session, backup_id),
@@ -223,7 +225,11 @@ def get_backup_view_payload(
             "status_label": task_state_service.get_backup_record_status_label(record.status),
             "status_tone": task_state_service.get_backup_record_status_tone(record.status),
             "success": bool(record.success),
-            "error_message": record.error_message or "",
+            "error_message": localize_backup_error_message(
+                record.error_message,
+                record.failure_type,
+                locale=locale,
+            ),
             "config_text": record.config_text or "",
         },
     }
@@ -277,7 +283,11 @@ def get_backup_log_payload(
             "status_label": task_state_service.get_backup_record_status_label(record.status),
             "status_tone": task_state_service.get_backup_record_status_tone(record.status),
             "success": bool(record.success),
-            "error_message": record.error_message or "",
+            "error_message": localize_backup_error_message(
+                record.error_message,
+                record.failure_type,
+                locale=locale,
+            ),
         },
         "items": events,
     }
@@ -543,6 +553,7 @@ def list_device_backups_payload(
     limit: int = 10,
     offset_minutes: int = 0,
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     device = crud.get_device(session, device_id)
     if device is None:
@@ -583,7 +594,11 @@ def list_device_backups_payload(
                 "status_label": task_state_service.get_backup_record_status_label(record.status),
                 "status_tone": task_state_service.get_backup_record_status_tone(record.status),
                 "success": record.success,
-                "error_message": record.error_message,
+                "error_message": localize_backup_error_message(
+                    record.error_message,
+                    record.failure_type,
+                    locale=locale,
+                ),
                 "config_snapshot_hash": record.config_snapshot_hash,
             }
             for record in backups

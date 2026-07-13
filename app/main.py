@@ -27,7 +27,7 @@ from app.schemas.api.common import public_api_error_response
 from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
-from app.i18n import get_current_locale, translate
+from app.i18n import get_current_locale, translate, validate_catalogs
 from app.i18n.legacy import translate_legacy_text
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    validate_catalogs()
     init_db()
     with session_scope() as session:
         identity_service.ensure_default_roles(session)

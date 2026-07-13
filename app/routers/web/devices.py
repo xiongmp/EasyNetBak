@@ -929,6 +929,7 @@ def device_detail(request: Request, device_id: int, session: Session = Depends(g
             include_limit_param=list_query.include_limit_param,
             include_backups=can_backup_history_view,
             allowed_group_ids=allowed_ids,
+            locale=request.state.locale,
         )
     except device_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
@@ -1026,5 +1027,4 @@ def trigger_backup(request: Request, device_id: int, session: Session = Depends(
             status_code=303,
         )
     return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
-
 
