@@ -72,7 +72,7 @@
                 {% set append_result = title_parts.append(device_map.get(did, token)) %}
               {% elif token.startswith('group:') %}
                 {% set gid = token[6:]|int %}
-                {% set append_result = title_parts.append(_('template.schedule_stats.group_fdb6a0ed') ~ group_map.get(gid, token)) %}
+                {% set append_result = title_parts.append(_('template.schedule_stats.group_label') ~ group_map.get(gid, token)) %}
               {% elif token.startswith('platform:') %}
                 {% set append_result = title_parts.append(_('template.schedule_stats.platform') ~ token[9:]) %}
               {% elif token.isdigit() %}
@@ -121,7 +121,7 @@
         <!-- 成功率趋势 -->
         <div class="card card-stat card-stat-trend">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>{{ _('template.schedule_stats.success_rate_trend_recent') }}30{{ _('template.schedule_stats.text_5e5b8169') }}）</h6>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>{{ _('template.schedule_stats.success_rate_trend_recent') }}30{{ _('template.schedule_stats.runs') }}）</h6>
             {% if trend %}
               {% set last = trend|last %}
               <div class="text-primary fw-bold">{{ (last.rate * 100)|round(0) }}% <span class="text-secondary text-xs fw-normal ms-1">{{ _('template.schedule_stats.latest') }}</span></div>
@@ -225,7 +225,7 @@
           <div class="card-header">
             <h6 class="fw-bold mb-0 smaller"><i class="bi bi-clock-history me-2 text-primary"></i>{{ _('template.schedule_stats.run_history') }}</h6>
             <div class="d-flex gap-2">
-               <span class="badge bg-light text-secondary border fw-normal text-xs">{{ _('template.schedule_stats.recent') }} 30 {{ _('template.schedule_stats.items') }}</span>
+               <span class="badge bg-light text-secondary border fw-normal text-xs">{{ _('template.schedule_stats.recent') }} 30 {{ _('template.schedule_stats.items_label') }}</span>
             </div>
           </div>
           <div class="card-body p-0">
@@ -237,7 +237,7 @@
                   <th class="text-secondary text-nowrap" style="width: 160px;">{{ _('template.schedule_stats.finished_at') }}</th>
                   <th class="text-secondary text-nowrap" style="width: 100px;">{{ _('template.schedule_stats.trigger') }}</th>
                   <th class="text-secondary text-nowrap" style="width: 100px;">{{ _('email.field.duration') }}</th>
-                  <th class="text-secondary text-nowrap text-center" style="width: 160px;">{{ _('template.schedule_stats.text_0a2c91ce') }} ({{ _('template.schedule_stats.succeeded_failed_total') }})</th>
+                  <th class="text-secondary text-nowrap text-center" style="width: 160px;">{{ _('template.schedule_stats.result') }} ({{ _('template.schedule_stats.succeeded_failed_total') }})</th>
                   <th class="text-secondary text-nowrap" style="width: 120px;">{{ _('template.schedule_stats.current_status') }}</th>
                   <th class="text-secondary text-nowrap" style="width: 120px;">{{ _('audit.csv.action') }}</th>
                   <th class="text-secondary">{{ _('template.schedule_stats.error_summary') }}</th>

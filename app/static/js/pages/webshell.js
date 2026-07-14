@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
                               msg += NB.t("js.webshell.duration_value0", {value0: formatDuration(duration)});
                               this.connectionStartTime = 0;
                           }
-                          this.writeLine(NB.t("js.webshell.r_n_value0_value1", {value0: NB.t("js.webshell.system"), value1: msg}));
+                          this.writeLine(NB.t("js.webshell.status_line", {value0: NB.t("js.webshell.system"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
                           }
                       } else if (payload.type === 'error') {
                           const msg = localizeSocketMessage(payload);
-                          this.writeLine(NB.t("js.webshell.r_n_value0_value1", {value0: NB.t("js.webshell.error"), value1: msg}));
+                          this.writeLine(NB.t("js.webshell.status_line", {value0: NB.t("js.webshell.error"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&

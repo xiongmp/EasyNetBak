@@ -3,6 +3,14 @@
 
   const NB = global.NB = global.NB || {};
   const messages = global.NB_MESSAGES || {};
+  const capabilities = Object.assign({
+    locale: global.NB_LOCALE || "zh-CN",
+    language: String(global.NB_LOCALE || "zh-CN").split("-")[0].toLowerCase(),
+    direction: "ltr",
+    cron_locale: String(global.NB_LOCALE || "zh-CN").split("-")[0].toLowerCase(),
+    echarts_locale: String(global.NB_LOCALE || "zh-CN").split("-")[0].toLowerCase(),
+    uses_han: false
+  }, global.NB_LOCALE_CAPABILITIES || {});
 
   function interpolate(message, params) {
     return String(message).replace(/\{([A-Za-z0-9_.-]+)\}/g, (match, name) => (
@@ -12,7 +20,7 @@
 
   NB.i18n = {
     locale: global.NB_LOCALE || "zh-CN",
-    isEnglish: /^en(?:-|$)/i.test(global.NB_LOCALE || ""),
+    capabilities,
     messages,
     t(key, params, fallback) {
       const message = Object.prototype.hasOwnProperty.call(messages, key)

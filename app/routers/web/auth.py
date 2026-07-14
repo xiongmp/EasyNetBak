@@ -177,7 +177,7 @@ def login_submit(
             status="fail",
             fail_reason="invalid_credentials",
         )
-        return RedirectResponse(url="/login?err=账号或密码错误", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.invalid_credentials", status_code=303)
 
     if user.mfa_enabled:
         if not user.mfa_secret:
@@ -295,9 +295,9 @@ def mfa_setup_submit(
     sig = (mfa_sig or "").strip()
     code = (mfa_code or "").strip()
     if not secret or not sig or not hmac.compare_digest(_sign_mfa_secret(secret), sig):
-        return RedirectResponse(url="/mfa-setup?err=MFA配置已过期，请重新加载", status_code=303)
+        return RedirectResponse(url="/mfa-setup?err=auth.error.mfa_setup_expired", status_code=303)
     if not verify_mfa(secret, code):
-        return RedirectResponse(url="/mfa-setup?err=验证码错误，请重试", status_code=303)
+        return RedirectResponse(url="/mfa-setup?err=auth.error.invalid_verification_code", status_code=303)
 
     crud.update_user(session, int(user.id), mfa_enabled=True, mfa_secret=secret)
     _log_action(request, session, "ENABLE_MFA", "user", user.id, f"User {user.username} configured MFA")
@@ -309,7 +309,7 @@ def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends(), ses
     token = request.cookies.get(_PENDING_2FA_COOKIE, "")
     payload = _decode_pending_token(token)
     if not payload:
-        return RedirectResponse(url="/login?err=请先登录", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.login_required", status_code=303)
     allow_recovery = False
     user = crud.get_user(session, int(payload.get("uid", 0)))
     if (
@@ -349,22 +349,22 @@ def mfa_verify_submit(
     token = request.cookies.get(_PENDING_2FA_COOKIE, "")
     payload = _decode_pending_token(token)
     if not payload:
-        return RedirectResponse(url="/login?err=登录已过期", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.login_expired", status_code=303)
     user_id = int(payload.get("uid", 0))
     user = crud.get_user(session, user_id)
     if not user or not user.mfa_enabled:
-        return RedirectResponse(url="/login?err=账号状态异常", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.account_unavailable", status_code=303)
     if (recovery_code or "").strip():
         if not crud.is_admin_role_code(getattr(user, "role", "")):
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         if not user.recovery_codes_enabled:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         codes = user.recovery_codes or []
         if not codes:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         normalized = normalize_recovery_code(recovery_code)
         if not normalized:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         hashed = hash_recovery_code(normalized)
         if not any(hmac.compare_digest(hashed, item) for item in codes):
             crud.create_login_log(
@@ -375,7 +375,7 @@ def mfa_verify_submit(
                 status="fail",
                 fail_reason="invalid_recovery_code",
             )
-            return RedirectResponse(url="/mfa-verify?err=恢复码错误或已失效", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.invalid_recovery_code", status_code=303)
         remaining = [item for item in codes if not hmac.compare_digest(hashed, item)]
         crud.update_user(session, int(user_id), recovery_codes=remaining)
         _log_action(request, session, "USE_RECOVERY_CODE", "user", user_id, f"Username: {user.username}")
@@ -390,7 +390,7 @@ def mfa_verify_submit(
                 status="fail",
                 fail_reason="invalid_mfa",
             )
-            return RedirectResponse(url="/mfa-verify?err=MFA验证码错误", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.invalid_mfa_code", status_code=303)
     crud.create_login_log(
         session,
         username=user.username,
@@ -449,10 +449,10 @@ def change_password_submit(
         return RedirectResponse(url="/login", status_code=303)
     
     if new_password != confirm_password:
-        return RedirectResponse(url="/change-password?err=两次输入的密码不一致", status_code=303)
+        return RedirectResponse(url="/change-password?err=error.profile.password_mismatch", status_code=303)
     
     if len(new_password) < 5:
-        return RedirectResponse(url="/change-password?err=密码长度至少为5位", status_code=303)
+        return RedirectResponse(url="/change-password?err=error.profile.password_too_short", status_code=303)
 
     # 更新用户密码并重置过期标志
     crud.update_user(session, user.id, password=new_password)

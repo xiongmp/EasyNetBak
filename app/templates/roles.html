@@ -41,7 +41,7 @@
                   {% if r.code in admin_role_codes %}
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal">{{ _('template.roles.all_permissions') }}</span>
                   {% else %}
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">{{ perm_count }} {{ _('template.roles.items') }}</span>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">{{ perm_count }} {{ _('template.roles.permission_items') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-secondary small">{{ usage.get(r.code, 0) }}</td>
@@ -174,36 +174,8 @@
   <select id="roleAllPermissions" class="d-none">
     {% for p in permission_catalog %}
       {% set group_label = permission_group_labels.get(p.group, p.group) %}
-      {% set group_labels_en = {
-        'dashboard': 'Dashboard',
-        'devices': 'Devices',
-        'groups': 'Device groups',
-        'credentials': 'Credentials',
-        'templates': 'Backup templates',
-        'backups': 'Backup history',
-        'diff_rules': 'Diff ignore rules',
-        'config_search': 'Configuration search',
-        'schedules': 'Schedules',
-        'audit_logs': 'Audit logs',
-        'login_logs': 'Login logs',
-        'webshell_records': 'WebShell playback',
-        'settings': 'System settings',
-        'storage_settings': 'Storage settings',
-        'notifications': 'Notifications',
-        'api_keys': 'API keys',
-        'users': 'Users',
-        'roles': 'Roles'
-      } %}
       {% set action = p.code.split('.')[-1] %}
-      {% set action_labels = {
-        'view': 'View',
-        'create': 'Create',
-        'update': 'Update',
-        'delete': 'Delete',
-        'backup': 'Back up',
-        'webshell': 'WebShell'
-      } %}
-      <option value="{{ p.code }}">{{ group_labels_en.get(p.group, group_label) if locale == 'en-US' else group_label }} / {{ action_labels.get(action, p.name) if locale == 'en-US' else p.name }}</option>
+      <option value="{{ p.code }}">{{ _('permission.group.' ~ p.group, fallback=group_label) }} / {{ _('permission.action.' ~ action, fallback=p.name) }}</option>
     {% endfor %}
   </select>
 

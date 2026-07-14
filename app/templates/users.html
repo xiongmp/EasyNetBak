@@ -149,7 +149,7 @@
                 {% if current %}
                   <div class="form-text x-small mt-1">{{ _('template.users.leave_blank_to_keep_unchanged') }}</div>
                 {% else %}
-                  <div class="form-text x-small mt-1">{{ _('template.users.password') }} 8 {{ _('template.users.text') }}</div>
+                  <div class="form-text x-small mt-1">{{ _('template.users.password') }} 8 {{ _('template.users.characters') }}</div>
                 {% endif %}
               </div>
               <div class="col-12">
@@ -295,7 +295,7 @@
                                       {% if not current or current.group_access_type == 'all' %}checked{% endif %}
                                       {% if current and current.username == 'admin' %}disabled{% endif %}
                                       onchange="toggleGroupSelect(false)">
-                                  <label class="form-check-label small" for="userAccessAll">{{ _('template.users.group') }} ({{ _('template.users.text_7258118a') }})</label>
+                                  <label class="form-check-label small" for="userAccessAll">{{ _('template.users.group') }} ({{ _('template.users.unrestricted') }})</label>
                               </div>
                               <div class="form-check">
                                   <input class="form-check-input" type="radio" name="group_access_type" id="userAccessSpecific" value="specific"

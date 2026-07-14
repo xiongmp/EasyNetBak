@@ -7,7 +7,7 @@ from typing import Any
 from fastapi.openapi.utils import get_openapi
 
 from app.i18n.catalog import has_key, translate
-from app.i18n.validators import normalize_locale
+from app.i18n.validators import locale_capabilities, normalize_locale
 
 
 _TRANSLATABLE_FIELDS = {"title", "description", "summary"}
@@ -28,6 +28,7 @@ def _operation_label(operation: dict[str, Any], method: str, path: str) -> str:
 
 
 def _localize_openapi_operations(schema: dict[str, Any], locale: str) -> None:
+    capabilities = locale_capabilities(locale)
     tag_keys = {
         "设备管理": "openapi.tag.devices",
         "分组管理": "openapi.tag.groups",
@@ -41,16 +42,16 @@ def _localize_openapi_operations(schema: dict[str, Any], locale: str) -> None:
         if key:
             tag["name"] = translate(locale, key, fallback=name)
         description = str(tag.get("description") or "")
-        if locale == "en-US" and _contains_han(description):
+        if not capabilities.uses_han and _contains_han(description):
             tag["description"] = f"API endpoints for {tag['name'].lower()}"
     for path, path_item in (schema.get("paths") or {}).items():
         for method, operation in path_item.items():
             if method not in _HTTP_METHODS or not isinstance(operation, dict):
                 continue
             label = _operation_label(operation, method, path)
-            if locale == "en-US" and _contains_han(str(operation.get("summary") or "")):
+            if not capabilities.uses_han and _contains_han(str(operation.get("summary") or "")):
                 operation["summary"] = label
-            if locale == "en-US" and _contains_han(str(operation.get("description") or "")):
+            if not capabilities.uses_han and _contains_han(str(operation.get("description") or "")):
                 operation["description"] = f"{label}."
             operation["tags"] = [
                 translate(locale, tag_keys.get(tag, tag), fallback=tag)
@@ -66,7 +67,12 @@ def _translate_schema_value(value: Any, locale: str, field: str | None = None) -
         return [_translate_schema_value(item, locale, field) for item in value]
     if isinstance(value, str) and field in _TRANSLATABLE_FIELDS and has_key(value, locale):
         return translate(locale, value, fallback=value)
-    if isinstance(value, str) and field in _TRANSLATABLE_FIELDS and locale == "en-US" and _contains_han(value):
+    if (
+        isinstance(value, str)
+        and field in _TRANSLATABLE_FIELDS
+        and not locale_capabilities(locale).uses_han
+        and _contains_han(value)
+    ):
         return f"API {field}"
     return value
 

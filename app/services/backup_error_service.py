@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from app.i18n import get_current_locale, has_key, translate
-from app.i18n.validators import normalize_locale
+from app.i18n.validators import locale_capabilities, normalize_locale
 
 
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
@@ -22,7 +22,7 @@ def localize_backup_error_message(
         return ""
 
     normalized_locale = normalize_locale(locale or get_current_locale())
-    if normalized_locale != "en-US" or not _CJK_RE.search(raw):
+    if locale_capabilities(normalized_locale).uses_han or not _CJK_RE.search(raw):
         return raw
 
     normalized_failure_type = str(failure_type or "UNKNOWN").strip().upper() or "UNKNOWN"

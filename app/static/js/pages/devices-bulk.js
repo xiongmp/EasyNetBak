@@ -275,9 +275,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!items || !items.length) {
            if (lastReachItems.length > 0) {
-             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.tr_td_colspan_7_class_text_center_text"));
+             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.no_matching_records_html"));
            } else {
-             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.tr_td_colspan_7_class_text_center_text_014d40fd"));
+             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.empty_test_results_html"));
            }
            return;
         }
@@ -309,14 +309,14 @@ document.addEventListener('DOMContentLoaded', function() {
       function updateReachSummary(summary) {
          if (!reachSummary) return;
          if (!summary) {
-             reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_secondary_ready_span"));
+             reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.ready_status_html"));
              return;
          }
          const total = summary.total || 0;
          const ok = summary.success || 0;
          const bad = summary.failed || 0;
 
-         reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.div_class_backup_status_style_background_var_bs", {value0: total, value1: window.NB.t('status.device.reachable'), value2: ok, value3: window.NB.t('status.device.unreachable'), value4: bad}));
+         reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.reachability_summary_html", {value0: total, value1: window.NB.t('status.device.reachable'), value2: ok, value3: window.NB.t('status.device.unreachable'), value4: bad}));
       }
 
       if (reachFilterGroup) {
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (reachProgressText) reachProgressText.textContent = tr(NB.t("js.devices_bulk.ready_to_start"));
 
           if (reachSummary) {
-            reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_secondary_starting_task_span"));
+            reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.starting_status_html"));
           }
 
           // Reset filter
@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const taskId = data.task_id;
 
             if (!taskId) {
-                if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_warning_no_testable_devices_found"));
+                if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.no_testable_devices_html"));
                 if (reachProgressContainer) reachProgressContainer.style.display = 'none';
                 startReachTestBtn.disabled = false;
                 startReachTestBtn.classList.remove('disabled');
@@ -499,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
 
           } catch (e) {
-            if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_danger_request_failed_span"));
+            if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.request_failed_html"));
             if (reachProgressContainer) reachProgressContainer.style.display = 'none';
             console.error(e);
             startReachTestBtn.disabled = false;

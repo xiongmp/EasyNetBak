@@ -98,7 +98,7 @@
             data-strength-weak="{{ _('template.profile.strength_weak') }}"
             data-strength-medium="{{ _('template.profile.strength_in') }}"
             data-strength-strong="{{ _('template.profile.strength_strong') }}"
-            data-password-match="{{ _('template.profile.passwordmatched_02ba787f') }}"
+            data-password-match="{{ _('template.profile.passwords_match') }}"
             data-password-mismatch="{{ _('template.profile.passwords_do_not_match') }}"
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
@@ -128,7 +128,7 @@
                   <div class="profile-strength-track" aria-hidden="true"><span id="strengthBar"></span></div>
                   <div class="profile-field-meta">
                     <span id="strengthText">{{ _('template.profile.strength') }}</span>
-                    <span>{{ _('template.profile.text_8476871a') }} 5 {{ _('template.profile.text_2618f373') }}</span>
+                    <span>{{ _('template.profile.minimum_password_length', {'count': 5}) }}</span>
                   </div>
                 </div>
               </div>
@@ -151,7 +151,7 @@
               <ul>
                 <li>{{ _('template.profile.avoid_making_it_too_similar_to_the_username') }}</li>
                 <li>{{ _('template.profile.use_a_mix_of_uppercase_and_lowercase_letters') }}</li>
-                <li>{{ _('template.profile.text_0c1971bf') }} 90 {{ _('template.profile.days_password') }}</li>
+                <li>{{ _('template.profile.password_rotation_hint', {'days': 90}) }}</li>
               </ul>
             </div>
 

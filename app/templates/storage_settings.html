@@ -33,7 +33,7 @@
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">S3 Endpoint</label>
                           <input name="s3_endpoint" id="s3_endpoint" class="form-control form-control-sm" value="{{ s3_endpoint }}" placeholder="https://s3.amazonaws.com" />
-                          <div class="form-text x-small text-muted">AWS S3 {{ _('template.storage_settings.text') }}；MinIO/{{ _('template.storage_settings.text_b733be84') }} URL</div>
+                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.s3_endpoint_help') }}</div>
                         </div>
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">Region</label>
@@ -47,7 +47,7 @@
                               <i class="bi bi-eye"></i>
                             </button>
                           </div>
-                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.text_c75d43fe') }}SecretId / {{ _('template.storage_settings.text_20ef379b') }}AccessKey ID</div>
+                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.tencent_cloud') }}SecretId / {{ _('template.storage_settings.alibaba_cloud') }}AccessKey ID</div>
                         </div>
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">Secret Key</label>
@@ -57,7 +57,7 @@
                               <i class="bi bi-eye"></i>
                             </button>
                           </div>
-                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.text_c75d43fe') }}SecretKey / {{ _('template.storage_settings.text_20ef379b') }}AccessKey Secret</div>
+                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.tencent_cloud') }}SecretKey / {{ _('template.storage_settings.alibaba_cloud') }}AccessKey Secret</div>
                         </div>
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">Bucket Name</label>
@@ -83,10 +83,10 @@
                 <div class="col-12">
                   <div class="form-check form-switch form-switch-lg mb-2">
                     <input class="form-check-input" type="checkbox" name="s3_enabled" id="s3_enabled" {% if s3_enabled == '1' %}checked{% endif %}>
-                    <label class="form-check-label fw-bold text-body ms-2" for="s3_enabled">{{ _('template.storage_settings.enable') }} S3 {{ _('template.storage_settings.storage_17cfa542') }}</label>
+                    <label class="form-check-label fw-bold text-body ms-2" for="s3_enabled">{{ _('template.storage_settings.enable') }} S3 {{ _('template.storage_settings.external_storage_backup') }}</label>
                   </div>
                   <div class="form-text x-small text-muted ms-1">
-                    <i class="bi bi-info-circle me-1"></i>{{ _('template.storage_settings.when_enabled_configuration_saveat') }} S3 {{ _('template.storage_settings.storage_c42b9840') }}
+                    <i class="bi bi-info-circle me-1"></i>{{ _('template.storage_settings.when_enabled_configuration_saveat') }} S3 {{ _('template.storage_settings.compatible_bucket') }}
                   </div>
                 </div>
               </div>
@@ -125,7 +125,7 @@
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">{{ _('template.storage_settings.remote_base_directory') }}</label>
                           <input name="ftp_base_dir" id="ftp_base_dir" class="form-control form-control-sm" value="{{ ftp_base_dir }}" placeholder="backups" />
-                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.upload_path') }}: [{{ _('template.storage_settings.base_directory') }}]/YYYY-MM-DD/{{ _('template.storage_settings.file_name') }} FTP {{ _('template.storage_settings.text_18755acb') }}</div>
+                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.upload_path') }}: [{{ _('template.storage_settings.base_directory') }}]/YYYY-MM-DD/{{ _('template.storage_settings.file_name') }} FTP {{ _('template.storage_settings.root_directory') }}</div>
                         </div>
                         <div class="col-12 col-md-3">
                           <label class="form-label small text-secondary mb-1">{{ _('template.storage_settings.passive_mode') }}</label>
@@ -141,11 +141,11 @@
                         <div class="col-12 col-md-6">
                           <label class="form-label small text-secondary mb-1">{{ _('template.storage_settings.path_encoding') }}</label>
                           <select name="ftp_encoding" id="ftp_encoding" class="form-select form-select-sm">
-                            <option value="utf-8" {% if ftp_encoding == 'utf-8' %}selected{% endif %}>UTF-8（{{ _('template.storage_settings.text_62b46f24') }}）</option>
+                            <option value="utf-8" {% if ftp_encoding == 'utf-8' %}selected{% endif %}>UTF-8（{{ _('template.storage_settings.recommended') }}）</option>
                             <option value="gbk" {% if ftp_encoding == 'gbk' %}selected{% endif %}>GBK（{{ _('template.storage_settings.in') }} FTP）</option>
-                            <option value="latin-1" {% if ftp_encoding == 'latin-1' %}selected{% endif %}>Latin-1（{{ _('template.storage_settings.text_e531eb58') }}）</option>
+                            <option value="latin-1" {% if ftp_encoding == 'latin-1' %}selected{% endif %}>Latin-1（{{ _('template.storage_settings.ascii_paths_only') }}）</option>
                           </select>
-                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.text_a7cbc4a8') }} FTP {{ _('template.storage_settings.file_name_971a52c4') }} FTP {{ _('template.storage_settings.server') }}。</div>
+                          <div class="form-text x-small text-muted">{{ _('template.storage_settings.ftp_encoding_help') }}</div>
                         </div>
 
                         <div class="col-12 mt-3">
@@ -161,10 +161,10 @@
                 <div class="col-12">
                   <div class="form-check form-switch form-switch-lg mb-2">
                     <input class="form-check-input" type="checkbox" name="ftp_enabled" id="ftp_enabled" {% if ftp_enabled == '1' %}checked{% endif %}>
-                    <label class="form-check-label fw-bold text-body ms-2" for="ftp_enabled">{{ _('template.storage_settings.enable') }} FTP {{ _('template.storage_settings.storage_de10c2b3') }}</label>
+                    <label class="form-check-label fw-bold text-body ms-2" for="ftp_enabled">{{ _('template.storage_settings.enable') }} FTP {{ _('template.storage_settings.storage_backup') }}</label>
                   </div>
                   <div class="form-text x-small text-muted ms-1">
-                    <i class="bi bi-info-circle me-1"></i>{{ _('template.storage_settings.when_enabled_configuration_saveat_966c39f1') }} FTP {{ _('template.notifications.server_30d94cb3') }}
+                    <i class="bi bi-info-circle me-1"></i>{{ _('template.storage_settings.ftp_backup_enabled_hint') }} FTP {{ _('template.notifications.server') }}
                   </div>
                 </div>
               </div>
@@ -344,7 +344,7 @@
           const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
           try {
-            const resp = await fetch('/settings/test-s3', { // {{ _('template.storage_settings.test_09ce4b4d') }}
+            const resp = await fetch('/settings/test-s3', { // {{ _('template.storage_settings.existing_test_endpoint_comment') }}
               method: 'POST',
               body: formData,
               headers: {
@@ -389,7 +389,7 @@
           const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
           try {
-            const resp = await fetch('/settings/test-ftp', { // {{ _('template.storage_settings.test_09ce4b4d') }}
+            const resp = await fetch('/settings/test-ftp', { // {{ _('template.storage_settings.existing_test_endpoint_comment') }}
               method: 'POST',
               body: formData,
               headers: {

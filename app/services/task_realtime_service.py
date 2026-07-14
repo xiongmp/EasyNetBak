@@ -491,10 +491,13 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
     key = f"task.event.{event_name}"
     normalized = normalize_locale(locale)
     if has_key(key, normalized):
+        def event_text(message_key: str, params: dict[str, Any] | None = None) -> str:
+            return translate(normalized, f"task.param.{message_key}", params)
+
         params = dict(details)
         host = str(details.get("host") or "").strip()
         port = str(details.get("port") or "").strip()
-        target = host or ("device" if normalized == "en-US" else "设备")
+        target = host or event_text("device")
         if port:
             target = f"{target}:{port}"
         login_method = str(details.get("login_method") or "").strip()
@@ -515,9 +518,7 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
             content_size = f"{content_bytes} B"
         duration_seconds = details.get("duration_seconds")
         line_count = int(details.get("line_count") or 0)
-        storage_label = str(event.storage_type or details.get("storage_type") or "").strip() or (
-            "remote storage" if normalized == "en-US" else "远端存储"
-        )
+        storage_label = str(event.storage_type or details.get("storage_type") or "").strip() or event_text("remote_storage")
         storage_target = storage_label
         storage_options = ""
         if storage_label.upper() == "FTP":
@@ -526,23 +527,15 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
             storage_target = f"FTP: {ftp_host}:{ftp_port}" if ftp_host and ftp_port else f"FTP: {ftp_host or 'FTP'}"
             base_dir = str(details.get("base_dir") or "").strip().strip("/")
             passive = str(details.get("passive") or "").strip()
-            if normalized == "en-US":
-                storage_options = f"; directory: /{base_dir}" if base_dir else ""
-                storage_options += f"; passive mode: {passive}" if passive else ""
-            else:
-                storage_options = f"，目录 /{base_dir}" if base_dir else ""
-                storage_options += f"，被动模式 {passive}" if passive else ""
+            storage_options = event_text("directory_option", {"value": f"/{base_dir}"}) if base_dir else ""
+            storage_options += event_text("passive_option", {"value": passive}) if passive else ""
         elif storage_label.upper() == "S3":
             bucket = str(details.get("bucket") or "").strip()
             prefix = str(details.get("prefix") or "").strip().strip("/")
             endpoint = str(details.get("endpoint") or "").strip()
             storage_target = f"S3: {bucket or 'S3'}"
-            if normalized == "en-US":
-                storage_options = f"; prefix: {prefix}" if prefix else ""
-                storage_options += f"; endpoint: {endpoint}" if endpoint else ""
-            else:
-                storage_options = f"，前缀 {prefix}" if prefix else ""
-                storage_options += f"，端点 {endpoint}" if endpoint else ""
+            storage_options = event_text("prefix_option", {"value": prefix}) if prefix else ""
+            storage_options += event_text("endpoint_option", {"value": endpoint}) if endpoint else ""
         upload_ok = bool(event.success if event.success is not None else details.get("success"))
         effective_error = str(details.get("error") or event.failure_type or details.get("failure_type") or "").strip()
         retries_done = int(details.get("retries_done") or event.retries_done or 0)
@@ -570,60 +563,37 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
                 "conn_timeout": str(details.get("conn_timeout") or "-").strip() or "-",
                 "command": command,
                 "read_timeout_suffix": (
-                    f"; read timeout: {read_timeout}s"
-                    if normalized == "en-US" and read_timeout
-                    else f"，读取超时时间为 {read_timeout} 秒" if read_timeout else ""
+                    event_text("read_timeout_suffix", {"value": read_timeout}) if read_timeout else ""
                 ),
                 "content_size": content_size,
                 "duration_suffix": (
-                    f"; duration: {duration_seconds}s"
-                    if normalized == "en-US" and duration_seconds is not None
-                    else f"，耗时 {duration_seconds}s" if duration_seconds is not None else ""
+                    event_text("duration_suffix", {"value": duration_seconds})
+                    if duration_seconds is not None else ""
                 ),
                 "line_count": line_count,
                 "collection_summary": (
-                    f"; {line_count} lines"
-                    if normalized == "en-US" and line_count
-                    else f"，共 {line_count} 行" if line_count
-                    else f"; size: {content_size}" if normalized == "en-US" and content_bytes
-                    else f"，大小 {content_size}" if content_bytes
+                    event_text("line_count_suffix", {"value": line_count}) if line_count
+                    else event_text("size_suffix", {"value": content_size}) if content_bytes
                     else ""
                 ),
                 "storage_label": storage_label,
                 "storage_target": storage_target,
                 "storage_options": storage_options,
                 "content_size_suffix": (
-                    f"; data: {content_size}"
-                    if normalized == "en-US" and content_bytes
-                    else f"，数据 {content_size}" if content_bytes
-                    else ""
+                    event_text("content_size_suffix", {"value": content_size}) if content_bytes else ""
                 ),
-                "upload_result": (
-                    "succeeded" if normalized == "en-US" and upload_ok
-                    else "failed" if normalized == "en-US"
-                    else "成功" if upload_ok
-                    else "失败"
-                ),
+                "upload_result": event_text("upload_succeeded" if upload_ok else "upload_failed"),
                 "upload_failure_hint": (
-                    "; check the storage configuration, network connectivity, and directory permissions"
-                    if normalized == "en-US" and not upload_ok
-                    else "，请检查存储配置、网络连通性和目录权限" if not upload_ok
-                    else ""
+                    event_text("upload_failure_hint") if not upload_ok else ""
                 ),
-                "error": effective_error or ("unknown error" if normalized == "en-US" else "未知错误"),
+                "error": effective_error or event_text("unknown_error"),
                 "retry_position": f"{retries_done + 1}/{max_retries or retries_done + 1}",
                 "planned_count": planned_count,
                 "schedule_suffix": (
-                    f"; schedule ID: {schedule_id}"
-                    if normalized == "en-US" and schedule_id
-                    else f"，计划 ID {schedule_id}" if schedule_id
-                    else ""
+                    event_text("schedule_suffix", {"value": schedule_id}) if schedule_id else ""
                 ),
                 "trigger_suffix": (
-                    f"; trigger: {trigger}"
-                    if normalized == "en-US" and trigger
-                    else f"，触发方式 {trigger}" if trigger
-                    else ""
+                    event_text("trigger_suffix", {"value": trigger}) if trigger else ""
                 ),
                 "job_count": job_count,
                 "enqueued_count": enqueued_count,
@@ -638,27 +608,22 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
                 "skipped_records": skipped_records,
                 "retried_records": retried_records,
                 "backup_count_suffix": (
-                    f"; tracking {backup_count} tasks"
-                    if normalized == "en-US" and backup_count
-                    else f"，跟踪 {backup_count} 个任务" if backup_count
-                    else ""
+                    event_text("backup_count_suffix", {"value": backup_count}) if backup_count else ""
                 ),
                 "success_count": success_count,
                 "fail_count": fail_count,
                 "total_duration_suffix": (
-                    f"; total duration: {duration_text}"
-                    if normalized == "en-US" and duration_text
-                    else f"，总耗时 {duration_text}" if duration_text
-                    else ""
+                    event_text("total_duration_suffix", {"value": duration_text}) if duration_text else ""
                 ),
             }
         )
         return tone, translate(normalized, key, params, fallback=fallback)
-    if normalized == "en-US":
-        label = event_name.replace("_", " ").strip().capitalize() or "Task event"
-        error = str(details.get("error") or "").strip()
-        return tone, f"{label}: {error}" if error else label
-    return tone, fallback
+    return tone, translate(
+        normalized,
+        "task.event.unknown",
+        {"event": event_name or "-", "error": str(details.get("error") or "").strip()},
+        fallback=fallback,
+    )
 
 
 def _serialize_task_event(event: TaskEvent, *, offset_minutes: int, locale: str = "zh-CN") -> dict[str, Any]:

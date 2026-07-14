@@ -28,7 +28,7 @@
           if (!runsTbody) return;
           const rows = Array.isArray(items) ? items : [];
           if (!rows.length) {
-            runsTbody.innerHTML = trHtml(NB.t("js.schedule_stats_runs.tr_td_colspan_8_class_text_center_text"));
+            runsTbody.innerHTML = trHtml(NB.t("js.schedule_stats_runs.empty_runs_html"));
             return;
           }
 
@@ -52,17 +52,17 @@
             let durationHtml = escapeText(r.duration_text || "—");
             if (!r.finished_at && statusMeta) {
               if (r.status === "running") {
-                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_primary_i_class_bi_bi", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.running"))});
+                durationHtml = NB.t("js.schedule_stats_runs.running_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.running"))});
               } else if (r.status === "finalizing") {
-                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_primary_i_class_bi_bi_357be361", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.finalizing"))});
+                durationHtml = NB.t("js.schedule_stats_runs.finalizing_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.finalizing"))});
               } else if (r.status === "cancelling") {
-                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_warning_i_class_bi_bi", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.cancelling"))});
+                durationHtml = NB.t("js.schedule_stats_runs.cancelling_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.cancelling"))});
               } else if (window.NB && typeof window.NB.isActiveScheduleRunStatus === "function" && window.NB.isActiveScheduleRunStatus(r.status)) {
                 durationHtml = `<span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>${escapeText(statusMeta.label || r.duration_text || r.status || "")}</span>`;
               }
             }
             const actionHtml = canTerminateRuns && canTerminateRun(r.status)
-              ? NB.t("js.schedule_stats_runs.button_class_btn_btn_outline_danger_btn_sm", {value0: escapeText(r.id || ""), value1: isTerminating ? "disabled" : "", value2: isTerminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks")})
+              ? NB.t("js.schedule_stats_runs.terminate_button_html", {value0: escapeText(r.id || ""), value1: isTerminating ? "disabled" : "", value2: isTerminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks")})
               : '<span class="text-secondary opacity-50 text-xs">—</span>';
 
             return `
@@ -154,7 +154,7 @@
           if (!btn) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = trHtml(NB.t("js.schedule_stats_runs.span_class_spinner_border_spinner_border_sm_me"));
+          btn.innerHTML = trHtml(NB.t("js.schedule_stats_runs.running_button_html"));
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};

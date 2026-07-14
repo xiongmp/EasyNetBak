@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 from string import Formatter
+from types import MappingProxyType
 from typing import Any, Mapping
 
 from app.i18n.validators import default_locale, normalize_locale, supported_locales
@@ -12,6 +14,7 @@ from app.i18n.validators import default_locale, normalize_locale, supported_loca
 
 _LOCALES_DIR = Path(__file__).with_name("locales")
 logger = logging.getLogger(__name__)
+_PLACEHOLDER_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class CatalogValidationError(RuntimeError):
@@ -40,9 +43,9 @@ def _load_catalog_file(locale: str) -> dict[str, str]:
 
 
 @lru_cache(maxsize=None)
-def get_messages(locale: str) -> dict[str, str]:
+def get_messages(locale: str) -> Mapping[str, str]:
     normalized = normalize_locale(locale)
-    return _load_catalog_file(normalized)
+    return MappingProxyType(_load_catalog_file(normalized))
 
 
 def _placeholders(message: str) -> set[str]:
@@ -54,6 +57,10 @@ def _placeholders(message: str) -> set[str]:
             if format_spec or conversion:
                 raise CatalogValidationError(
                     f"Message placeholders must not use format specs or conversions: {message!r}"
+                )
+            if not _PLACEHOLDER_NAME_RE.fullmatch(field_name):
+                raise CatalogValidationError(
+                    f"Message placeholders must be simple identifiers: {message!r}"
                 )
             fields.add(field_name)
         return fields
@@ -104,8 +111,7 @@ def translate(
         message = get_messages(fallback_locale).get(key)
     if message is None:
         message = fallback if fallback is not None else key
-        if fallback is None:
-            _warn_missing_key(normalized, key)
+        _warn_missing_key(normalized, key)
     if params:
         try:
             message = message.format_map(_SafeParams(params))

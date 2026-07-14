@@ -1,11 +1,36 @@
 from __future__ import annotations
 
 import re
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from app.core.settings import settings
 
 
 _LANGUAGE_RANGE_RE = re.compile(r"^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$")
+_RTL_LANGUAGES = frozenset({"ar", "dv", "fa", "he", "ku", "ps", "ur"})
+_HAN_LANGUAGES = frozenset({"zh"})
+_CRON_LOCALE_MAP = {
+    "en": "en",
+    "zh": "zh_CN",
+}
+_ECHARTS_LOCALE_MAP = {
+    "en": "en",
+    "zh": "cn",
+}
+
+
+@dataclass(frozen=True)
+class LocaleCapabilities:
+    locale: str
+    language: str
+    direction: str
+    cron_locale: str
+    echarts_locale: str
+    uses_han: bool
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 def canonicalize_locale(value: str | None) -> str:
@@ -62,6 +87,20 @@ def validate_locale(value: str) -> str:
     if not normalized:
         raise ValueError(f"Unsupported locale: {value}")
     return normalized
+
+
+def locale_capabilities(value: str | None) -> LocaleCapabilities:
+    """Describe locale-dependent behavior without assuming a Chinese/English binary."""
+    normalized = normalize_locale(value)
+    language = normalized.partition("-")[0].lower()
+    return LocaleCapabilities(
+        locale=normalized,
+        language=language,
+        direction="rtl" if language in _RTL_LANGUAGES else "ltr",
+        cron_locale=_CRON_LOCALE_MAP.get(language, language),
+        echarts_locale=_ECHARTS_LOCALE_MAP.get(language, language),
+        uses_han=language in _HAN_LANGUAGES,
+    )
 
 
 def locale_from_accept_language(value: str | None) -> str | None:

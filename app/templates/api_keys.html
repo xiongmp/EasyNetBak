@@ -97,7 +97,7 @@
           <div class="mb-4">
             <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.name') }} <span class="text-danger">*</span></label>
             <input type="text" class="form-control form-control-lg fs-6" name="name" required placeholder="{{ _('template.api_keys.for_example_test') }}APIKey" />
-            <div class="form-text">{{ _('template.api_keys.items') }} API Key {{ _('template.api_keys.items_f654cdfa') }}</div>
+            <div class="form-text">{{ _('template.api_keys.name_help') }}</div>
           </div>
           <div class="mb-2">
             <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.expires_at') }}</label>
@@ -107,7 +107,7 @@
               <option value="90">90{{ _('template.api_keys.days') }}</option>
               <option value="365">1{{ _('template.api_keys.years') }}</option>
             </select>
-            <div class="form-text">{{ _('template.api_keys.text') }} API Key {{ _('template.api_keys.text_b73b6f43') }}</div>
+            <div class="form-text">{{ _('template.api_keys.rotation_help') }}</div>
           </div>
         </div>
         <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
@@ -129,8 +129,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_revoke') }} API Key <strong id="revokeKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.text_8c49e4b3') }}？</p>
-        <p class="text-muted small mb-0">{{ _('template.api_keys.revoke_37c6ac4c') }} Key {{ _('template.api_keys.text_504a42ef') }} API {{ _('template.api_keys.access') }}。</p>
+        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_revoke') }} API Key <strong id="revokeKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.confirmation_question_suffix') }}？</p>
+        <p class="text-muted small mb-0">{{ _('template.api_keys.revocation_warning_prefix') }} Key {{ _('template.api_keys.revocation_warning_suffix') }} API {{ _('template.api_keys.access') }}。</p>
       </div>
       <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
@@ -149,7 +149,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_delete_permanently') }} API Key <strong id="deleteKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.text_8c49e4b3') }}？</p>
+        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_delete_permanently') }} API Key <strong id="deleteKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.confirmation_question_suffix') }}？</p>
         <div class="alert alert-danger border-danger-subtle py-2 px-3 mt-3 mb-0 small">
           <i class="bi bi-shield-exclamation me-1"></i>{{ _('template.api_keys.this_action_cannot_be_undone_if_you_only') }}<strong>{{ _('template.api_keys.revoke') }}</strong>{{ _('template.api_keys.feature') }}。
         </div>
@@ -206,11 +206,11 @@ document.addEventListener('DOMContentLoaded', function() {
           <i class="bi bi-exclamation-triangle-fill fs-5 text-warning me-3 mt-1"></i>
           <div>
             <h6 class="alert-heading fw-bold mb-1">{{ _('template.api_keys.copy_and_store_it_securely_now') }}</h6>
-            <p class="mb-0 small text-dark">{{ _('template.api_keys.for_security_after_you_leave_this_page_you') }}<strong>{{ _('template.api_keys.not_be_able_to_view_it_again') }}</strong>{{ _('template.api_keys.text_d695ca5b') }} Key {{ _('template.api_keys.text_239b036f') }}。</p>
+            <p class="mb-0 small text-dark">{{ _('template.api_keys.for_security_after_you_leave_this_page_you') }}<strong>{{ _('template.api_keys.not_be_able_to_view_it_again') }}</strong>{{ _('template.api_keys.secret_notice_connector') }} Key {{ _('template.api_keys.secret_full_contents') }}。</p>
           </div>
         </div>
         <div class="mb-2">
-          <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.text_943c471e') }} API Key</label>
+          <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.generated_api_key_label') }} API Key</label>
           <div class="input-group input-group-lg api-key-wrapper">
             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
             <input type="text" class="form-control font-monospace fs-5 border-start-0 border-end-0 text-center bg-light" id="newApiKey" value="{{ new_key }}" readonly />

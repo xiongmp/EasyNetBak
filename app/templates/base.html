@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="{{ locale|default('zh-CN') }}" class="{{ html_class }}">
+<html lang="{{ locale|default('zh-CN') }}" dir="{{ locale_capabilities.direction|default('ltr') }}" class="{{ html_class }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ _(page_title, fallback=page_title) }}{% elif title %}{{ _(title, fallback=title) }}{% else %}{{ app_name }}{% endif %}</title>
+    <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}{{ app_name }}{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/static/css/app.css" rel="stylesheet" />
@@ -11,6 +11,7 @@
     {% block head %}{% endblock %}
     <script>
       window.NB_LOCALE = {{ locale|default('zh-CN')|tojson }};
+      window.NB_LOCALE_CAPABILITIES = {{ locale_capabilities|default({})|tojson }};
       window.NB_MESSAGES = {{ js_messages|default({})|tojson }};
       window.NB_FLASH = {
         message: {{ flash_message|default('')|tojson }},
@@ -241,7 +242,7 @@
                 {% endif %}
                 {% if page_subtitle %}
                   <div class="breadcrumb-subtitle d-none d-lg-flex text-secondary">
-                    {{ _(page_subtitle_key, fallback=page_subtitle) if page_subtitle_key else _(page_subtitle, fallback=page_subtitle) }}
+                    {{ _(page_subtitle_key) if page_subtitle_key else page_subtitle }}
                   </div>
                 {% endif %}
               </nav>
@@ -434,8 +435,8 @@
     {% else %}
       <main class="container py-5" style="max-width: 520px;">
         <div class="mb-4">
-          <div class="h4 mb-1">{{ _(page_title, fallback=page_title) if page_title else app_name }}</div>
-          {% if page_subtitle %}<div class="text-secondary small">{{ _(page_subtitle, fallback=page_subtitle) }}</div>{% endif %}
+          <div class="h4 mb-1">{{ page_title if page_title else app_name }}</div>
+          {% if page_subtitle %}<div class="text-secondary small">{{ page_subtitle }}</div>{% endif %}
         </div>
     {% endif %}
 
@@ -457,7 +458,7 @@
     {% if current_user %}
           </div>
           <footer class="py-3 text-center text-secondary small mt-auto">
-            Powered by Network Backup System Copyright © {{ _('template.base.text') }} <span class="version-tag">{{ app_version }}</span>
+            Powered by Network Backup System Copyright © {{ _('template.base.product_tagline') }} <span class="version-tag">{{ app_version }}</span>
           </footer>
         </main>
       </div>
@@ -465,7 +466,7 @@
       </div>
     {% else %}
       <footer class="py-3 text-center text-secondary small mt-4">
-        Powered by Network Backup System Copyright © {{ _('template.base.text') }} <span class="version-tag">{{ app_version }}</span>
+        Powered by Network Backup System Copyright © {{ _('template.base.product_tagline') }} <span class="version-tag">{{ app_version }}</span>
       </footer>
       </main>
     {% endif %}
@@ -481,7 +482,7 @@
               </div>
               <div class="d-flex gap-2 align-items-center">
                 <a class="btn btn-outline-success btn-sm d-none" id="backup-view-download" href="#">{{ _('template.base.download') }}</a>
-                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-fullscreen" aria-label="{{ _('template.base.full_screen_93c44f6b') }}">
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-fullscreen" aria-label="{{ _('template.base.enter_full_screen') }}">
                   <i class="bi bi-arrows-fullscreen" id="backup-view-fullscreen-icon"></i>
                 </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>

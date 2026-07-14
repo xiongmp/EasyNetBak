@@ -4,14 +4,25 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app import crud
-from app.i18n import get_current_locale, reset_current_locale, set_current_locale, translate, validate_catalogs
+from app.core.settings import settings
+from app.i18n import (
+    get_current_locale,
+    get_messages,
+    locale_capabilities,
+    reset_current_locale,
+    set_current_locale,
+    translate,
+    validate_catalogs,
+)
+from app.i18n.catalog import CatalogValidationError, _placeholders
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
-from app.i18n.render import javascript_messages
+from app.i18n.render import is_frontend_message_key, javascript_messages
 from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
@@ -62,6 +73,83 @@ def test_locale_normalization_and_validation():
 
 def test_catalogs_have_matching_keys_and_placeholders():
     validate_catalogs()
+
+
+def test_catalogs_are_read_only_and_placeholders_are_simple_identifiers():
+    messages = get_messages("en-US")
+    with pytest.raises(TypeError):
+        messages["button.save"] = "Changed"
+    assert _placeholders("Saved {count} items for {name}") == {"count", "name"}
+    with pytest.raises(CatalogValidationError):
+        _placeholders("Hello {user.name}")
+    with pytest.raises(CatalogValidationError):
+        _placeholders("Value {count:03d}")
+
+
+def test_locale_capabilities_support_non_binary_locale_behavior(monkeypatch):
+    monkeypatch.setattr(settings, "supported_locales", "zh-CN,en-US,fr-FR,ar-SA")
+    french = locale_capabilities("fr-FR")
+    arabic = locale_capabilities("ar-SA")
+    assert french.language == "fr"
+    assert french.cron_locale == "fr"
+    assert french.echarts_locale == "fr"
+    assert not french.uses_han
+    assert arabic.direction == "rtl"
+
+
+def test_authored_source_has_no_binary_locale_branches_or_generated_keys():
+    root = Path(__file__).resolve().parents[1]
+    generated_key = re.compile(r"_[0-9a-f]{8}(?:\b|\.)|(?:div_class|span_class|tr_td|tr_class|button_class)")
+    binary_locale = re.compile(r"\bisEnglish\b|(?:==|!=|===|!==)\s*['\"]en-US['\"]")
+    offenders = []
+    for path in (root / "app").rglob("*"):
+        if path.suffix not in {".py", ".html", ".js", ".json"} or path.name.endswith(".min.js"):
+            continue
+        source = path.read_text(encoding="utf-8-sig")
+        if generated_key.search(source) or binary_locale.search(source):
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []
+
+
+def test_all_templates_compile_and_static_translation_keys_exist():
+    root = Path(__file__).resolve().parents[1]
+    catalog = get_messages("en-US")
+    static_key = re.compile(r"\b_\(\s*(['\"])([A-Za-z0-9_.-]+)\1(?=\s*[,\)])")
+    missing: dict[str, list[str]] = {}
+    for path in (root / "app" / "templates").rglob("*.html"):
+        templates.env.get_template(str(path.relative_to(root / "app" / "templates")).replace("\\", "/"))
+        for match in static_key.finditer(path.read_text(encoding="utf-8-sig")):
+            key = match.group(2)
+            if key not in catalog:
+                missing.setdefault(str(path.relative_to(root)), []).append(key)
+    assert missing == {}
+
+
+def test_frontend_source_references_match_explicit_message_contract():
+    root = Path(__file__).resolve().parents[1]
+    catalog = get_messages("en-US")
+    patterns = (
+        re.compile(r"(?:window\.)?NB\.t\(\s*(['\"])([^'\"]+)\1"),
+        re.compile(r"data-(?:confirm|i18n)-key\s*=\s*(['\"])([^'\"]+)\1"),
+    )
+    invalid: dict[str, list[str]] = {}
+    for base in (root / "app" / "static" / "js", root / "app" / "templates"):
+        for path in base.rglob("*"):
+            if path.suffix not in {".js", ".html"} or path.name.endswith(".min.js"):
+                continue
+            source = path.read_text(encoding="utf-8-sig")
+            for pattern in patterns:
+                for match in pattern.finditer(source):
+                    key = match.group(2)
+                    if key not in catalog or not is_frontend_message_key(key):
+                        invalid.setdefault(str(path.relative_to(root)), []).append(key)
+    assert invalid == {}
+
+
+def test_redirect_error_messages_use_catalog_keys():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "app" / "routers" / "web" / "auth.py").read_text(encoding="utf-8-sig")
+    assert not re.search(r"[?&](?:err|msg)=[^\"']*[\u3400-\u9fff]", source)
 
 
 def test_legacy_i18n_cannot_be_reintroduced():
@@ -260,7 +348,7 @@ def test_schedule_next_run_states_are_localized():
 def test_webshell_status_line_has_no_escaped_newline_prefix():
     line = translate(
         "en-US",
-        "js.webshell.r_n_value0_value1",
+        "js.webshell.status_line",
         {"value0": "System", "value1": "Connected"},
     )
     assert line == "[System] Connected"

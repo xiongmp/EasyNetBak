@@ -1,5 +1,5 @@
 (function () {
-      const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
+      const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
       // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
       // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
       function normalizeApschedulerCronForCronstrue(expr) {
@@ -58,11 +58,11 @@
         try {
           const normalizedCron = normalizeApschedulerCronForCronstrue(val);
           let meaning = cronstrue.toString(normalizedCron, {
-            locale: isEnglish ? "en" : "zh_CN",
+            locale: localeCapabilities.cron_locale || "en",
             use24HourTimeFormat: true 
           });
           
-          if (!isEnglish && meaning.startsWith(NB.t("js.schedule_stats_cron.at"))) {
+          if (localeCapabilities.uses_han && meaning.startsWith(NB.t("js.schedule_stats_cron.at"))) {
             const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
             if (timeMatch) {
               const timeStr = timeMatch[1];
@@ -85,7 +85,7 @@
           targetEl.classList.remove("text-danger");
           targetEl.classList.add("text-primary");
         } catch (e) {
-          targetEl.textContent = isEnglish ? "Invalid cron expression" : NB.t("js.schedule_stats_cron.invalid_cron_expression");
+          targetEl.textContent = NB.t("js.schedule_stats_cron.invalid_cron_expression");
           targetEl.classList.remove("text-primary");
           targetEl.classList.add("text-danger");
         }

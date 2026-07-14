@@ -27,7 +27,7 @@ from app.schemas.api.common import public_api_error_response
 from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
-from app.i18n import get_current_locale, translate, validate_catalogs
+from app.i18n import get_current_locale, locale_capabilities, translate, validate_catalogs
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale, set_locale_cookie
 from app.i18n.openapi import build_openapi_schema
 
@@ -162,7 +162,9 @@ def _api_error_json(
         params,
         fallback=message or code,
     )
-    if response_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in localized_message):
+    if not locale_capabilities(response_locale).uses_han and any(
+        "\u4e00" <= char <= "\u9fff" for char in localized_message
+    ):
         localized_message = code.replace("_", " ").strip().capitalize()
     response = JSONResponse(
         status_code=status_code,

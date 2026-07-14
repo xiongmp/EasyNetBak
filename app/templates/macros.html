@@ -5,10 +5,10 @@
     </div>
     <div class="d-flex align-items-center gap-2">
         <select class="form-select form-select-sm pagination-control-sm" style="width: 105px;" onchange="location.href='{{ pagination_base }}1&limit=' + this.value">
-            <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 {{ _('template.macros.items_page') }}</option>
-            <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 {{ _('template.macros.items_page') }}</option>
-            <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 {{ _('template.macros.items_page') }}</option>
-            <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 {{ _('template.macros.items_page') }}</option>
+            <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 {{ _('template.macros.items_per_page') }}</option>
+            <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 {{ _('template.macros.items_per_page') }}</option>
+            <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 {{ _('template.macros.items_per_page') }}</option>
+            <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 {{ _('template.macros.items_per_page') }}</option>
         </select>
         <ul class="pagination pagination-sm mb-0">
             <li class="page-item {% if pagination.page <= 1 %}disabled{% endif %}">

@@ -9,7 +9,7 @@
         <div>
           <div class="fw-semibold">{{ _('template.import_result.import_complete') }}</div>
           <div class="text-secondary small mt-1">
-            {{ _('template.import_result.text') }}：{{ mode }} · {{ _('template.import_result.matched') }}：{{ _('template.import_result.host_ip_port') if match_by == "host_port" else _('email.field.device_name') if match_by == "name" else match_by }} · {{ _('template.devices.create') }} {{ created }} · {{ _('template.import_result.update') }} {{ updated }} · {{ _('template.import_result.skip') }} {{ skipped }}
+            {{ _('template.import_result.mode') }}：{{ mode }} · {{ _('template.import_result.matched') }}：{{ _('template.import_result.host_ip_port') if match_by == "host_port" else _('email.field.device_name') if match_by == "name" else match_by }} · {{ _('template.devices.create') }} {{ created }} · {{ _('template.import_result.update') }} {{ updated }} · {{ _('template.import_result.skip') }} {{ skipped }}
           </div>
         </div>
         <a class="btn btn-outline-secondary btn-sm" href="/devices">{{ _('template.import_result.back_to_devices') }}</a>

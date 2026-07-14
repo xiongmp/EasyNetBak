@@ -1,16 +1,16 @@
 (function() {
-        const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
+        const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
         const cronEl = document.getElementById("cron-meaning");
         if (cronEl) {
           const cron = cronEl.getAttribute("data-cron");
           if (cron) {
             try {
               let meaning = cronstrue.toString(cron, { 
-                locale: isEnglish ? "en" : "zh_CN",
+                locale: localeCapabilities.cron_locale || "en",
                 use24HourTimeFormat: true
               });
               
-              if (!isEnglish && meaning.startsWith(NB.t("js.schedule_stats_cron.at"))) {
+              if (localeCapabilities.uses_han && meaning.startsWith(NB.t("js.schedule_stats_cron.at"))) {
                 const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
                 if (timeMatch) {
                   const timeStr = timeMatch[1];
@@ -29,7 +29,7 @@
               }
               cronEl.textContent = meaning;
             } catch (e) {
-              cronEl.textContent = isEnglish ? "Invalid cron expression" : NB.t("js.schedule_stats_cron.invalid_cron_expression");
+              cronEl.textContent = NB.t("js.schedule_stats_cron.invalid_cron_expression");
               cronEl.classList.replace("text-primary", "text-danger");
             }
           }

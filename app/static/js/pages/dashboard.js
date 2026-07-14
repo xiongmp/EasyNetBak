@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     const t = (value) => value;
-    const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
-    const successLabel = isEnglish ? 'Succeeded' : NB.t("status.backup.succeeded");
-    const failedLabel = isEnglish ? 'Failed' : NB.t("status.backup.failed");
-    const changeCountLabel = isEnglish ? 'Changes' : NB.t("js.dashboard.change_count");
+    const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
+    const successLabel = NB.t("status.backup.succeeded");
+    const failedLabel = NB.t("status.backup.failed");
+    const changeCountLabel = NB.t("js.dashboard.change_count");
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const chartTextColor = isDark ? '#94a3b8' : '#64748b';
     const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 inRange: {
                     color: colorList
                 },
-                text: isEnglish ? ['High', 'Low'] : ['\u591a', '\u5c11'],
+                text: [NB.t("js.dashboard.high"), NB.t("js.dashboard.low")],
                 textStyle: { fontSize: 12, color: textColor },
                 itemWidth: 16,
                 itemHeight: 200
@@ -449,13 +449,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     show: false
                 },
                 dayLabel: {
-                    nameMap: isEnglish ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'],
+                    nameMap: [
+                        NB.t("js.dashboard.weekday.sun"),
+                        NB.t("js.dashboard.weekday.mon"),
+                        NB.t("js.dashboard.weekday.tue"),
+                        NB.t("js.dashboard.weekday.wed"),
+                        NB.t("js.dashboard.weekday.thu"),
+                        NB.t("js.dashboard.weekday.fri"),
+                        NB.t("js.dashboard.weekday.sat")
+                    ],
                     firstDay: 1,
                     color: textColor,
                     fontSize: 10
                 },
                 monthLabel: {
-                    nameMap: isEnglish ? 'en' : 'cn',
+                    nameMap: localeCapabilities.echarts_locale || 'en',
                     color: textColor,
                     fontSize: 11,
                     margin: 6

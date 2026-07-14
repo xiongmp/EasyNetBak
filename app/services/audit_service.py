@@ -6,7 +6,7 @@ from app import crud
 from app.models import AuditLog
 from app.routers.web_context import _dt_local_str
 from app.services import export_service, pagination_service
-from app.i18n import get_current_locale, translate
+from app.i18n import get_current_locale, locale_capabilities, translate
 
 
 AUDIT_ACTION_MAP = {
@@ -80,7 +80,7 @@ LOGIN_STATUS_TEXT = {
 def translate_audit_action(action: str, locale: str | None = None) -> str:
     selected_locale = locale or get_current_locale()
     value = translate(selected_locale, f"audit.action.{action}", fallback=AUDIT_ACTION_MAP.get(action, action))
-    if selected_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in value):
+    if not locale_capabilities(selected_locale).uses_han and any("\u4e00" <= char <= "\u9fff" for char in value):
         return action.replace("_", " ").strip().title()
     return value
 
@@ -88,7 +88,7 @@ def translate_audit_action(action: str, locale: str | None = None) -> str:
 def translate_audit_resource(resource_type: str, locale: str | None = None) -> str:
     selected_locale = locale or get_current_locale()
     value = translate(selected_locale, f"audit.resource.{resource_type}", fallback=AUDIT_RESOURCE_MAP.get(resource_type, resource_type))
-    if selected_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in value):
+    if not locale_capabilities(selected_locale).uses_han and any("\u4e00" <= char <= "\u9fff" for char in value):
         return resource_type.replace("_", " ").strip().title()
     return value
 

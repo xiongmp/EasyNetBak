@@ -433,7 +433,7 @@ window.NB = window.NB || {};
             state.taskLogTarget = {
               kind: "backup",
               id: String(device.id || ""),
-              label: suffix ? NB.t("js.nb_common.value0_value1", {value0: NB.t("js.nb_common.device_live_log"), value1: suffix}) : NB.t("js.nb_common.device_live_log"),
+              label: suffix ? NB.t("js.nb_common.labeled_value", {value0: NB.t("js.nb_common.device_live_log"), value1: suffix}) : NB.t("js.nb_common.device_live_log"),
             };
           }
 
@@ -556,7 +556,7 @@ window.NB = window.NB || {};
             if (!state.jobs.length) {
               logTitle.textContent = tr(NB.t("template.base.task_live_log"));
               logStatus.textContent = tr(NB.t("js.nb_common.untracked_task"));
-              logList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_no_live"));
+              logList.innerHTML = trHtml(NB.t("js.nb_common.no_live_logs_html"));
               return;
             }
             if (!state.taskLogsVisible) {
@@ -566,7 +566,7 @@ window.NB = window.NB || {};
             logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || tr(NB.t("template.base.task_live_log"));
             logStatus.textContent = tr(getTaskChannelModeMeta().text);
             if (!state.taskLogs.length) {
-              logList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_nonelogs_div"));
+              logList.innerHTML = trHtml(NB.t("js.nb_common.no_logs_html"));
               return;
             }
             const toneMap = {
@@ -580,7 +580,7 @@ window.NB = window.NB || {};
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || "");
               const eventText = escapeText(item.event || "");
-              return NB.t("js.nb_common.div_class_py_1_border_bottom_border_secondary", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
+              return NB.t("js.nb_common.live_log_entry_html", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
             }).join("");
             logList.scrollTop = logList.scrollHeight;
           }
@@ -1154,10 +1154,6 @@ window.NB = window.NB || {};
 
           function trHtml(html) { return html; }
 
-          function isEnglishUi() {
-            return Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
-          }
-
           function countLines(text) {
             if (!text) return 0;
             let count = 1;
@@ -1236,7 +1232,7 @@ window.NB = window.NB || {};
               backupViewFullscreenIcon.className = want ? "bi bi-fullscreen-exit" : "bi bi-arrows-fullscreen";
             }
             if (backupViewFullscreen) {
-              backupViewFullscreen.setAttribute("aria-label", tr(want ? NB.t("template.config_search.exit_full_screen") : NB.t("template.base.full_screen_93c44f6b")));
+              backupViewFullscreen.setAttribute("aria-label", tr(want ? NB.t("template.config_search.exit_full_screen") : NB.t("template.base.enter_full_screen")));
             }
           }
 
@@ -1315,7 +1311,7 @@ window.NB = window.NB || {};
           function renderBackupLogItems(items) {
             if (!backupLogList) return;
             if (!items || !items.length) {
-              backupLogList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_p_2"));
+              backupLogList.innerHTML = trHtml(NB.t("js.nb_common.no_execution_log_html"));
               return;
             }
             backupLogList.innerHTML = items.map((item) => {
@@ -1329,7 +1325,7 @@ window.NB = window.NB || {};
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || item.event || "");
               const eventText = escapeText(item.event || "");
-              return NB.t("js.nb_common.div_class_backup_log_item_py_2_border", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
+              return NB.t("js.nb_common.backup_log_entry_html", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
             }).join("");
             backupLogList.scrollTop = backupLogList.scrollHeight;
           }
@@ -1540,7 +1536,7 @@ window.NB = window.NB || {};
               0,
             );
             
-            summary.innerHTML = trHtml(NB.t("js.nb_common.div_class_nb_job_summary_item_data_filter", {value0: allDevices, value1: runningDevices, value2: successDevices, value3: failedDevices, value4: cancelledDevices}));
+            summary.innerHTML = trHtml(NB.t("js.nb_common.job_summary_html", {value0: allDevices, value1: runningDevices, value2: successDevices, value3: failedDevices, value4: cancelledDevices}));
             syncSummaryCardActiveState();
             bindSummaryCardClicks();
 
@@ -1648,7 +1644,7 @@ window.NB = window.NB || {};
               // 如果有多个批次，显示一个简单的分割线或更紧凑的标识
               if (jobs.length > 1) {
                 rows.push(
-                  NB.t("js.nb_common.tr_class_nb_job_group_header_td_colspan", {value0: escapeText(req), value1: cnt}),
+                  NB.t("js.nb_common.job_group_header_html", {value0: escapeText(req), value1: cnt}),
                 );
               }
 
@@ -1956,9 +1952,7 @@ window.NB = window.NB || {};
               const job = getCurrentTrackedJob();
               const selectedCount = getSelectedBackupIds().length;
               if (!canBulkTerminateTrackedRun(job) || !selectedCount) return;
-              const message = isEnglishUi()
-                ? `Cancel the ${selectedCount} selected pending tasks? Running tasks will not be stopped.`
-                : NB.t("js.nb_common.cancel_the_currently_selected_value0_pending_tasks_running", {value0: selectedCount});
+              const message = NB.t("js.nb_common.cancel_the_currently_selected_value0_pending_tasks_running", {value0: selectedCount});
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: NB.t("js.nb_common.confirm_bulk_cancellation"),
@@ -1982,9 +1976,7 @@ window.NB = window.NB || {};
               const job = getCurrentTrackedJob();
               const selectedCount = getSelectedBackupIds().length;
               if (!canBulkRetryTrackedRun(job) || !selectedCount) return;
-              const message = isEnglishUi()
-                ? `Retry the ${selectedCount} selected failed or cancelled tasks?`
-                : NB.t("js.nb_common.retry_the_currently_selected_value0_failed_or_cancelled", {value0: selectedCount});
+              const message = NB.t("js.nb_common.retry_the_currently_selected_value0_failed_or_cancelled", {value0: selectedCount});
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
                   title: NB.t("js.nb_common.confirm_bulk_retry"),

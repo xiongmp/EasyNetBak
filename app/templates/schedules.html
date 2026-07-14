@@ -47,7 +47,7 @@
                       <pre class="mb-0 text-secondary x-small" style="line-height: 1.4; font-family: 'Courier New', Courier, monospace;">
 ┌────────── {{ _('template.schedules.minute') }} (0 - 59)
 │ ┌──────── {{ _('template.schedules.hour') }} (0 - 23)
-│ │ ┌────── {{ _('template.schedules.day_15917f3b') }} (1 - 31)
+│ │ ┌────── {{ _('template.schedules.day') }} (1 - 31)
 │ │ │ ┌──── {{ _('template.schedules.month') }} (1 - 12)
 │ │ │ │ ┌── {{ _('template.schedules.weekday') }} (0 - 6, 0={{ _('template.schedules.monday') }}, 6={{ _('template.schedules.sunday') }})
 │ │ │ │ │
@@ -221,9 +221,9 @@
                     {% elif token.startswith('group:') %}
                       {% set gval = token[6:] %}
                       {% if gval.isdigit() %}
-                        {% set _ = title_parts.append(_('template.schedule_stats.group_fdb6a0ed') ~ group_map.get(gval|int, gval)) %}
+                        {% set _ = title_parts.append(_('template.schedule_stats.group_label') ~ group_map.get(gval|int, gval)) %}
                       {% else %}
-                        {% set _ = title_parts.append(_('template.schedule_stats.group_fdb6a0ed') ~ gval) %}
+                        {% set _ = title_parts.append(_('template.schedule_stats.group_label') ~ gval) %}
                       {% endif %}
                     {% elif token.startswith('platform:') %}
                       {% set _ = title_parts.append(_('template.schedule_stats.platform') ~ token[9:]) %}
