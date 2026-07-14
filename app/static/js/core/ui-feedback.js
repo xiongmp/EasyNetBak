@@ -2,23 +2,7 @@ window.NB = window.NB || {};
 
 (function () {
   function normalizeConfirmText(value) {
-    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(text) { return text; };
-    let text = tr(value == null ? '' : String(value));
-    const replacements = [
-      [/Confirm要Delete此Group\?\?/gi, 'Delete this group?'],
-      [/Confirm要Delete此Template\?\?/gi, 'Delete this template?'],
-      [/Confirm要Delete此Role\?\?/gi, 'Delete this role?'],
-      [/Confirm要Delete此Schedules?\?\?/gi, 'Delete this schedule?'],
-      [/Confirm要Delete此(?:用户|User)\?\?/gi, 'Delete this user?'],
-      [/Confirm要Delete此Device\?\?/gi, 'Delete this device?'],
-      [/Confirm要Delete此Credential\?\?/gi, 'Delete this credential?'],
-      [/Confirm要Delete此Backup record\?\?/gi, 'Delete this backup record?'],
-      [/Confirm要Permanent移除这itemsIgnore rules\?\?/gi, 'Permanently remove these ignore rules?']
-    ];
-    replacements.forEach(function(entry) {
-      text = text.replace(entry[0], entry[1]);
-    });
-    return text;
+    return value == null ? '' : String(value);
   }
 
   window.NB.confirm = function(options) {
@@ -37,12 +21,10 @@ window.NB = window.NB || {};
     const confirmBtn = document.getElementById('deleteConfirmBtn');
     const confirmText = document.getElementById('deleteConfirmText');
 
-    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(value) { return value; };
-
-    if (titleEl) titleEl.textContent = normalizeConfirmText(title || '确认操作');
-    if (confirmText) confirmText.textContent = normalizeConfirmText(message || '确定要执行此操作吗？');
+    if (titleEl) titleEl.textContent = normalizeConfirmText(title || NB.t("js.ui_feedback.confirm_action"));
+    if (confirmText) confirmText.textContent = normalizeConfirmText(message || NB.t("js.ui_feedback.perform_this_action"));
     if (confirmBtn) {
-        confirmBtn.textContent = normalizeConfirmText(confirmBtnText || '确定');
+        confirmBtn.textContent = normalizeConfirmText(confirmBtnText || NB.t("js.ui_feedback.confirm"));
         confirmBtn.className = 'btn btn-sm px-4 ' + (confirmBtnClass || 'btn-primary');
     }
 
@@ -77,8 +59,7 @@ window.NB = window.NB || {};
     const messageEl = document.getElementById('nb-toast-message');
     const iconEl = document.getElementById('nb-toast-icon');
 
-    const tr = window.NB && typeof window.NB.tr === 'function' ? window.NB.tr : function(value) { return value; };
-    if (messageEl) messageEl.textContent = tr(message);
+    if (messageEl) messageEl.textContent = String(message == null ? '' : message);
     if (!iconEl) return;
 
     toastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');

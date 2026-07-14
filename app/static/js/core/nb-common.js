@@ -24,10 +24,10 @@ window.NB = window.NB || {};
             }
           }
 
-          // Check for msg/err in URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const msg = urlParams.get('msg');
-          const err = urlParams.get('err');
+          // Flash messages are localized by the server from stable catalog keys.
+          const flash = window.NB_FLASH || {};
+          const msg = flash.message;
+          const err = flash.error;
           if (msg) window.NB.showToast(msg, 'success');
           if (err) window.NB.showToast(err, 'error');
 
@@ -41,7 +41,7 @@ window.NB = window.NB || {};
             const rawMsg = btn.getAttribute('data-confirm-msg');
             const msg = messageKey && window.NB && typeof window.NB.t === 'function'
               ? window.NB.t(messageKey)
-              : (window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(rawMsg) : rawMsg);
+              : rawMsg;
             
             window.NB.confirmDelete(msg, function() {
                 if (targetForm) {
@@ -287,15 +287,15 @@ window.NB = window.NB || {};
           function getTaskChannelModeMeta() {
             switch (String(state.taskChannelMode || "idle")) {
               case "connecting":
-                return { text: tr("实时通道连接中"), badgeClass: "text-secondary" };
+                return { text: tr(NB.t("js.nb_common.connecting_live_channel")), badgeClass: "text-secondary" };
               case "websocket_event_bus":
-                return { text: tr("事件实时推送"), badgeClass: "text-success" };
+                return { text: tr(NB.t("js.nb_common.live_event_push")), badgeClass: "text-success" };
               case "websocket_snapshot":
-                return { text: tr("WebSocket 轮询同步"), badgeClass: "text-info" };
+                return { text: tr(NB.t("js.nb_common.websocket_polling_sync")), badgeClass: "text-info" };
               case "http_fallback":
-                return { text: tr("已降级为 HTTP 轮询"), badgeClass: "text-warning" };
+                return { text: tr(NB.t("js.nb_common.downgraded_to_http_polling")), badgeClass: "text-warning" };
               default:
-                return { text: tr("等待建立同步通道"), badgeClass: "text-secondary" };
+                return { text: tr(NB.t("js.nb_common.waiting_for_sync_channel")), badgeClass: "text-secondary" };
             }
           }
 
@@ -384,10 +384,10 @@ window.NB = window.NB || {};
             const payload = getCurrentTrackPayload("subscribe_logs");
             if (!payload) return null;
             if (payload.run_id) {
-              return { kind: "run", id: String(payload.run_id), label: tr("批次实时日志") };
+              return { kind: "run", id: String(payload.run_id), label: tr(NB.t("js.nb_common.batch_live_log")) };
             }
             if (payload.backup_id) {
-              return { kind: "backup", id: String(payload.backup_id), label: tr("任务实时日志") };
+              return { kind: "backup", id: String(payload.backup_id), label: tr(NB.t("template.base.task_live_log")) };
             }
             return null;
           }
@@ -433,7 +433,7 @@ window.NB = window.NB || {};
             state.taskLogTarget = {
               kind: "backup",
               id: String(device.id || ""),
-              label: suffix ? `${tr("设备实时日志")}: ${suffix}` : tr("设备实时日志"),
+              label: suffix ? NB.t("js.nb_common.value0_value1", {value0: NB.t("js.nb_common.device_live_log"), value1: suffix}) : NB.t("js.nb_common.device_live_log"),
             };
           }
 
@@ -478,30 +478,30 @@ window.NB = window.NB || {};
             const details = item && item.details && typeof item.details === "object" ? item.details : {};
             const labels = [];
               const labelMap = {
-              schedule_id: tr("计划"),
-              trigger: tr("触发"),
-              status: tr("状态"),
-              planned_count: tr("计划"),
-              total_devices: tr("设备"),
-              job_count: tr("任务"),
-              backup_count: tr("跟踪"),
-              enqueued_count: tr("入队"),
-              failed_count: tr("失败"),
-              success_count: tr("成功"),
-              fail_count: tr("失败"),
-              cancelled_count: tr("已终止"),
-              unfinished_count: tr("未完成"),
-              terminated_records: tr("终止"),
-              skipped_records: tr("跳过"),
-              running_records: tr("运行中"),
-              selected_records: tr("已选"),
-              retried_records: tr("重试"),
-              enqueue_status: tr("入队状态"),
-              poll_seconds: tr("检查间隔"),
-              time_limit_seconds: tr("超时"),
-              failure_type: tr("失败类型"),
-              reason: tr("原因"),
-              source_run_id: tr("来源批次"),
+              schedule_id: tr(NB.t("js.nb_common.plan")),
+              trigger: tr(NB.t("js.nb_common.trigger")),
+              status: tr(NB.t("login.csv.status")),
+              planned_count: tr(NB.t("js.nb_common.plan")),
+              total_devices: tr(NB.t("audit.resource.device")),
+              job_count: tr(NB.t("js.nb_common.tasks")),
+              backup_count: tr(NB.t("js.nb_common.tracked")),
+              enqueued_count: tr(NB.t("js.nb_common.queued")),
+              failed_count: tr(NB.t("status.backup.failed")),
+              success_count: tr(NB.t("status.backup.succeeded")),
+              fail_count: tr(NB.t("status.backup.failed")),
+              cancelled_count: tr(NB.t("status.schedule_run.cancelled")),
+              unfinished_count: tr(NB.t("js.nb_common.unfinished")),
+              terminated_records: tr(NB.t("js.nb_common.cancel")),
+              skipped_records: tr(NB.t("template.import_result.skip")),
+              running_records: tr(NB.t("status.schedule_run.running")),
+              selected_records: tr(NB.t("template.backups.selected")),
+              retried_records: tr(NB.t("js.nb_common.retry")),
+              enqueue_status: tr(NB.t("js.nb_common.queue_status")),
+              poll_seconds: tr(NB.t("js.nb_common.check_interval")),
+              time_limit_seconds: tr(NB.t("status.device.timeout")),
+              failure_type: tr(NB.t("js.nb_common.failure_type")),
+              reason: tr(NB.t("js.nb_common.reason")),
+              source_run_id: tr(NB.t("js.nb_common.source_batch")),
             };
             const orderedKeys = [
               "schedule_id",
@@ -554,19 +554,19 @@ window.NB = window.NB || {};
             if (!logSection || !logList || !logStatus || !logTitle) return;
             logSection.classList.toggle("d-none", !state.taskLogsVisible || !state.jobs.length);
             if (!state.jobs.length) {
-              logTitle.textContent = tr("任务实时日志");
-              logStatus.textContent = tr("未跟踪任务");
-              logList.innerHTML = trHtml('<div class="text-secondary opacity-75">暂无实时日志</div>');
+              logTitle.textContent = tr(NB.t("template.base.task_live_log"));
+              logStatus.textContent = tr(NB.t("js.nb_common.untracked_task"));
+              logList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_no_live"));
               return;
             }
             if (!state.taskLogsVisible) {
               return;
             }
             syncTaskLogTargetWithJobs();
-            logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || tr("任务实时日志");
+            logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || tr(NB.t("template.base.task_live_log"));
             logStatus.textContent = tr(getTaskChannelModeMeta().text);
             if (!state.taskLogs.length) {
-              logList.innerHTML = trHtml('<div class="text-secondary opacity-75">暂无日志</div>');
+              logList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_nonelogs_div"));
               return;
             }
             const toneMap = {
@@ -580,13 +580,7 @@ window.NB = window.NB || {};
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || "");
               const eventText = escapeText(item.event || "");
-              return `<div class="py-1 border-bottom border-secondary-subtle">
-                <div class="d-flex align-items-start gap-2">
-                  <span class="text-secondary opacity-75 text-nowrap">${timeText}</span>
-                  <span class="${toneClass} flex-grow-1">${messageText}</span>
-                </div>
-                <div class="x-small text-secondary opacity-75 mt-1">事件: ${eventText}</div>
-              </div>`;
+              return NB.t("js.nb_common.div_class_py_1_border_bottom_border_secondary", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
             }).join("");
             logList.scrollTop = logList.scrollHeight;
           }
@@ -840,10 +834,10 @@ window.NB = window.NB || {};
                 render();
               }
               if (data.ok) {
-                window.NB.showToast(data.message || "操作已提交", "success");
+                window.NB.showToast(data.message || NB.t("js.nb_common.operation_submitted"), "success");
                 refreshJobs();
               } else {
-                window.NB.showToast(data.message || "操作失败", "error");
+                window.NB.showToast(data.message || NB.t("js.nb_common.operation_failed"), "error");
               }
               return;
             }
@@ -853,7 +847,7 @@ window.NB = window.NB || {};
               state.bulkRetryingRunId = "";
               state.bulkTerminatingRunId = "";
               render();
-              window.NB.showToast(data.message || "任务通道异常", "warning");
+              window.NB.showToast(data.message || NB.t("js.nb_common.task_channel_error"), "warning");
             }
           }
 
@@ -1012,7 +1006,7 @@ window.NB = window.NB || {};
             } catch (e) {
               console.error(e);
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("重试失败: " + e.message, "error");
+                window.NB.showToast(NB.t("js.nb_common.retry_failed") + e.message, "error");
               }
             } finally {
               state.retryingRunId = "";
@@ -1061,7 +1055,7 @@ window.NB = window.NB || {};
             } catch (e) {
               console.error(e);
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("批量重试失败: " + e.message, "error");
+                window.NB.showToast(NB.t("js.nb_common.bulk_retry_failed") + e.message, "error");
               }
             } finally {
               state.bulkRetryingRunId = "";
@@ -1097,7 +1091,7 @@ window.NB = window.NB || {};
             } catch (e) {
               console.error(e);
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("终止失败: " + e.message, "error");
+                window.NB.showToast(NB.t("js.nb_common.cancellation_failed") + e.message, "error");
               }
             } finally {
               state.terminatingRunId = "";
@@ -1142,7 +1136,7 @@ window.NB = window.NB || {};
             } catch (e) {
               console.error(e);
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("批量终止失败: " + e.message, "error");
+                window.NB.showToast(NB.t("js.nb_common.bulk_cancellation_failed") + e.message, "error");
               }
             } finally {
               state.bulkTerminatingRunId = "";
@@ -1156,13 +1150,9 @@ window.NB = window.NB || {};
             return span.innerHTML;
           }
 
-          function tr(text) {
-            return window.NB && typeof window.NB.tr === "function" ? window.NB.tr(text) : text;
-          }
+          function tr(text) { return text; }
 
-          function trHtml(html) {
-            return window.NB && typeof window.NB.trHtml === "function" ? window.NB.trHtml(html) : html;
-          }
+          function trHtml(html) { return html; }
 
           function isEnglishUi() {
             return Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
@@ -1246,20 +1236,20 @@ window.NB = window.NB || {};
               backupViewFullscreenIcon.className = want ? "bi bi-fullscreen-exit" : "bi bi-arrows-fullscreen";
             }
             if (backupViewFullscreen) {
-              backupViewFullscreen.setAttribute("aria-label", tr(want ? "退出全屏" : "全屏"));
+              backupViewFullscreen.setAttribute("aria-label", tr(want ? NB.t("template.config_search.exit_full_screen") : NB.t("template.base.full_screen_93c44f6b")));
             }
           }
 
           async function resolveBackupViewErrorMessage(resp) {
-            if (!resp) return "备份内容加载失败";
+            if (!resp) return NB.t("template.config_search.failed_to_load_backup_content");
 
             const detail = window.NB.api
               ? await window.NB.api.extractErrorDetail(resp, "")
               : "";
 
-            if (resp.status === 403) return "当前账号无权限查看备份内容";
-            if (resp.status === 404) return detail || "备份记录不存在";
-            return detail || "备份内容加载失败";
+            if (resp.status === 403) return NB.t("template.config_search.this_account_cannot_view_backup_content");
+            if (resp.status === 404) return detail || NB.t("template.config_search.backup_record_not_found");
+            return detail || NB.t("template.config_search.failed_to_load_backup_content");
           }
 
           async function openBackupView(backupId) {
@@ -1269,7 +1259,7 @@ window.NB = window.NB || {};
               if (!bs || !bs.Modal) return;
               backupViewModal = new bs.Modal(backupViewModalEl);
             }
-            if (backupViewTitle) backupViewTitle.textContent = tr("备份详情");
+            if (backupViewTitle) backupViewTitle.textContent = tr(NB.t("template.base.backup_details"));
             if (backupViewMeta) backupViewMeta.textContent = "";
             if (backupViewError) {
               backupViewError.classList.add("d-none");
@@ -1325,7 +1315,7 @@ window.NB = window.NB || {};
           function renderBackupLogItems(items) {
             if (!backupLogList) return;
             if (!items || !items.length) {
-              backupLogList.innerHTML = trHtml('<div class="text-secondary opacity-75 p-2">暂无执行日志</div>');
+              backupLogList.innerHTML = trHtml(NB.t("js.nb_common.div_class_text_secondary_opacity_75_p_2"));
               return;
             }
             backupLogList.innerHTML = items.map((item) => {
@@ -1339,13 +1329,7 @@ window.NB = window.NB || {};
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || item.event || "");
               const eventText = escapeText(item.event || "");
-              return `<div class="backup-log-item py-2 border-bottom border-secondary-subtle">
-                <div class="d-flex align-items-start gap-2">
-                  <span class="text-secondary opacity-75 text-nowrap">${timeText}</span>
-                  <span class="${toneClass} flex-grow-1">${messageText}</span>
-                </div>
-                <div class="x-small text-secondary opacity-75 mt-1">事件: ${eventText}</div>
-              </div>`;
+              return NB.t("js.nb_common.div_class_backup_log_item_py_2_border", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
             }).join("");
             backupLogList.scrollTop = backupLogList.scrollHeight;
           }
@@ -1357,7 +1341,7 @@ window.NB = window.NB || {};
               if (!bs || !bs.Modal) return;
               backupLogModal = new bs.Modal(backupLogModalEl);
             }
-            if (backupLogTitle) backupLogTitle.textContent = tr("执行日志");
+            if (backupLogTitle) backupLogTitle.textContent = tr(NB.t("template.base.execution_log"));
             if (backupLogMeta) backupLogMeta.textContent = "";
             if (backupLogError) {
               backupLogError.classList.add("d-none");
@@ -1556,28 +1540,7 @@ window.NB = window.NB || {};
               0,
             );
             
-            summary.innerHTML = trHtml(`
-              <div class="nb-job-summary-item" data-filter="all">
-                <span class="nb-job-summary-label">设备总数</span>
-                <span class="nb-job-summary-value text-primary">${allDevices}</span>
-              </div>
-              <div class="nb-job-summary-item" data-filter="active">
-                <span class="nb-job-summary-label">进行中</span>
-                <span class="nb-job-summary-value text-warning">${runningDevices}</span>
-              </div>
-              <div class="nb-job-summary-item" data-filter="succeeded">
-                <span class="nb-job-summary-label">成功</span>
-                <span class="nb-job-summary-value text-success">${successDevices}</span>
-              </div>
-              <div class="nb-job-summary-item" data-filter="failed">
-                <span class="nb-job-summary-label">失败</span>
-                <span class="nb-job-summary-value text-danger">${failedDevices}</span>
-              </div>
-              <div class="nb-job-summary-item cancelled" data-filter="cancelled">
-                <span class="nb-job-summary-label">已终止</span>
-                <span class="nb-job-summary-value">${cancelledDevices}</span>
-              </div>
-            `);
+            summary.innerHTML = trHtml(NB.t("js.nb_common.div_class_nb_job_summary_item_data_filter", {value0: allDevices, value1: runningDevices, value2: successDevices, value3: failedDevices, value4: cancelledDevices}));
             syncSummaryCardActiveState();
             bindSummaryCardClicks();
 
@@ -1591,40 +1554,40 @@ window.NB = window.NB || {};
                 <span class="nb-header-badge ${channelMeta.badgeClass}">
                   <i class="bi bi-broadcast"></i>${channelMeta.text}
                 </span>
-                ${batchStartedAt ? `<span class="nb-header-badge"><i class="bi bi-clock"></i>任务开始时间: <span data-i18n-preserve>${batchStartedAt}</span></span>` : ""}
-                ${selectedDevices.length ? `<span class="nb-header-badge"><i class="bi bi-check2-square"></i>已选 ${selectedDevices.length} 台</span>` : ""}
+                ${batchStartedAt ? `<span class="nb-header-badge"><i class="bi bi-clock"></i>${NB.t("task.start_time")}: <span data-i18n-preserve>${batchStartedAt}</span></span>` : ""}
+                ${selectedDevices.length ? `<span class="nb-header-badge"><i class="bi bi-check2-square"></i>${NB.t("task.selected_devices", {count: selectedDevices.length})}</span>` : ""}
               `);
               if (bulkTerminateBtn) {
                 const canBulkTerminate = canBulkTerminateTrackedRun(latest);
                 const bulkTerminating = state.bulkTerminatingRunId && latest.run_id && state.bulkTerminatingRunId === latest.run_id;
                 bulkTerminateBtn.classList.toggle("d-none", !selectedDevices.length);
                 bulkTerminateBtn.disabled = !canBulkTerminate || !!bulkTerminating;
-                bulkTerminateBtn.textContent = tr(bulkTerminating ? "处理中..." : "终止所选");
+                bulkTerminateBtn.textContent = tr(bulkTerminating ? NB.t("js.nb_common.processing") : NB.t("template.base.cancel_selected"));
               }
               if (bulkRetryBtn) {
                 const canBulkRetry = canBulkRetryTrackedRun(latest);
                 const bulkRetrying = state.bulkRetryingRunId && latest.run_id && state.bulkRetryingRunId === latest.run_id;
                 bulkRetryBtn.classList.toggle("d-none", !selectedDevices.length);
                 bulkRetryBtn.disabled = !canBulkRetry || !!bulkRetrying;
-                bulkRetryBtn.textContent = tr(bulkRetrying ? "处理中..." : "重试所选");
+                bulkRetryBtn.textContent = tr(bulkRetrying ? NB.t("js.nb_common.processing") : NB.t("template.base.retry_selected"));
               }
               if (terminateBtn) {
                 const canTerminate = canTerminateTrackedRun(latest);
                 const terminating = state.terminatingRunId && latest.run_id && state.terminatingRunId === latest.run_id;
                 terminateBtn.classList.toggle("d-none", !canTerminate);
                 terminateBtn.disabled = !!terminating;
-                terminateBtn.textContent = tr(terminating ? "处理中..." : "终止未运行任务");
+                terminateBtn.textContent = tr(terminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks"));
               }
               if (retryBtn) {
                 const canRetry = canRetryTrackedRun(latest);
                 const retrying = state.retryingRunId && latest.run_id && state.retryingRunId === latest.run_id;
                 retryBtn.classList.toggle("d-none", !canRetry);
                 retryBtn.disabled = !!retrying;
-                retryBtn.textContent = tr(retrying ? "处理中..." : "重试失败项");
+                retryBtn.textContent = tr(retrying ? NB.t("js.nb_common.processing") : NB.t("template.base.retry_failed_items"));
               }
               if (logsToggleBtn) {
                 logsToggleBtn.classList.remove("d-none");
-                logsToggleBtn.textContent = tr("批次日志");
+                logsToggleBtn.textContent = tr(NB.t("template.base.batch_log"));
                 const isShowingBatchLogs = !!(
                   state.taskLogsVisible &&
                   state.taskLogTarget &&
@@ -1638,28 +1601,28 @@ window.NB = window.NB || {};
               if (bulkTerminateBtn) {
                 bulkTerminateBtn.classList.add("d-none");
                 bulkTerminateBtn.disabled = false;
-                bulkTerminateBtn.textContent = tr("终止所选");
+                bulkTerminateBtn.textContent = tr(NB.t("template.base.cancel_selected"));
               }
               if (bulkRetryBtn) {
                 bulkRetryBtn.classList.add("d-none");
                 bulkRetryBtn.disabled = false;
-                bulkRetryBtn.textContent = tr("重试所选");
+                bulkRetryBtn.textContent = tr(NB.t("template.base.retry_selected"));
               }
               if (terminateBtn) {
                 terminateBtn.classList.add("d-none");
                 terminateBtn.disabled = false;
-                terminateBtn.textContent = tr("终止未运行任务");
+                terminateBtn.textContent = tr(NB.t("template.schedule_stats.cancel_pending_tasks"));
               }
               if (retryBtn) {
                 retryBtn.classList.add("d-none");
                 retryBtn.disabled = false;
-                retryBtn.textContent = tr("重试失败项");
+                retryBtn.textContent = tr(NB.t("template.base.retry_failed_items"));
               }
               if (logsToggleBtn) {
                 logsToggleBtn.classList.add("d-none");
                 logsToggleBtn.classList.remove("btn-outline-primary");
                 logsToggleBtn.classList.add("btn-outline-secondary");
-                logsToggleBtn.textContent = tr("批次日志");
+                logsToggleBtn.textContent = tr(NB.t("template.base.batch_log"));
               }
             }
             renderTaskLogs();
@@ -1685,14 +1648,7 @@ window.NB = window.NB || {};
               // 如果有多个批次，显示一个简单的分割线或更紧凑的标识
               if (jobs.length > 1) {
                 rows.push(
-                  `<tr class="nb-job-group-header">
-                    <td colspan="5" class="py-1">
-                      <div class="d-flex justify-content-between x-small opacity-75">
-                        <span>批次: ${escapeText(req)}</span>
-                        <span>设备: ${cnt}</span>
-                      </div>
-                    </td>
-                  </tr>`,
+                  NB.t("js.nb_common.tr_class_nb_job_group_header_td_colspan", {value0: escapeText(req), value1: cnt}),
                 );
               }
 
@@ -1717,7 +1673,7 @@ window.NB = window.NB || {};
                 rows.push(
                   `<tr class="nb-job-row" data-status="${escapeText(d.status || '')}">
                     <td class="align-middle text-center">
-                      ${canSelect ? `<input class="form-check-input nb-job-select-item" type="checkbox" data-backup-id="${backupId}" ${selected ? "checked" : ""} aria-label="${tr("选择任务")}">` : ""}
+                      ${canSelect ? `<input class="form-check-input nb-job-select-item" type="checkbox" data-backup-id="${backupId}" ${selected ? "checked" : ""} aria-label="${NB.t("js.nb_common.select_task")}">` : ""}
                     </td>
                     <td>
                       <div class="d-flex flex-column">
@@ -1727,7 +1683,7 @@ window.NB = window.NB || {};
                     <td class="text-secondary small text-nowrap opacity-75 align-middle">${host}</td>
                     <td>${status}</td>
                     <td class="align-middle text-center">
-                      ${backupId ? `<button type="button" class="btn ${isCurrentDeviceLog ? "btn-secondary" : "btn-outline-secondary"} btn-sm py-0 px-2 nb-device-log-btn text-nowrap" data-device-log-id="${backupId}" data-device-log-name="${logNameAttr}" data-device-log-host="${logHostAttr}">${tr(isCurrentDeviceLog ? "查看中" : "设备日志")}</button>` : ""}
+                      ${backupId ? `<button type="button" class="btn ${isCurrentDeviceLog ? "btn-secondary" : "btn-outline-secondary"} btn-sm py-0 px-2 nb-device-log-btn text-nowrap" data-device-log-id="${backupId}" data-device-log-name="${logNameAttr}" data-device-log-host="${logHostAttr}">${tr(isCurrentDeviceLog ? NB.t("js.nb_common.viewin") : NB.t("js.nb_common.devicelogs"))}</button>` : ""}
                     </td>
                   </tr>`,
                 );
@@ -1738,7 +1694,7 @@ window.NB = window.NB || {};
             });
             if (!rows.length) {
               rows.push(
-                `<tr><td colspan="5" class="text-center text-secondary py-4 small">任务状态加载中...</td></tr>`
+                NB.t("js.nb_common.tr_td_colspan_5_class_text_center_text")
               );
             }
             tbody.innerHTML = rows.join("");
@@ -1776,7 +1732,7 @@ window.NB = window.NB || {};
                   {
                     kind: "backup",
                     id: backupId,
-                    label: suffix ? `设备实时日志: ${suffix}` : "设备实时日志",
+                    label: suffix ? NB.t("js.nb_common.device_live_log_value0", {value0: suffix}) : NB.t("js.nb_common.device_live_log"),
                   },
                   { reset: true, visible: true },
                 );
@@ -1957,12 +1913,12 @@ window.NB = window.NB || {};
               if (!canBulkTerminateTrackedRun(job) || !selectedCount) return;
               const message = isEnglishUi()
                 ? `Cancel the ${selectedCount} selected pending tasks? Running tasks will not be stopped.`
-                : `确认终止当前选中的 ${selectedCount} 个未运行任务吗？已在执行中的任务不会被停止。`;
+                : NB.t("js.nb_common.cancel_the_currently_selected_value0_pending_tasks_running", {value0: selectedCount});
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
-                  title: "确认批量终止",
+                  title: NB.t("js.nb_common.confirm_bulk_cancellation"),
                   message,
-                  confirmBtnText: "确认终止",
+                  confirmBtnText: NB.t("js.nb_common.confirm_cancellation"),
                   confirmBtnClass: "btn-danger",
                   onConfirm: () => {
                     terminateSelectedTrackedRun();
@@ -1983,12 +1939,12 @@ window.NB = window.NB || {};
               if (!canBulkRetryTrackedRun(job) || !selectedCount) return;
               const message = isEnglishUi()
                 ? `Retry the ${selectedCount} selected failed or cancelled tasks?`
-                : `确认重试当前选中的 ${selectedCount} 个失败或已终止任务吗？`;
+                : NB.t("js.nb_common.retry_the_currently_selected_value0_failed_or_cancelled", {value0: selectedCount});
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
-                  title: "确认批量重试",
+                  title: NB.t("js.nb_common.confirm_bulk_retry"),
                   message,
-                  confirmBtnText: "确认重试",
+                  confirmBtnText: NB.t("js.nb_common.confirm_retry"),
                   confirmBtnClass: "btn-warning",
                   onConfirm: () => {
                     retrySelectedTrackedRun();
@@ -2010,9 +1966,9 @@ window.NB = window.NB || {};
               if (!runId) return;
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
-                  title: "确认终止",
-                  message: tr("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。"),
-                  confirmBtnText: "确认终止",
+                  title: NB.t("js.nb_common.confirm_cancellation"),
+                  message: tr(NB.t("js.nb_common.cancel_tasks_in_this_run_that_have_not")),
+                  confirmBtnText: NB.t("js.nb_common.confirm_cancellation"),
                   confirmBtnClass: "btn-danger",
                   onConfirm: () => {
                     terminateTrackedRun();
@@ -2020,7 +1976,7 @@ window.NB = window.NB || {};
                 });
                 return;
               }
-              if (window.confirm(tr("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。"))) {
+              if (window.confirm(tr(NB.t("js.nb_common.cancel_tasks_in_this_run_that_have_not")))) {
                 terminateTrackedRun();
               }
             });
@@ -2034,9 +1990,9 @@ window.NB = window.NB || {};
               if (!runId) return;
               if (window.NB && typeof window.NB.confirm === "function") {
                 window.NB.confirm({
-                  title: "确认重试",
-                  message: tr("确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。"),
-                  confirmBtnText: "确认重试",
+                  title: NB.t("js.nb_common.confirm_retry"),
+                  message: tr(NB.t("js.nb_common.retry_failed_or_cancelled_tasks_in_this_run")),
+                  confirmBtnText: NB.t("js.nb_common.confirm_retry"),
                   confirmBtnClass: "btn-warning",
                   onConfirm: () => {
                     retryTrackedRun();
@@ -2044,7 +2000,7 @@ window.NB = window.NB || {};
                 });
                 return;
               }
-              if (window.confirm(tr("确认重试本次运行中失败或已终止的任务吗？成功项不会重复执行。"))) {
+              if (window.confirm(tr(NB.t("js.nb_common.retry_failed_or_cancelled_tasks_in_this_run")))) {
                 retryTrackedRun();
               }
             });

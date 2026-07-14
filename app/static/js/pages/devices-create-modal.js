@@ -1,5 +1,5 @@
 (function () {
-        const tr = (text) => window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+        const tr = (text) => text;
         const loginSelect = document.getElementById("device-create-login-method");
         const platformSelect = document.getElementById("device-create-platform");
         const portInput = document.getElementById("device-create-port");
@@ -17,14 +17,14 @@
                 createGroupIdInput.value = nodeId;
                 const selectedText = document.getElementById('createGroupSelectedText');
                 if (nodeId == 0) {
-                    selectedText.textContent = tr('未分组');
+                    selectedText.textContent = tr(NB.t("template.device_detail.ungrouped"));
                 } else {
                     const selectedGroup = groupItems.find(g => g.id == nodeId);
-                    selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : tr('未分组');
+                    selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : tr(NB.t("template.device_detail.ungrouped"));
                 }
                 
                 const treeData = [
-                    { id: 0, name: tr('未分组'), depth: 0, children: [] },
+                    { id: 0, name: tr(NB.t("template.device_detail.ungrouped")), depth: 0, children: [] },
                     ...buildTree(groupItems)
                 ];
                 

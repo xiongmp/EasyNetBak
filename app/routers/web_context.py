@@ -13,14 +13,19 @@ from app.core.time import format_local_datetime
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 from app.routers.support import _current_user, has_permission, _user_effective_perms
 from app.i18n import get_messages, translate
-from app.i18n.render import javascript_messages, legacy_javascript_messages
+from app.i18n.render import javascript_messages
 from app.i18n.validators import supported_locales
-from app.i18n.legacy import LegacyI18nExtension, legacy_translate_for_template, translate_legacy_text
 
 
 templates = Jinja2Templates(directory="app/templates")
-templates.env.add_extension(LegacyI18nExtension)
-templates.env.globals["__legacy"] = legacy_translate_for_template
+
+
+@pass_context
+def _template_translate(ctx, key: str, params=None, fallback=None) -> str:
+    return translate(ctx.get("locale", settings.default_locale), key, params, fallback)
+
+
+templates.env.globals["_"] = _template_translate
 
 
 def _dt_local_str(value: datetime | None, *, offset_minutes: int) -> str:
@@ -44,6 +49,9 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
     role = getattr(user, "role", "") if user else ""
     eff = _user_effective_perms(user)
     locale = getattr(request.state, "locale", settings.default_locale)
+    flash_params = dict(request.query_params)
+    flash_message_key = (request.query_params.get("msg") or "").strip()
+    flash_error_key = (request.query_params.get("err") or "").strip()
     page_subtitle_keys = {
         "dashboard": "page.dashboard.subtitle",
         "devices": "page.devices.subtitle",
@@ -80,7 +88,7 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
         "perms": eff if eff is not None else {"*"},
         "has_permission": lambda code: has_permission(user, code),
         "role_labels": {
-            code: translate_legacy_text(label, locale)
+            code: translate(locale, f"role.{code}", fallback=label) if code in {"admin", "operator", "readonly"} else label
             for code, label in getattr(crud, "ROLE_LABELS", {}).items()
         },
         "admin_role_codes": list(getattr(crud, "ROLE_ADMIN_CODES", set())),
@@ -91,6 +99,7 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
             for locale_code in supported_locales()
         },
         "js_messages": javascript_messages(locale),
-        "legacy_js_messages": legacy_javascript_messages(locale),
+        "flash_message": translate(locale, flash_message_key, flash_params, fallback=flash_message_key) if flash_message_key else "",
+        "flash_error": translate(locale, flash_error_key, flash_params, fallback=flash_error_key) if flash_error_key else "",
         "_": lambda key, params=None, fallback=None: translate(locale, key, params, fallback),
     }

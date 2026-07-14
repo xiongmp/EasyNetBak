@@ -18,6 +18,9 @@ from app.models import BackupRecord, BackupScheduleRun, Device, TaskEvent
 from app.services import task_event_bus_service, task_runtime_config_service, task_state_service
 
 _MODULE_LOGGER = logging.getLogger(__name__)
+_SHUTDOWN_LOGGER = logging.getLogger(f"{__name__}.shutdown")
+_SHUTDOWN_LOGGER.addHandler(logging.NullHandler())
+_SHUTDOWN_LOGGER.propagate = False
 _TASK_EVENT_BUFFER_BATCH_SIZE = 20
 _TASK_EVENT_BUFFER_FLUSH_INTERVAL_SECONDS = 5.0
 _TASK_EVENT_BUFFER_MAX_SIZE = 500
@@ -107,7 +110,12 @@ def log_task_event(
     _buffer_task_event(buffered_event, logger=logger)
 
 
-def flush_task_event_buffer(*, logger: logging.Logger | None = None, force: bool = False) -> int:
+def flush_task_event_buffer(
+    *,
+    logger: logging.Logger | None = None,
+    force: bool = False,
+    allow_requeue: bool = True,
+) -> int:
     global _LAST_TASK_EVENT_FLUSH_AT
 
     selected_logger = logger or _MODULE_LOGGER
@@ -132,7 +140,7 @@ def flush_task_event_buffer(*, logger: logging.Logger | None = None, force: bool
         pending_events,
         logger=selected_logger,
         flush_reason="forced" if force else "buffered",
-        allow_requeue=True,
+        allow_requeue=allow_requeue,
     )
     return len(pending_events)
 
@@ -510,4 +518,9 @@ def _coerce_bool(value: Any) -> bool | None:
     return None
 
 
-atexit.register(flush_task_event_buffer, logger=_MODULE_LOGGER, force=True)
+atexit.register(
+    flush_task_event_buffer,
+    logger=_SHUTDOWN_LOGGER,
+    force=True,
+    allow_requeue=False,
+)

@@ -1870,14 +1870,14 @@ def get_backup_trend_stats(session: Session, *, window_key: str = "30d") -> dict
         end_at = current_hour + timedelta(hours=1)
         labels = [(start_at + timedelta(hours=i)).strftime("%m-%d %H:00") for i in range(24)]
         grouped_counts = {label: {"success": 0, "fail": 0} for label in labels}
-        granularity_label = "按小时"
+        granularity_label = "dashboard.granularity.hour"
     else:
         window_days = 7 if normalized_key == "7d" else 30
         start_at = datetime(now.year, now.month, now.day) - timedelta(days=window_days - 1)
         end_at = datetime(now.year, now.month, now.day) + timedelta(days=1)
         labels = [(start_at + timedelta(days=i)).strftime("%m-%d") for i in range(window_days)]
         grouped_counts = {label: {"success": 0, "fail": 0} for label in labels}
-        granularity_label = "按天"
+        granularity_label = "dashboard.granularity.day"
 
     rows = session.exec(
         select(BackupRecord.started_at, BackupRecord.status)
@@ -1995,7 +1995,7 @@ def get_config_change_heatmap_stats(session: Session, *, window_key: str = "30d"
         start_at = current_hour - timedelta(hours=23)
         end_at = current_hour + timedelta(hours=1)
         x_labels = [(start_at + timedelta(hours=i)).strftime("%m-%d %H:00") for i in range(24)]
-        y_labels = ["配置变更"]
+        y_labels = ["dashboard.configuration_changes"]
         counts = {label: 0 for label in x_labels}
         for ts in _list_config_change_timestamps(session, start_at=start_at, end_at=end_at):
             key = ts.strftime("%m-%d %H:00")
@@ -2008,7 +2008,7 @@ def get_config_change_heatmap_stats(session: Session, *, window_key: str = "30d"
             "y_labels": y_labels,
             "data": data,
             "max": max_val,
-            "range_label": "最近24小时",
+            "range_label": "dashboard.window.24h",
         }
 
     if normalized_key == "7d":
@@ -2035,7 +2035,7 @@ def get_config_change_heatmap_stats(session: Session, *, window_key: str = "30d"
             "y_labels": y_labels,
             "data": data,
             "max": max_val,
-            "range_label": "最近7天",
+            "range_label": "dashboard.window.7d",
         }
 
     start_at = datetime(now.year, now.month, now.day) - timedelta(days=29)
@@ -2060,7 +2060,7 @@ def get_config_change_heatmap_stats(session: Session, *, window_key: str = "30d"
         "range": [start_at.strftime("%Y-%m-%d"), (end_at - timedelta(days=1)).strftime("%Y-%m-%d")],
         "data": data,
         "max": max_val,
-        "range_label": "最近30天",
+        "range_label": "dashboard.window.30d",
     }
 
 

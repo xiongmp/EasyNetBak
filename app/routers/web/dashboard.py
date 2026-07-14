@@ -62,6 +62,15 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
     platform_stats = crud.get_device_platform_stats(session)
     trend_stats = crud.get_backup_trend_stats(session, window_key=selected_key)
     change_heatmap = crud.get_config_change_heatmap_stats(session, window_key=selected_key)
+    trend_stats["granularity_label"] = translate(
+        locale,
+        str(trend_stats.get("granularity_label") or ""),
+        fallback=str(trend_stats.get("granularity_label") or ""),
+    )
+    change_heatmap["y_labels"] = [
+        translate(locale, str(label), fallback=str(label))
+        for label in change_heatmap.get("y_labels", [])
+    ]
     health_stats = crud.get_group_health_stats(session, window_days=int(selected_window["days"]))
     recent_backups = crud.get_latest_backups_per_device(session)
     task_health = task_observability_service.get_task_health_snapshot(
@@ -82,8 +91,8 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
         name="dashboard.html",
         context={
             **_layout_context(request=request, active="dashboard"),
-            "page_title": "仪表盘",
-            "page_subtitle": "系统运行概览与统计分析",
+            "page_title": translate(request.state.locale, "nav.dashboard"),
+            "page_subtitle": translate(request.state.locale, "page.dashboard.subtitle"),
             "summary": summary,
             "platform_stats": platform_stats,
             "trend_stats": trend_stats,

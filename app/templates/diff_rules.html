@@ -12,16 +12,16 @@
       <div class="d-flex gap-2">
         {% if can_update_rules and can_delete_rules %}
         <button type="button" class="btn btn-link text-secondary btn-sm text-decoration-none" id="btn-reset-default">
-          <i class="bi bi-arrow-counterclockwise me-1"></i>重置为默认
+          <i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('template.diff_rules.reset_to_default') }}
         </button>
         {% endif %}
         {% if can_update_rules %}
         <button type="button" class="btn btn-outline-primary btn-sm px-3" id="btn-add-rule" style="border-radius: 10px;">
-          <i class="bi bi-plus-lg me-1"></i>新增规则
+          <i class="bi bi-plus-lg me-1"></i>{{ _('template.diff_rules.add_rule') }}
         </button>
         {% endif %}
         <button type="submit" class="btn btn-primary btn-sm px-4" style="border-radius: 10px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
-          <i class="bi bi-check2-all me-1"></i>保存更改
+          <i class="bi bi-check2-all me-1"></i>{{ _('template.diff_rules.save_changes') }}
         </button>
       </div>
     </div>
@@ -29,15 +29,15 @@
 
     {% if not can_submit_rules %}
     <div class="alert alert-secondary border-0 shadow-sm mb-4" role="alert">
-      当前账号仅可查看 Diff 忽略规则，不能新增、修改或删除。
+      {{ _('template.diff_rules.account_view') }} Diff {{ _('template.diff_rules.ignore_rules_ordelete') }}。
     </div>
     {% elif can_delete_rules and not can_update_rules %}
     <div class="alert alert-info border-0 shadow-sm mb-4" role="alert">
-      当前账号仅可删除已有规则，不能新增或修改规则内容。
+      {{ _('template.diff_rules.account_delete_or') }}。
     </div>
     {% elif can_update_rules and not can_delete_rules %}
     <div class="alert alert-warning border-0 shadow-sm mb-4" role="alert">
-      当前账号可新增或修改规则，但不能删除已有规则。
+      {{ _('template.diff_rules.account_or_delete') }}。
     </div>
     {% endif %}
 
@@ -51,19 +51,19 @@
           <i class="bi bi-info-circle-fill fs-4"></i>
         </div>
         <div class="small flex-grow-1">
-          <h6 class="fw-bold text-dark mb-2">为什么要配置忽略规则？</h6>
+          <h6 class="fw-bold text-dark mb-2">{{ _('template.diff_rules.why_configure_ignore_rules') }}？</h6>
           <div class="text-secondary mb-3">
-            网络设备配置中常包含动态变化的内容（如 <code>ntp clock-period</code>、<code>uptime</code> 等）。即使配置本身没变，这些行的变化也会导致备份被视为有变更。通过添加忽略规则，您可以排除这些噪音，只关注真正的配置更改。
+            {{ _('template.diff_rules.network_device_configurations_often_contain_dynamic_content_such') }} <code>ntp clock-period</code>、<code>uptime</code> {{ _('template.diff_rules.even_when_the_configuration_itself_has_not_changed') }}。
           </div>
           
           <hr class="border-secondary opacity-25 my-3">
 
-          <h6 class="fw-bold text-dark mb-2">规则配置说明：</h6>
+          <h6 class="fw-bold text-dark mb-2">{{ _('template.diff_rules.rule_configuration_notes') }}：</h6>
           <ul class="mb-0 ps-3 text-secondary">
-            <li class="mb-1"><strong>匹配逻辑：</strong> 规则按顺序匹配，满足任一规则的行将被忽略。</li>
-            <li class="mb-1"><strong>全局：</strong> 应用于所有设备。</li>
-            <li class="mb-1"><strong>厂商/平台：</strong> 仅应用于特定厂商的设备。</li>
-            <li><strong>设备组：</strong> 仅应用于特定分组内的设备。</li>
+            <li class="mb-1"><strong>{{ _('template.diff_rules.match_logic') }}：</strong> {{ _('template.diff_rules.rules_are_matched_in_order_lines_matching_any') }}。</li>
+            <li class="mb-1"><strong>{{ _('template.diff_rules.global') }}：</strong> {{ _('template.diff_rules.applies_to_all_devices') }}。</li>
+            <li class="mb-1"><strong>{{ _('template.diff_rules.vendor_platform') }}：</strong> {{ _('template.diff_rules.applies_only_to_devices_on_the_selected_platform') }}。</li>
+            <li><strong>{{ _('template.diff_rules.device_group') }}：</strong> {{ _('template.diff_rules.group_device') }}。</li>
           </ul>
         </div>
       </div>
@@ -150,7 +150,7 @@
     row.className = "rule-card rule-row";
     row.innerHTML = `
       ${CAN_DELETE_RULES ? `
-      <button type="button" class="btn-remove-rule" title="移除此规则">
+      <button type="button" class="btn-remove-rule" title="{{ _('template.diff_rules.remove_this_rule') }}">
         <i class="bi bi-trash-fill"></i>
       </button>
       ` : ""}
@@ -158,40 +158,40 @@
       <!-- Left Sidebar: Scope & Targets -->
       <div class="rule-sidebar">
         <div>
-          <div class="section-label"><i class="bi bi-shield-check"></i> 适用范围</div>
+          <div class="section-label"><i class="bi bi-shield-check"></i> {{ _('template.diff_rules.scope') }}</div>
           <select class="form-select form-select-sm rule-scope" style="border-radius: 8px;">
-            <option value="global">全局生效</option>
-            <option value="platform">指定厂商</option>
-            <option value="group">指定设备组</option>
+            <option value="global">{{ _('template.diff_rules.global_3af2ad9a') }}</option>
+            <option value="platform">{{ _('template.diff_rules.specific_platform') }}</option>
+            <option value="group">{{ _('template.diff_rules.specific_device_group') }}</option>
           </select>
         </div>
         
         <div class="area-platform d-none">
-          <div class="section-label"><i class="bi bi-hdd-network"></i> 选择厂商</div>
+          <div class="section-label"><i class="bi bi-hdd-network"></i> {{ _('template.diff_rules.select_platform') }}</div>
           <select class="form-select form-select-sm rule-targets rule-targets-platform rule-target-select" multiple size="5">
             ${buildPlatformOptions()}
           </select>
-          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + 点击多选</div>
+          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + {{ _('template.diff_rules.click_to_select_multiple') }}</div>
         </div>
         
         <div class="area-group d-none">
-          <div class="section-label"><i class="bi bi-tags"></i> 选择设备组</div>
+          <div class="section-label"><i class="bi bi-tags"></i> {{ _('template.diff_rules.select_device_group') }}</div>
           <select class="form-select form-select-sm rule-targets rule-targets-group rule-target-select" multiple size="5">
             ${buildGroupOptions()}
           </select>
-          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + 点击多选</div>
+          <div class="form-text small opacity-50 mt-2"><i class="bi bi-info-circle me-1"></i>Ctrl + {{ _('template.diff_rules.click_to_select_multiple') }}</div>
         </div>
       </div>
       
       <!-- Right Main: Patterns -->
       <div class="rule-main">
-        <div class="section-label"><i class="bi bi-code-slash"></i> 忽略正则表达式</div>
+        <div class="section-label"><i class="bi bi-code-slash"></i> {{ _('template.diff_rules.ignore_regular_expression') }}</div>
         <div class="rule-patterns-wrapper">
-          <textarea class="form-control rule-patterns" placeholder="输入正则，例如: ^Last configuration change.*"></textarea>
+          <textarea class="form-control rule-patterns" placeholder="{{ _('template.diff_rules.enter_a_regular_expression_for_example') }}: ^Last configuration change.*"></textarea>
         </div>
         
         <div>
-          <div class="section-label opacity-60" style="font-size: 0.6rem; margin-bottom: 8px;">快速推荐:</div>
+          <div class="section-label opacity-60" style="font-size: 0.6rem; margin-bottom: 8px;">{{ _('template.diff_rules.quick_suggestions') }}:</div>
           <div class="hint-container">
             ${HINTS.map(h => `<span class="hint-chip"><i class="bi bi-plus me-1"></i>${escapeHtml(h)}</span>`).join("")}
           </div>
@@ -256,14 +256,14 @@
             setTimeout(() => {
               row.remove();
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("规则已成功移除", "info");
+                window.NB.showToast("{{ _('template.diff_rules.rule_removed') }}", "info");
               }
               if (!rulesContainer.querySelector(".rule-row")) {
                 loadRules([]);
               }
             }, 300);
           });
-        } else if (confirm("确定要删除这条规则吗？")) {
+        } else if (confirm("{{ _('template.diff_rules.confirm_delete_items') }}？")) {
           row.remove();
         }
       });
@@ -279,11 +279,11 @@
       empty.className = "empty-state mb-4";
       empty.innerHTML = `
         <div class="mb-4 text-primary opacity-20"><i class="bi bi-regex" style="font-size: 5rem;"></i></div>
-        <h5 class="fw-bold">暂无自定义忽略规则</h5>
-        <p class="text-secondary mb-4 small">通过添加规则，您可以让 Diff 对比更加聚焦于核心配置变更</p>
+        <h5 class="fw-bold">{{ _('template.diff_rules.no_custom_ignore_rules') }}</h5>
+        <p class="text-secondary mb-4 small">{{ _('template.diff_rules.add') }} Diff {{ _('template.diff_rules.configuration_change') }}</p>
         ${canCreateRules ? `
         <button type="button" class="btn btn-primary px-4" style="border-radius: 10px;" onclick="document.getElementById('btn-add-rule').click()">
-          <i class="bi bi-plus-lg me-1"></i>配置第一条规则
+          <i class="bi bi-plus-lg me-1"></i>{{ _('template.diff_rules.configure_the_first_rule') }}
         </button>` : ""}
       `;
       rulesContainer.appendChild(empty);
@@ -342,19 +342,19 @@
       if (!patterns.length) {
         patternsInput.classList.add("is-invalid");
         patternsInput.focus();
-        return `第 ${index + 1} 条规则尚未填写忽略正则表达式`;
+        return `{{ _('template.diff_rules.no') }} ${index + 1} {{ _('template.diff_rules.rule_has_no_ignore_regular_expression') }}`;
       }
 
       if (scope === "platform" && getSelectedValues(platformSelect).length === 0) {
         platformSelect.classList.add("is-invalid");
         platformSelect.focus();
-        return `第 ${index + 1} 条规则尚未选择厂商`;
+        return `{{ _('template.diff_rules.no') }} ${index + 1} {{ _('template.diff_rules.rule_has_no_platform_selected') }}`;
       }
 
       if (scope === "group" && getSelectedValues(groupSelect).length === 0) {
         groupSelect.classList.add("is-invalid");
         groupSelect.focus();
-        return `第 ${index + 1} 条规则尚未选择设备组`;
+        return `{{ _('template.diff_rules.no') }} ${index + 1} {{ _('template.diff_rules.rule_has_no_device_group_selected') }}`;
       }
     }
 
@@ -376,13 +376,13 @@
   if (canResetRules) {
     resetBtn.addEventListener("click", () => {
       if (window.NB && typeof window.NB.confirmDelete === "function") {
-        window.NB.confirmDelete("确定要重置所有规则吗？当前所有未保存的配置都将丢失。", () => {
+        window.NB.confirmDelete("{{ _('template.diff_rules.confirm_reset_save_configuration') }}。", () => {
           loadRules(DEFAULT_RULES);
           if (window.NB && typeof window.NB.showToast === "function") {
-            window.NB.showToast("已恢复至系统默认规则", "info");
+            window.NB.showToast("{{ _('template.diff_rules.restored_system_default_rules') }}", "info");
           }
         });
-      } else if (confirm("确定要恢复默认规则吗？")) {
+      } else if (confirm("{{ _('template.diff_rules.confirm_default') }}？")) {
         loadRules(DEFAULT_RULES);
       }
     });

@@ -124,10 +124,10 @@ document.addEventListener('DOMContentLoaded', function() {
           e.preventDefault();
           const cnt = Number(countEl.textContent || '0');
           if (window.NB && typeof window.NB.confirmDelete === 'function') {
-            window.NB.confirmDelete(`确认删除选中的 ${cnt} 台设备？`, () => {
+            window.NB.confirmDelete(NB.t("js.devices_bulk.delete_selected_value0_devices", {value0: cnt}), () => {
               HTMLFormElement.prototype.submit.call(bulkDeleteForm);
             });
-          } else if (confirm(`确认删除选中的 ${cnt} 台设备？`)) {
+          } else if (confirm(NB.t("js.devices_bulk.delete_selected_value0_devices", {value0: cnt}))) {
             HTMLFormElement.prototype.submit.call(bulkDeleteForm);
           }
         });
@@ -164,21 +164,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (enqueueWarning) {
                   window.NB.showToast(enqueueWarning, 'warning');
                 } else if (enqueueStatus === 'partial') {
-                  window.NB.showToast('已启动 ' + records.length + ' 个备份任务，部分任务入队失败', 'warning');
+                  window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks_some_tasks_failed_to_queue"), 'warning');
                 } else {
-                  window.NB.showToast('已启动 ' + records.length + ' 个备份任务', 'info');
+                  window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks"), 'info');
                 }
               }
             } else {
               if (window.NB && typeof window.NB.showToast === 'function') {
-                window.NB.showToast('未找到可备份设备', 'warning');
+                window.NB.showToast(NB.t("js.devices_bulk.no_devices_available_for_backup"), 'warning');
               }
             }
             updateBulkAll();
             if (btnAll) btnAll.disabled = false;
           } catch (err) {
             if (window.NB && typeof window.NB.showToast === 'function') {
-              window.NB.showToast('请求出错: ' + err.message, 'error');
+              window.NB.showToast(NB.t("js.devices_bulk.request_failed") + err.message, 'error');
             }
             updateBulkAll();
             if (btnAll) btnAll.disabled = false;
@@ -190,13 +190,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const cnt = Number(countEl.textContent || '0');
             if (window.NB && typeof window.NB.confirm === 'function') {
               window.NB.confirm({
-                title: '备份所选设备',
-                message: `确定要对选中的 ${cnt} 台设备立即执行备份吗？`,
+                title: NB.t("js.devices_bulk.back_up_selected_devices"),
+                message: NB.t("js.devices_bulk.run_backup_for_selected_value0_devicesrun_backup_now", {value0: cnt}),
                 onConfirm: () => doBulkBackup('selected'),
-                confirmBtnText: '开始备份',
+                confirmBtnText: NB.t("template.backups.start_backup"),
                 confirmBtnClass: 'btn-primary'
               });
-            } else if (confirm(`确定要对选中的 ${cnt} 台设备立即执行备份吗？`)) {
+            } else if (confirm(NB.t("js.devices_bulk.run_backup_for_selected_value0_devicesrun_backup_now", {value0: cnt}))) {
               doBulkBackup('selected');
             }
           });
@@ -206,13 +206,13 @@ document.addEventListener('DOMContentLoaded', function() {
           btnAll.addEventListener('click', () => {
             if (window.NB && typeof window.NB.confirm === 'function') {
               window.NB.confirm({
-                title: '备份所有设备',
-                message: `确定要对系统中的所有设备立即执行备份吗？`,
+                title: NB.t("js.devices_bulk.back_up_all_devices"),
+                message: NB.t("js.devices_bulk.run_backup_for_all_devices_in_the_system"),
                 onConfirm: () => doBulkBackup('all'),
-                confirmBtnText: '开始备份',
+                confirmBtnText: NB.t("template.backups.start_backup"),
                 confirmBtnClass: 'btn-primary'
               });
-            } else if (confirm(`确定要对系统中的所有设备立即执行备份吗？`)) {
+            } else if (confirm(NB.t("js.devices_bulk.run_backup_for_all_devices_in_the_system"))) {
               doBulkBackup('all');
             }
           });
@@ -225,13 +225,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return span.innerHTML;
       }
 
-      function tr(text) {
-        return window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
-      }
+      function tr(text) { return text; }
 
-      function trHtml(html) {
-        return window.NB && typeof window.NB.trHtml === 'function' ? window.NB.trHtml(html) : html;
-      }
+      function trHtml(html) { return html; }
 
       function renderReachBadge(item) {
         if (item && item.success === true) {
@@ -243,14 +239,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const err = (item && item.error_message) ? item.error_message : '';
         let label = window.NB.t('status.device.unreachable');
         let title = '';
-        if (err.includes('连接超时')) { label = window.NB.t('status.device.timeout'); title = window.NB.t('status.device.connection_timeout'); }
-        else if (err.includes('认证失败')) { label = window.NB.t('status.device.authentication_failed'); title = label; }
-        else if (err.includes('连接被拒绝')) { label = window.NB.t('status.device.refused'); title = window.NB.t('status.device.connection_refused'); }
-        else if (err.includes('特权模式失败')) { label = window.NB.t('status.device.privileged_failed'); title = window.NB.t('status.device.enable_password_error'); }
-        else if (err.includes('读取超时')) { label = window.NB.t('status.device.read_timeout'); title = window.NB.t('status.device.slow_response'); }
-        else if (err.includes('连接断开')) { label = window.NB.t('status.device.disconnected'); title = window.NB.t('status.device.unstable_connection'); }
-        else if (err.includes('密钥错误')) { label = window.NB.t('status.device.key_error'); title = window.NB.t('status.device.invalid_ssh_key'); }
-        else if (err.includes('未配置凭据')) { label = window.NB.t('status.device.no_credentials'); title = window.NB.t('status.device.credentials_not_configured'); }
+        if (err.includes(NB.t("status.device.connection_timeout"))) { label = window.NB.t('status.device.timeout'); title = window.NB.t('status.device.connection_timeout'); }
+        else if (err.includes(NB.t("status.device.authentication_failed"))) { label = window.NB.t('status.device.authentication_failed'); title = label; }
+        else if (err.includes(NB.t("status.device.connection_refused"))) { label = window.NB.t('status.device.refused'); title = window.NB.t('status.device.connection_refused'); }
+        else if (err.includes(NB.t("js.devices_bulk.privilege_mode_failed"))) { label = window.NB.t('status.device.privileged_failed'); title = window.NB.t('status.device.enable_password_error'); }
+        else if (err.includes(NB.t("status.device.read_timeout"))) { label = window.NB.t('status.device.read_timeout'); title = window.NB.t('status.device.slow_response'); }
+        else if (err.includes(NB.t("status.device.disconnected"))) { label = window.NB.t('status.device.disconnected'); title = window.NB.t('status.device.unstable_connection'); }
+        else if (err.includes(NB.t("status.device.key_error"))) { label = window.NB.t('status.device.key_error'); title = window.NB.t('status.device.invalid_ssh_key'); }
+        else if (err.includes(NB.t("status.device.credentials_not_configured"))) { label = window.NB.t('status.device.no_credentials'); title = window.NB.t('status.device.credentials_not_configured'); }
 
         return `<div class="status-pill status-offline" title="${title}"><span class="status-dot"></span><span>${label}</span></div>`;
       }
@@ -267,9 +263,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!items || !items.length) {
            if (lastReachItems.length > 0) {
-             reachTbody.innerHTML = trHtml('<tr><td colspan="7" class="text-center text-secondary py-3">没有符合条件的记录</td></tr>');
+             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.tr_td_colspan_7_class_text_center_text"));
            } else {
-             reachTbody.innerHTML = trHtml('<tr><td colspan="7" class="text-center text-secondary py-3">暂无检测结果</td></tr>');
+             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.tr_td_colspan_7_class_text_center_text_014d40fd"));
            }
            return;
         }
@@ -278,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const host = `${escapeText(item.host || '')}`;
           const name = escapeText(item.name || '');
           const lm = (item.login_method || '').toLowerCase() === 'telnet' ? 'Telnet' : 'SSH';
-          const err = escapeText(window.NB.translateLegacy(item.error_message || ''));
+          const err = escapeText(item.error_message || '');
           const duration = item.duration_ms != null ? `${item.duration_ms} ms` : '-';
           const lastChecked = escapeText(item.last_checked || '-');
           return `
@@ -301,18 +297,14 @@ document.addEventListener('DOMContentLoaded', function() {
       function updateReachSummary(summary) {
          if (!reachSummary) return;
          if (!summary) {
-             reachSummary.innerHTML = trHtml('<span class="text-secondary">准备就绪</span>');
+             reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_secondary_ready_span"));
              return;
          }
          const total = summary.total || 0;
          const ok = summary.success || 0;
          const bad = summary.failed || 0;
 
-         reachSummary.innerHTML = trHtml(`
-           <div class="backup-status" style="background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color);">共 ${total}</div>
-           <div class="backup-status backup-status-success">${window.NB.t('status.device.reachable')} ${ok}</div>
-           <div class="backup-status backup-status-failed">${window.NB.t('status.device.unreachable')} ${bad}</div>
-         `);
+         reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.div_class_backup_status_style_background_var_bs", {value0: total, value1: window.NB.t('status.device.reachable'), value2: ok, value3: window.NB.t('status.device.unreachable'), value4: bad}));
       }
 
       if (reachFilterGroup) {
@@ -342,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>`;
         } else if (item.success === false) {
           html = `
-            <div class="status-pill status-offline" title="${window.NB.t('label.test_time')}: ${escapeText(item.last_checked)}\n${window.NB.t('label.error')}: ${escapeText(window.NB.translateLegacy(item.error_message))}">
+            <div class="status-pill status-offline" title="${window.NB.t('label.test_time')}: ${escapeText(item.last_checked)}\n${window.NB.t('label.error')}: ${escapeText(item.error_message)}">
               <span class="status-dot"></span>
               <span>${window.NB.t('status.device.offline')}</span>
             </div>`;
@@ -372,10 +364,10 @@ document.addEventListener('DOMContentLoaded', function() {
               reachProgressBar.classList.remove('bg-success');
           }
           if (reachProgressPercent) reachProgressPercent.textContent = '0%';
-          if (reachProgressText) reachProgressText.textContent = tr('准备开始...');
+          if (reachProgressText) reachProgressText.textContent = tr(NB.t("js.devices_bulk.ready_to_start"));
 
           if (reachSummary) {
-            reachSummary.innerHTML = trHtml('<span class="text-secondary">正在启动任务...</span>');
+            reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_secondary_starting_task_span"));
           }
 
           // Reset filter
@@ -427,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const taskId = data.task_id;
 
             if (!taskId) {
-                if (reachSummary) reachSummary.innerHTML = trHtml('<span class="text-warning">未找到可检测的设备</span>');
+                if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_warning_no_testable_devices_found"));
                 if (reachProgressContainer) reachProgressContainer.style.display = 'none';
                 startReachTestBtn.disabled = false;
                 startReachTestBtn.classList.remove('disabled');
@@ -450,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (reachProgressBar) reachProgressBar.style.width = `${percent}%`;
                     if (reachProgressPercent) reachProgressPercent.textContent = `${percent}%`;
-                    if (reachProgressText) reachProgressText.textContent = tr(`正在检测 ${processed}/${total}`);
+                    if (reachProgressText) reachProgressText.textContent = tr(NB.t("js.devices_bulk.testing_value0_value1", {value0: processed, value1: total}));
 
                     // Update Summary
                     updateReachSummary({
@@ -478,7 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             reachProgressBar.classList.remove('progress-bar-animated');
                             reachProgressBar.classList.add('bg-success');
                         }
-                        if (reachProgressText) reachProgressText.textContent = tr('检测完成');
+                        if (reachProgressText) reachProgressText.textContent = tr(NB.t("js.devices_bulk.test_complete"));
 
                         startReachTestBtn.disabled = false;
                         startReachTestBtn.classList.remove('disabled');
@@ -495,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
 
           } catch (e) {
-            if (reachSummary) reachSummary.innerHTML = trHtml('<span class="text-danger">请求失败</span>');
+            if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.span_class_text_danger_request_failed_span"));
             if (reachProgressContainer) reachProgressContainer.style.display = 'none';
             console.error(e);
             startReachTestBtn.disabled = false;

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import render_pagination with context %}
-{% set page_title = "登录日志" %}
-{% set page_subtitle = "记录系统内所有用户的登录活动" %}
+{% set page_title = _('nav.login_logs') %}
+{% set page_subtitle = _('page.login_logs.subtitle') %}
 
 {% block content %}
 <div class="card border">
@@ -11,24 +11,24 @@
                 <div style="width: 250px;">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
-                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索用户名或IP地址" value="{{ q }}" />
+                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="{{ _('template.login_logs.search_users_or') }}IP{{ _('template.audit_logs.address') }}" value="{{ q }}" />
                     </div>
                 </div>
                 <div style="width: 180px;">
                     <select name="status" class="form-select form-select-sm filter-control-sm">
-                        <option value="">状态: 全部</option>
-                        <option value="success" {% if status == 'success' %}selected{% endif %}>登录成功</option>
-                        <option value="fail" {% if status == 'fail' %}selected{% endif %}>登录失败</option>
-                        <option value="logout" {% if status == 'logout' %}selected{% endif %}>登出</option>
+                        <option value="">{{ _('login.csv.status') }}: {{ _('template.audit_logs.all') }}</option>
+                        <option value="success" {% if status == 'success' %}selected{% endif %}>{{ _('login.status.success') }}</option>
+                        <option value="fail" {% if status == 'fail' %}selected{% endif %}>{{ _('login.status.fail') }}</option>
+                        <option value="logout" {% if status == 'logout' %}selected{% endif %}>{{ _('template.login_logs.signed_out') }}</option>
                     </select>
                 </div>
-                <button class="btn btn-sm btn-outline-primary px-3 filter-control-sm" type="submit">筛选</button>
-                <a href="/login-logs" class="btn btn-sm btn-outline-secondary filter-control-sm">重置</a>
+                <button class="btn btn-sm btn-outline-primary px-3 filter-control-sm" type="submit">{{ _('template.audit_logs.filter') }}</button>
+                <a href="/login-logs" class="btn btn-sm btn-outline-secondary filter-control-sm">{{ _('template.audit_logs.reset') }}</a>
             </form>
 
             <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-outline-secondary" href="/login-logs/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-                    <i class="bi bi-download me-1"></i>导出 CSV
+                    <i class="bi bi-download me-1"></i>{{ _('template.audit_logs.export') }} CSV
                 </a>
             </div>
         </div>
@@ -37,13 +37,13 @@
             <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
                 <thead class="bg-body-tertiary">
                     <tr>
-                        <th style="width: 60px;">序号</th>
-                        <th style="width: 170px;">时间</th>
-                        <th style="width: 150px;">用户名</th>
-                        <th style="width: 100px;">状态</th>
-                        <th style="width: 150px;">IP地址</th>
-                        <th>浏览器/客户端</th>
-                        <th>失败原因</th>
+                        <th style="width: 60px;">{{ _('template.audit_logs.no') }}</th>
+                        <th style="width: 170px;">{{ _('audit.csv.time') }}</th>
+                        <th style="width: 150px;">{{ _('audit.csv.username') }}</th>
+                        <th style="width: 100px;">{{ _('login.csv.status') }}</th>
+                        <th style="width: 150px;">IP{{ _('template.audit_logs.address') }}</th>
+                        <th>{{ _('login.csv.user_agent') }}</th>
+                        <th>{{ _('login.csv.fail_reason') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -77,7 +77,7 @@
                     <tr>
                         <td colspan="7" class="text-center py-5 text-secondary">
                             <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-                            未找到符合条件的登录日志
+                            {{ _('template.login_logs.no_matching_login_logs') }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -85,7 +85,7 @@
             </table>
         </div>
 
-        {{ render_pagination(pagination, pagination_base, "条登录记录") }}
+        {{ render_pagination(pagination, pagination_base, _('template.login_logs.login_records')) }}
     </div>
 </div>
 {% endblock %}

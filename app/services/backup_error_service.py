@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 
 from app.i18n import get_current_locale, has_key, translate
-from app.i18n.legacy import translate_legacy_text
 from app.i18n.validators import normalize_locale
 
 
@@ -36,10 +35,6 @@ def localize_backup_error_message(
             if detail and not _CJK_RE.search(detail):
                 return f"{summary} {detail}"
         return summary
-
-    translated = translate_legacy_text(raw, normalized_locale).strip()
-    if translated and not _CJK_RE.search(translated):
-        return translated
 
     detail_match = _TECHNICAL_DETAIL_RE.search(raw)
     detail = detail_match.group(1).strip() if detail_match else ""

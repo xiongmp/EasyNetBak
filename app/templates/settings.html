@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% set page_title = "系统设置" %}
-{% set page_subtitle = "配置系统运行参数与外部存储" %}
+{% set page_title = _('nav.settings') %}
+{% set page_subtitle = _('page.settings.subtitle') %}
 
 {% block content %}
   <div class="card border shadow-sm">
@@ -13,17 +13,17 @@
           <ul class="nav nav-tabs mb-4" id="settingsTab" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">
-                <i class="bi bi-sliders me-1"></i>通用设置
+                <i class="bi bi-sliders me-1"></i>{{ _('template.settings.general_settings') }}
               </button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="backup-tab" data-bs-toggle="tab" data-bs-target="#backup" type="button" role="tab" aria-controls="backup" aria-selected="false">
-                <i class="bi bi-shield-check me-1"></i>备份设置
+                <i class="bi bi-shield-check me-1"></i>{{ _('template.settings.backup_settings') }}
               </button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="webshell-tab" data-bs-toggle="tab" data-bs-target="#webshell" type="button" role="tab" aria-controls="webshell" aria-selected="false">
-                <i class="bi bi-card-list me-1"></i>日志设置
+                <i class="bi bi-card-list me-1"></i>{{ _('template.settings.log_settings') }}
               </button>
             </li>
           </ul>
@@ -35,13 +35,13 @@
               <div class="row g-4">
                 <div class="col-12 col-md-8 col-lg-6">
                   <h6 class="fw-bold text-secondary mb-3">
-                    <i class="bi bi-cpu me-2"></i>系统运行参数
+                    <i class="bi bi-cpu me-2"></i>{{ _('template.settings.system_runtime_parameters') }}
                   </h6>
                   
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">时区配置 (UTC Offset)</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.time_zone') }} (UTC Offset)</label>
                     <input name="timezone_offset" class="form-control" value="{{ timezone_offset }}" placeholder="+08:00" />
-                    <div class="form-text x-small text-muted">示例：+08:00 (北京时间)、-05:00 (纽约时间)</div>
+                    <div class="form-text x-small text-muted">{{ _('template.settings.example') }}：+08:00 ({{ _('template.settings.beijing_time') }})、-05:00 ({{ _('template.settings.new_york_time') }})</div>
                   </div>
                 </div>
               </div>
@@ -52,43 +52,43 @@
               <div class="row g-4">
                 <div class="col-12 col-md-8 col-lg-6">
                   <h6 class="fw-bold text-secondary mb-3">
-                    <i class="bi bi-lightning-charge me-2"></i>并发与重试控制 (Celery)
+                    <i class="bi bi-lightning-charge me-2"></i>{{ _('template.settings.concurrency_and_retry_control') }} (Celery)
                   </h6>
                   
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">最大并发任务数</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.maximum_concurrent_tasks') }}</label>
                     <input name="max_concurrent_tasks" type="number" class="form-control" value="{{ max_concurrent_tasks }}" min="1" max="100" />
-                    <div class="form-text x-small text-muted">控制同时进行的备份任务及批量检测任务的数量。建议值：10-30</div>
+                    <div class="form-text x-small text-muted">{{ _('template.settings.row_backup_tasks_tasks') }}：10-30</div>
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">失败重试次数</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.retry_count') }}</label>
                     <input name="backup_max_retries" type="number" class="form-control" value="{{ backup_max_retries }}" min="0" max="10" />
-                    <div class="form-text x-small text-muted">备份失败后的自动重试次数。范围：0-10</div>
+                    <div class="form-text x-small text-muted">{{ _('template.settings.failed_retry') }}：0-10</div>
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">重试间隔基数 (秒)</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.retry_interval') }} ({{ _('template.settings.seconds') }})</label>
                     <input name="backup_retry_backoff" type="number" class="form-control" value="{{ backup_retry_backoff }}" min="1" max="3600" />
-                    <div class="form-text x-small text-muted">初始重试间隔，后续会按指数级增加。（例如基数为 10s，则重试等待时间分别为 10s, 20s, 40s...）</div>
+                    <div class="form-text x-small text-muted">{{ _('template.settings.initial_retry_interval_later_waits_increase_exponentially_for') }} 10s，{{ _('template.settings.retry_time') }} 10s, 20s, 40s...）</div>
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">任务超时时间 (秒)</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.task_timeout') }} ({{ _('template.settings.seconds') }})</label>
                     <input name="task_time_limit" type="number" class="form-control" value="{{ task_time_limit }}" min="0" max="3600" />
-                    <div class="form-text x-small text-muted">单个备份任务的最大运行时间（硬超时）。0 表示不限制，建议 300。</div>
+                    <div class="form-text x-small text-muted">{{ _('template.settings.backup_tasks_maximum_rowtime_timeout') }}）。0 {{ _('template.settings.text') }} 300。</div>
                   </div>
 
                   <h6 class="fw-bold text-secondary mt-4 mb-3">
-                    <i class="bi bi-recycle me-2"></i>备份生命周期管理
+                    <i class="bi bi-recycle me-2"></i>{{ _('template.settings.backup_lifecycle_management') }}
                   </h6>
                   
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">备份保留天数</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.backup_retention_days') }}</label>
                     <input name="backup_retention_days" type="number" class="form-control" value="{{ backup_retention_days }}" min="1" />
                     <div class="form-text x-small text-muted">
-                      超过此天数的备份将被自动清理，默认 90。
-                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>保存设置时将立即执行一次清理策略</span>
+                      {{ _('template.settings.days_default') }} 90。
+                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>{{ _('template.settings.the_cleanup_policy_runs_immediately_after_saving') }}</span>
                     </div>
                   </div>
                 </div>
@@ -100,32 +100,32 @@
               <div class="row g-4">
                 <div class="col-12 col-md-8 col-lg-6">
                   <h6 class="fw-bold text-secondary mb-3">
-                    <i class="bi bi-journal-text me-2"></i>审计日志管理
+                    <i class="bi bi-journal-text me-2"></i>{{ _('template.settings.audit_log_management') }}
                   </h6>
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">操作日志保留天数</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.audit_log_retention_days') }}</label>
                     <input name="audit_log_retention_days" type="number" class="form-control" value="{{ audit_log_retention_days }}" min="1" />
                     <div class="form-text x-small text-muted">
-                      超过此天数的操作日志将被自动清理，默认 180。
+                      {{ _('template.settings.days_audit_logs_default') }} 180。
                     </div>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">登录日志保留天数</label>
+                    <label class="form-label small text-secondary mb-1">{{ _('template.settings.login_log_retention_days') }}</label>
                     <input name="login_log_retention_days" type="number" class="form-control" value="{{ login_log_retention_days }}" min="1" />
                     <div class="form-text x-small text-muted">
-                      超过此天数的登录日志将被自动清理，默认 180。
+                      {{ _('template.settings.days_login_logs_default') }} 180。
                     </div>
                   </div>
 
                   <h6 class="fw-bold text-secondary mt-4 mb-3">
-                    <i class="bi bi-camera-video me-2"></i>录像与回放管理
+                    <i class="bi bi-camera-video me-2"></i>{{ _('template.settings.recording_and_playback_management') }}
                   </h6>
                   <div class="mb-3">
-                    <label class="form-label small text-secondary mb-1">Webshell 录像保留天数</label>
+                    <label class="form-label small text-secondary mb-1">Webshell {{ _('template.settings.recording_retention_days') }}</label>
                     <input name="webshell_record_retention_days" type="number" class="form-control" value="{{ webshell_record_retention_days }}" min="1" />
                     <div class="form-text x-small text-muted">
-                      超过此天数的 Webshell 操作录像将被自动清理，默认 30。
-                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>保存设置时将立即执行一次清理策略</span>
+                      {{ _('template.settings.days') }} Webshell {{ _('template.settings.actions_default') }} 30。
+                      <br><span class="text-primary fw-medium"><i class="bi bi-info-circle-fill me-1"></i>{{ _('template.settings.the_cleanup_policy_runs_immediately_after_saving') }}</span>
                     </div>
                   </div>
                 </div>
@@ -137,7 +137,7 @@
           <!-- 全局保存按钮 -->
           <div class="mt-4 pt-3 border-top">
             <button class="btn btn-primary px-4" type="submit">
-              <i class="bi bi-save me-2"></i>保存系统设置
+              <i class="bi bi-save me-2"></i>{{ _('template.settings.savesystem_settings') }}
             </button>
           </div>
 
@@ -162,16 +162,16 @@
       {% else %}
         <!-- 只读视图 -->
         <ul class="nav nav-tabs mb-4">
-          <li class="nav-item"><a class="nav-link active">系统参数概览</a></li>
+          <li class="nav-item"><a class="nav-link active">{{ _('template.settings.systemparametersoverview') }}</a></li>
         </ul>
 
         <div class="row g-4">
           <div class="col-12 col-md-6 col-xl-4">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
-                <h6 class="fw-bold text-secondary mb-3">通用设置</h6>
+                <h6 class="fw-bold text-secondary mb-3">{{ _('template.settings.general_settings') }}</h6>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">当前时区</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.current_time_zone') }}</div>
                   <div class="fw-bold">{{ timezone_offset }}</div>
                 </div>
               </div>
@@ -181,25 +181,25 @@
           <div class="col-12 col-md-6 col-xl-4">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
-                <h6 class="fw-bold text-secondary mb-3">备份设置</h6>
+                <h6 class="fw-bold text-secondary mb-3">{{ _('template.settings.backup_settings') }}</h6>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">最大并发任务数</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.maximum_concurrent_tasks') }}</div>
                   <div class="fw-bold">{{ max_concurrent_tasks }}</div>
                 </div>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">失败重试次数</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.retry_count') }}</div>
                   <div class="fw-bold">{{ backup_max_retries }}</div>
                 </div>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">重试间隔基数</div>
-                  <div class="fw-bold">{{ backup_retry_backoff }} 秒</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.retry_interval') }}</div>
+                  <div class="fw-bold">{{ backup_retry_backoff }} {{ _('template.settings.seconds') }}</div>
                 </div>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">任务超时时间</div>
-                  <div class="fw-bold">{{ task_time_limit }} 秒</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.task_timeout') }}</div>
+                  <div class="fw-bold">{{ task_time_limit }} {{ _('template.settings.seconds') }}</div>
                 </div>
                 <div>
-                  <div class="small text-secondary mb-1">备份保留天数</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.backup_retention_days') }}</div>
                   <div class="fw-bold">{{ backup_retention_days }}</div>
                 </div>
               </div>
@@ -209,17 +209,17 @@
           <div class="col-12 col-md-6 col-xl-4">
             <div class="card h-100 bg-body-tertiary border-0">
               <div class="card-body">
-                <h6 class="fw-bold text-secondary mb-3">日志设置</h6>
+                <h6 class="fw-bold text-secondary mb-3">{{ _('template.settings.log_settings') }}</h6>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">操作日志保留天数</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.audit_log_retention_days') }}</div>
                   <div class="fw-bold">{{ audit_log_retention_days }}</div>
                 </div>
                 <div class="mb-3">
-                  <div class="small text-secondary mb-1">登录日志保留天数</div>
+                  <div class="small text-secondary mb-1">{{ _('template.settings.login_log_retention_days') }}</div>
                   <div class="fw-bold">{{ login_log_retention_days }}</div>
                 </div>
                 <div>
-                  <div class="small text-secondary mb-1">Webshell 录像保留天数</div>
+                  <div class="small text-secondary mb-1">Webshell {{ _('template.settings.recording_retention_days') }}</div>
                   <div class="fw-bold">{{ webshell_record_retention_days }}</div>
                 </div>
               </div>
@@ -229,7 +229,7 @@
           <div class="col-12">
             <div class="alert alert-info border-0 d-flex align-items-center">
               <i class="bi bi-shield-lock me-2"></i>
-              <span>当前为只读权限，无法修改系统设置。</span>
+              <span>{{ _('template.settings.the_current_account_is_read_only_system_settings') }}。</span>
             </div>
           </div>
         </div>

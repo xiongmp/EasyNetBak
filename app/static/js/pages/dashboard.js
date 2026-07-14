@@ -1,11 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const t = (value) => window.NB && typeof window.NB.translateLegacy === 'function'
-        ? window.NB.translateLegacy(value)
-        : value;
+    const t = (value) => value;
     const isEnglish = Boolean(window.NB && window.NB.i18n && window.NB.i18n.isEnglish);
-    const successLabel = isEnglish ? 'Succeeded' : '成功';
-    const failedLabel = isEnglish ? 'Failed' : '失败';
-    const changeCountLabel = isEnglish ? 'Changes' : '变更次数';
+    const successLabel = isEnglish ? 'Succeeded' : NB.t("status.backup.succeeded");
+    const failedLabel = isEnglish ? 'Failed' : NB.t("status.backup.failed");
+    const changeCountLabel = isEnglish ? 'Changes' : NB.t("js.dashboard.change_count");
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const chartTextColor = isDark ? '#94a3b8' : '#64748b';
     const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
@@ -252,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         series: [
             {
-                name: '平台',
+                name: NB.t("template.backups.platform"),
                 type: 'pie',
                 radius: [layout.innerRadius, layout.outerRadius],
                 center: ['50%', layout.centerY],
@@ -576,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         series: [
             {
-                name: t('成功率'),
+                name: t(NB.t("template.dashboard.success_rate")),
                 type: 'bar',
                 data: healthData.map(item => item.value),
                 itemStyle: {
@@ -773,11 +771,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 emptyStateRow.style.display = '';
                 const emptyText = emptyStateRow.querySelector('p');
                 if (filter === 'success') {
-                    emptyText.textContent = t('暂无成功的备份记录');
+                    emptyText.textContent = t(NB.t("js.dashboard.no_successful_backup_records"));
                 } else if (filter === 'failed') {
-                    emptyText.textContent = t('暂无失败的备份记录');
+                    emptyText.textContent = t(NB.t("js.dashboard.no_failed_backup_records"));
                 } else {
-                    emptyText.textContent = t('暂无备份记录');
+                    emptyText.textContent = t(NB.t("template.backups.no_backup_records"));
                 }
             } else if (emptyStateRow) {
                 emptyStateRow.style.display = 'none';

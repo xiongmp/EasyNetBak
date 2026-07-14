@@ -95,10 +95,10 @@
 
         <div class="text-center mb-5">
           {% if allow_recovery %}
-            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">安全验证</h1>
-            <p class="text-secondary mb-0">请选择一种方式进行身份验证</p>
+            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">{{ _('template.mfa_verify.security_verification') }}</h1>
+            <p class="text-secondary mb-0">{{ _('template.mfa_verify.choose_a_verification_method') }}</p>
           {% else %}
-            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">验证码确认</h1>
+            <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">{{ _('template.mfa_verify.verification_code') }}</h1>
             <p class="text-secondary mb-0">{{ _("auth.mfa.enter_authenticator_code") }}</p>
           {% endif %}
         </div>
@@ -106,7 +106,7 @@
         {% if err %}
           <div class="alert alert-danger border-0 d-flex align-items-center rounded-pill py-2 px-3 mb-4" role="alert" style="background-color: rgba(239, 68, 68, 0.1); color: #ef4444;">
             <i class="bi bi-exclamation-circle-fill me-2"></i>
-            <div class="small fw-medium">{{ __legacy(err) }}</div>
+            <div class="small fw-medium">{{ _(err, fallback=err) }}</div>
           </div>
         {% endif %}
 
@@ -114,12 +114,12 @@
           <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-pill" id="mfaTab" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active small fw-bold rounded-pill" id="app-tab" data-bs-toggle="pill" data-bs-target="#mfa-app" type="button" role="tab" aria-selected="true">
-                <i class="bi bi-shield-lock me-2"></i>验证码
+                <i class="bi bi-shield-lock me-2"></i>{{ _('template.mfa_setup.verification_code') }}
               </button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link small fw-bold rounded-pill" id="recovery-tab" data-bs-toggle="pill" data-bs-target="#mfa-recovery" type="button" role="tab" aria-selected="false">
-                <i class="bi bi-key-fill me-2"></i>恢复码
+                <i class="bi bi-key-fill me-2"></i>{{ _('template.mfa_verify.recovery_code') }}
               </button>
             </li>
           </ul>
@@ -131,11 +131,11 @@
                 <input type="hidden" name="next" value="{{ next }}" />
                 
                 <div class="mb-4">
-                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
-                  <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
+                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_setup.verification_code') }}</label>
+                  <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="{{ _('template.mfa_setup.enter') }} 6 {{ _('template.mfa_setup.digit_code') }}" required autofocus>
                 </div>
                 
-                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">继续登录</button>
+                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">{{ _('template.mfa_verify.continue_sign_in') }}</button>
               </form>
             </div>
 
@@ -145,11 +145,11 @@
                 <input type="hidden" name="next" value="{{ next }}" />
 
                 <div class="mb-4">
-                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">恢复码</label>
-                  <input name="recovery_code" class="form-control form-control-pill" placeholder="输入恢复码" required>
+                  <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_verify.recovery_code') }}</label>
+                  <input name="recovery_code" class="form-control form-control-pill" placeholder="{{ _('template.mfa_verify.enterrecovery_code') }}" required>
                 </div>
 
-                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">使用恢复码登录</button>
+                <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">{{ _('template.mfa_verify.sign_in_with_a_recovery_code') }}</button>
               </form>
             </div>
           </div>
@@ -159,18 +159,18 @@
             <input type="hidden" name="next" value="{{ next }}" />
             
             <div class="mb-4">
-              <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
-              <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required autofocus>
+              <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_setup.verification_code') }}</label>
+              <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="{{ _('template.mfa_setup.enter') }} 6 {{ _('template.mfa_setup.digit_code') }}" required autofocus>
             </div>
             
-            <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">继续登录</button>
+            <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">{{ _('template.mfa_verify.continue_sign_in') }}</button>
           </form>
         {% endif %}
       </div>
 
       <!-- Footer Content -->
       <div class="position-absolute bottom-0 start-50 translate-middle-x pb-4 text-muted small">
-        <p class="mb-0">© 2026 网络设备备份系统</p>
+        <p class="mb-0">© 2026 {{ _('template.base.network_device_backup_system') }}</p>
       </div>
     </div>
   </div>

@@ -100,6 +100,7 @@ def api_schedule_stats_runs(request: Request, schedule_id: int, session: Session
             schedule_id=int(schedule_id),
             offset_minutes=offset_minutes,
             limit=30,
+            locale=request.state.locale,
         )
     except schedule_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

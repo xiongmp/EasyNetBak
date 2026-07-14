@@ -596,7 +596,7 @@ def bulk_backup(
     if result.enqueue_status == "partial":
         started = len(result.enqueued_record_ids)
         return RedirectResponse(
-            url=f"/devices?msg=已启动 {started} 个备份任务，部分任务入队失败",
+            url=f"/devices?{urlencode({'msg': 'message.backups_started_partial', 'count': started})}",
             status_code=303,
         )
     if result.enqueue_warning_message:
@@ -627,7 +627,7 @@ def bulk_delete_devices(request: Request, session: Session = Depends(get_session
             item["device_id"],
             f"Name: {item['name']} (Bulk)",
         )
-    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="message.device_deleted"), status_code=303)
 
 
 @router.post("/devices/bulk_update", summary="批量更新设备", description="批量更新多个设备的基本属性或分组")
@@ -661,7 +661,8 @@ def bulk_update_devices(
         bulk_reachability_task.delay(device_ids=updated_ids, offset_minutes=0)
 
     return RedirectResponse(
-        url=_get_redirect_url(request, "/devices", msg=f"成功更新 {result['count']} 台设备"),
+        url=_get_redirect_url(request, "/devices", msg="message.devices_updated")
+        + f"&count={result['count']}",
         status_code=303,
     )
 
@@ -889,7 +890,7 @@ def create_device(
     _log_action(request, session, "CREATE_DEVICE", "device", device.id, f"Name: {name}, Host: {host}")
 
     bulk_reachability_task.delay(device_ids=[new_device_id], offset_minutes=0)
-    return RedirectResponse(url="/devices?msg=设备已创建", status_code=303)
+    return RedirectResponse(url="/devices?msg=message.device_created", status_code=303)
 
 
 @router.post("/devices/{device_id}/delete", summary="删除设备", description="删除指定的网络设备")
@@ -906,7 +907,7 @@ def delete_device(request: Request, device_id: int, session: Session = Depends(g
             return RedirectResponse(url=_get_redirect_url(request, "/devices", err="设备存在执行中的备份任务，无法删除"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_DEVICE", "device", device_id, f"Name: {name}")
-    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="message.device_deleted"), status_code=303)
 
 
 @router.get("/devices/{device_id}", summary="设备详情页面", description="查看指定设备的详细信息及历史备份记录")
@@ -995,7 +996,7 @@ def update_device(
     _log_action(request, session, "UPDATE_DEVICE", "device", device_id, f"Name: {name}, Host: {host}")
     
     bulk_reachability_task.delay(device_ids=[device_id], offset_minutes=0)
-    return RedirectResponse(url=f"/devices/{device_id}?msg=修改已保存", status_code=303)
+    return RedirectResponse(url=f"/devices/{device_id}?msg=message.device_updated", status_code=303)
 
 
 @router.post("/devices/{device_id}/backup", summary="手动触发备份", description="立即触发指定设备的配置备份任务")
@@ -1026,5 +1027,4 @@ def trigger_backup(request: Request, device_id: int, session: Session = Depends(
             url=f"/devices/{device_id}?{urlencode({'msg': result.enqueue_warning_message})}",
             status_code=303,
         )
-    return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
-
+    return RedirectResponse(url=f"/devices/{device_id}?msg=message.backup_started", status_code=303)

@@ -12,8 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const columns = ths.map((th, index) => {
           const text = th.textContent.trim();
           const isCheckbox = th.querySelector('input[type="checkbox"]') !== null;
-          const isAction = text === '操作';
-          const isName = text === '设备名称'; // Force name to be always visible to avoid empty table look
+          const isAction = text === NB.t("audit.csv.action");
+          const isName = text === NB.t("email.field.device_name"); // Force name to be always visible to avoid empty table look
           
           return {
               index,

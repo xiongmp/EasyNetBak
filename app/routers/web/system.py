@@ -13,6 +13,7 @@ from app import crud
 from app.core.settings import settings
 from app.core.time import normalize_timezone_offset
 from app.db import get_session
+from app.i18n import translate
 from app.models import BackupSchedule, WebshellRecord
 from app.routers.support import _log_action, _require_any_permission, _require_permission
 from app.routers.web_context import _layout_context, templates
@@ -52,7 +53,7 @@ def list_audit_logs(
         name="audit_logs.html",
         context={
             **_layout_context(request=request, active="audit_logs"),
-            "page_title": "操作日志",
+            "page_title": translate(request.state.locale, "nav.audit_logs"),
             **payload,
         },
     )
@@ -97,7 +98,7 @@ def list_login_logs(
         name="login_logs.html",
         context={
             **_layout_context(request=request, active="login_logs"),
-            "page_title": "登录日志",
+            "page_title": translate(request.state.locale, "nav.login_logs"),
             **payload,
         },
     )
@@ -287,7 +288,7 @@ def update_settings(
 
     background.add_task(run_cleanup)
 
-    return RedirectResponse(url="/settings?msg=已保存", status_code=303)
+    return RedirectResponse(url="/settings?msg=message.saved", status_code=303)
 
 
 
@@ -459,7 +460,7 @@ def update_notifications(
     crud.set_setting(session, key="always_send_summary", value="1" if always_send_summary in {"1", "on"} else "0")
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "settings", None, "Updated notification settings")
 
-    return RedirectResponse(url="/notifications?msg=已保存", status_code=303)
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
 
 
 @router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")
@@ -592,7 +593,7 @@ def update_storage_settings(
         f"Update Storage Settings: S3Enabled: {s3_enabled}, FTPEnabled: {ftp_enabled}",
     )
 
-    return RedirectResponse(url="/storage-settings?msg=已保存", status_code=303)
+    return RedirectResponse(url="/storage-settings?msg=message.saved", status_code=303)
 
 
 @router.post("/settings/schedule", summary="更新调度配置", description="修改任务调度相关参数")
@@ -645,7 +646,7 @@ def legacy_update_schedule(
         )
     session.commit()
     sync_scheduler_from_db()
-    return RedirectResponse(url="/schedules?msg=已保存", status_code=303)
+    return RedirectResponse(url="/schedules?msg=message.saved", status_code=303)
 
 @router.get("/webshell-records", summary="WebShell录像页面", description="查看WebShell会话录像")
 def list_webshell_records(
@@ -685,7 +686,7 @@ def list_webshell_records(
         name="webshell_records.html",
         context={
             **_layout_context(request=request, active="webshell_records"),
-            "page_title": "Webshell 回放",
+            "page_title": translate(request.state.locale, "nav.webshell_records"),
             "records": records,
             "q": list_query.q or "",
             "pagination": pagination.as_dict(),

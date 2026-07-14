@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import render_pagination with context %}
-{% set page_title = "设备列表" %}
-{% set page_subtitle = "维护设备资产与登录信息，用于定时/手动备份" %}
+{% set page_title = _('template.backups.device_list') %}
+{% set page_subtitle = _('page.devices.subtitle') %}
 {% set can_device_create = has_permission('devices.create') %}
 {% set can_device_update = has_permission('devices.update') %}
 {% set can_device_delete = has_permission('devices.delete') %}
@@ -18,19 +18,19 @@
           <div class="col-md-3 col-sm-6">
             <div class="input-group input-group-sm">
               <span class="input-group-text bg-light border-end-0 py-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
-              <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索设备名称或 IP..." value="{{ filters.q }}" />
+              <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="{{ _('template.devices.search_device_name_or_ip') }} IP..." value="{{ filters.q }}" />
             </div>
           </div>
           <div class="col-md-2 col-sm-6">
             <select name="login_method" class="form-select form-select-sm filter-control-sm" id="device-filter-login-method">
-              <option value="">登录方式: 全部</option>
+              <option value="">{{ _('template.device_detail.login_method') }}: {{ _('template.audit_logs.all') }}</option>
               <option value="ssh" {% if filters.login_method == 'ssh' %}selected{% endif %}>SSH</option>
               <option value="telnet" {% if filters.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
             </select>
           </div>
           <div class="col-md-2 col-sm-6">
             <select name="platform" class="form-select form-select-sm filter-control-sm" id="device-filter-platform">
-              <option value="">平台类型: 全部</option>
+              <option value="">{{ _('template.devices.platform') }}: {{ _('template.audit_logs.all') }}</option>
               {% for p in ssh_platforms %}
                 <option value="{{ p.id }}" data-kind="ssh" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
               {% endfor %}
@@ -42,7 +42,7 @@
           <div class="col-md-2 col-sm-6">
             <div class="dropdown custom-tree-select w-100">
               <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100 filter-control-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="filterGroupDropdownBtn">
-                <span id="filterGroupSelectedText" class="text-truncate">所属分组: 全部</span>
+                <span id="filterGroupSelectedText" class="text-truncate">{{ _('template.devices.group') }}: {{ _('template.audit_logs.all') }}</span>
               </button>
               <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
                 <div id="filterGroupTreeContainer"></div>
@@ -59,7 +59,7 @@
           </div>
           <div class="col-md-1 col-sm-6">
             <button class="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center filter-control-sm" type="submit">
-              <i class="bi bi-funnel-fill me-1"></i>筛选
+              <i class="bi bi-funnel-fill me-1"></i>{{ _('template.audit_logs.filter') }}
             </button>
           </div>
         </form>
@@ -80,7 +80,7 @@
         <div class="d-flex flex-wrap gap-2 align-items-center">
           {% if can_device_bulk %}
             <div class="btn btn-sm btn-light border shadow-sm me-2" style="pointer-events: none;">
-              <span class="fw-semibold text-primary"><i class="bi bi-check2-square me-1"></i>已选 <span id="bulk-selected-count">0</span> 台</span>
+              <span class="fw-semibold text-primary"><i class="bi bi-check2-square me-1"></i>{{ _('template.backups.selected') }} <span id="bulk-selected-count">0</span> {{ _('template.devices.devices') }}</span>
             </div>
 
             {% if can_device_view and can_device_backup %}
@@ -89,10 +89,10 @@
                 <input type="hidden" name="mode" id="bulk-backup-mode" value="selected" />
                 <div class="btn-group btn-group-sm">
                   <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-selected-btn" disabled>
-                    <i class="bi bi-play-fill me-1"></i>备份所选
+                    <i class="bi bi-play-fill me-1"></i>{{ _('template.devices.back_up_selected') }}
                   </button>
                   <button class="btn btn-sm btn-outline-primary" type="button" id="bulk-backup-all-btn">
-                    <i class="bi bi-collection-play me-1"></i>备份所有
+                    <i class="bi bi-collection-play me-1"></i>{{ _('template.devices.back_up_all') }}
                   </button>
                 </div>
               </form>
@@ -100,7 +100,7 @@
 
             {% if can_device_update %}
               <button class="btn btn-sm btn-outline-primary ms-1" type="button" id="bulk-update-btn" disabled>
-                <i class="bi bi-pencil-square me-1"></i>批量修改
+                <i class="bi bi-pencil-square me-1"></i>{{ _('template.devices.bulk_edit') }}
               </button>
             {% endif %}
 
@@ -108,15 +108,15 @@
               <form method="post" action="/devices/bulk_delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" id="bulk-delete-form" class="d-inline">
                 <input type="hidden" name="device_ids" id="bulk-device-ids-3" value="" />
                 <button class="btn btn-sm btn-outline-danger" type="submit" id="bulk-delete-btn" disabled>
-                  <i class="bi bi-trash me-1"></i>批量删除
+                  <i class="bi bi-trash me-1"></i>{{ _('template.devices.bulk_delete') }}
                 </button>
               </form>
             {% endif %}
 
             {% if can_device_update %}
-              <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="请先勾选需要检测的设备">
+              <span class="d-inline-block" id="reach-btn-wrapper" data-bs-toggle="tooltip" title="{{ _('template.devices.select_devices_to_test_first') }}">
                 <button class="btn btn-sm btn-outline-info" type="button" id="bulk-reachability-btn" disabled style="pointer-events: none;">
-                  <i class="bi bi-lightning-charge me-1"></i>连通性检测
+                  <i class="bi bi-lightning-charge me-1"></i>{{ _('template.devices.connectivity_test') }}
                 </button>
               </span>
             {% endif %}
@@ -126,7 +126,7 @@
         <div class="d-flex gap-2">
           <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-              <i class="bi bi-layout-three-columns me-1"></i>显示列
+              <i class="bi bi-layout-three-columns me-1"></i>{{ _('template.devices.visible_columns') }}
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm p-2" id="column-toggle-menu" style="font-size: 13px; min-width: 160px;">
               <!-- Columns injected via JS -->
@@ -135,18 +135,18 @@
           <div class="btn-group btn-group-sm">
             {% if can_device_view %}
               <a class="btn btn-sm btn-outline-secondary" href="/devices/export.csv{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-                <i class="bi bi-download me-1"></i>导出 CSV
+                <i class="bi bi-download me-1"></i>{{ _('template.audit_logs.export') }} CSV
               </a>
             {% endif %}
             {% if can_device_create or can_device_update %}
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#importModal">
-                <i class="bi bi-upload me-1"></i>导入 CSV
+                <i class="bi bi-upload me-1"></i>{{ _('template.credentials.import') }} CSV
               </button>
             {% endif %}
           </div>
           {% if can_device_create %}
             <button class="btn btn-sm btn-primary shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#deviceCreateModal">
-              <i class="bi bi-plus-lg me-1"></i>新增设备
+              <i class="bi bi-plus-lg me-1"></i>{{ _('template.devices.add_device') }}
             </button>
           {% endif %}
         </div>
@@ -161,11 +161,11 @@
               <div class="modal-header bg-body-tertiary">
                 <div class="d-flex align-items-center gap-3 w-100">
                    <h5 class="modal-title" id="reachabilityModalLabel">
-                     <i class="bi bi-activity me-1 text-primary"></i>连通性检测报告
+                     <i class="bi bi-activity me-1 text-primary"></i>{{ _('template.devices.connectivity_report') }}
                    </h5>
                    <div class="vr"></div>
                    <div class="d-flex align-items-center gap-2 small flex-grow-1" id="bulk-reachability-summary">
-                      <span class="text-secondary">准备就绪</span>
+                      <span class="text-secondary">{{ _('template.devices.ready') }}</span>
                    </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -174,16 +174,16 @@
               <!-- 筛选栏 (Fixed) -->
               <div class="bg-body-tertiary px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
                  <div class="small text-secondary">
-                   <i class="bi bi-info-circle me-1"></i>检测可能需要数秒至数分钟，请耐心等待
+                   <i class="bi bi-info-circle me-1"></i>{{ _('template.devices.testing_may_take_several_seconds_to_several_minutes') }}
                  </div>
                  <div class="d-flex gap-2">
                      <button type="button" class="btn btn-primary btn-sm" id="start-reach-test-btn">
-                        <i class="bi bi-play-circle me-1"></i>立即检测
+                        <i class="bi bi-play-circle me-1"></i>{{ _('template.devices.test_now') }}
                      </button>
                      <div class="btn-group btn-group-sm" role="group" id="reach-filter-group">
-                         <button type="button" class="btn btn-outline-secondary active" data-filter="all">全部</button>
-                         <button type="button" class="btn btn-outline-success" data-filter="success">可达</button>
-                         <button type="button" class="btn btn-outline-danger" data-filter="failed">不可达</button>
+                         <button type="button" class="btn btn-outline-secondary active" data-filter="all">{{ _('template.audit_logs.all') }}</button>
+                         <button type="button" class="btn btn-outline-success" data-filter="success">{{ _('status.device.reachable') }}</button>
+                         <button type="button" class="btn btn-outline-danger" data-filter="failed">{{ _('status.device.unreachable') }}</button>
                      </div>
                  </div>
               </div>
@@ -192,7 +192,7 @@
                  <!-- 进度条区域 -->
                  <div id="reach-progress-container" class="px-3 py-3 border-bottom bg-body-tertiary" style="display: none;">
                     <div class="d-flex justify-content-between small mb-1">
-                        <span id="reach-progress-text" class="text-primary fw-medium">正在初始化任务...</span>
+                        <span id="reach-progress-text" class="text-primary fw-medium">{{ _('template.devices.initializing_task') }}...</span>
                         <span id="reach-progress-percent" class="fw-bold">0%</span>
                     </div>
                     <div class="progress" role="progressbar" aria-label="Detection Progress" style="height: 8px;">
@@ -205,13 +205,13 @@
                       <thead class="bg-body-tertiary sticky-top" style="top: 0; z-index: 10;">
                         <tr>
                           <th style="width: 60px;" class="ps-3 text-start">ID</th>
-                          <th style="width: 20%;" class="text-start">设备名称</th>
-                          <th style="width: 20%;" class="text-start">管理地址</th>
-                          <th style="width: 80px;" class="text-start">协议</th>
-                          <th style="width: 100px;" class="text-start">状态</th>
-                          <th style="width: 180px;" class="text-start text-nowrap">最后检测时间</th>
-                          <th style="width: 90px;" class="text-start text-nowrap">耗时</th>
-                          <th class="text-start">错误信息</th>
+                          <th style="width: 20%;" class="text-start">{{ _('email.field.device_name') }}</th>
+                          <th style="width: 20%;" class="text-start">{{ _('template.devices.management_address') }}</th>
+                          <th style="width: 80px;" class="text-start">{{ _('template.devices.protocol') }}</th>
+                          <th style="width: 100px;" class="text-start">{{ _('login.csv.status') }}</th>
+                          <th style="width: 180px;" class="text-start text-nowrap">{{ _('template.devices.last_tested') }}</th>
+                          <th style="width: 90px;" class="text-start text-nowrap">{{ _('email.field.duration') }}</th>
+                          <th class="text-start">{{ _('template.devices.error_message') }}</th>
                         </tr>
                       </thead>
                       <tbody id="bulk-reachability-tbody"></tbody>
@@ -219,7 +219,7 @@
                  </div>
               </div>
               <div class="modal-footer py-2">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ _('template.base.close') }}</button>
               </div>
             </div>
           </div>
@@ -236,16 +236,16 @@
                 </th>
               {% endif %}
               <th style="width: 60px;">ID</th>
-              <th>设备名称</th>
-              <th style="width: 200px;">管理地址 (Host)</th>
-              <th style="width: 120px;">状态</th>
-              <th style="width: 120px;">登录方式</th>
-              <th style="width: 140px;">平台类型</th>
-              <th style="width: 120px;">设备编码</th>
-              <th style="width: 140px;">所属分组</th>
-              <th style="width: 200px;">登录凭据</th>
-              <th style="width: 180px;">创建时间</th>
-              <th style="width: 140px;" class="text-start sticky-end">操作</th>
+              <th>{{ _('email.field.device_name') }}</th>
+              <th style="width: 200px;">{{ _('template.devices.management_address') }} (Host)</th>
+              <th style="width: 120px;">{{ _('login.csv.status') }}</th>
+              <th style="width: 120px;">{{ _('template.device_detail.login_method') }}</th>
+              <th style="width: 140px;">{{ _('template.devices.platform') }}</th>
+              <th style="width: 120px;">{{ _('template.device_detail.device_encoding') }}</th>
+              <th style="width: 140px;">{{ _('template.devices.group') }}</th>
+              <th style="width: 200px;">{{ _('template.device_detail.login_credential') }}</th>
+              <th style="width: 180px;">{{ _('template.api_keys.created_at') }}</th>
+              <th style="width: 140px;" class="text-start sticky-end">{{ _('audit.csv.action') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -266,7 +266,7 @@
                       <span>{{ _("status.device.online") }}</span>
                     </div>
                   {% elif d.reachability_status == False %}
-                    <div class="status-pill status-offline" title="{{ _('label.test_time') }}: {{ d.last_reachability_check|dt_local }}&#10;{{ _('label.error') }}: {{ __legacy(d.reachability_error or '') }}">
+                    <div class="status-pill status-offline" title="{{ _('label.test_time') }}: {{ d.last_reachability_check|dt_local }}&#10;{{ _('label.error') }}: {{ d.reachability_error or '' }}">
                       <span class="status-dot"></span>
                       <span>{{ _("status.device.offline") }}</span>
                     </div>
@@ -308,20 +308,20 @@
                 <td class="text-start text-nowrap sticky-end">
                   <div class="d-flex gap-1 justify-content-start text-nowrap">
                     <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/devices/{{ d.id }}">
-                      <i class="bi bi-search me-1"></i>详情
+                      <i class="bi bi-search me-1"></i>{{ _('email.field.details') }}
                     </a>
                     {% if can_device_view and can_device_webshell %}
                       <form method="post" action="/devices/{{ d.id }}/webshell" target="_blank" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                        <button class="btn btn-sm btn-outline-smart-dark px-2 text-nowrap" type="submit" title="在新窗口打开 WebShell">
+                        <button class="btn btn-sm btn-outline-smart-dark px-2 text-nowrap" type="submit" title="{{ _('template.devices.open_in_a_new_window') }} WebShell">
                           <i class="bi bi-terminal-fill me-1"></i>WebShell
                         </button>
                       </form>
                     {% endif %}
                     {% if can_device_delete %}
                       <form method="post" action="/devices/{{ d.id }}/delete{% if request.url.query %}?{{ request.url.query }}{% endif %}" class="d-inline m-0 text-nowrap">
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此设备吗？">
-                          <i class="bi bi-trash me-1"></i>删除
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="{{ _('template.devices.delete_this_device') }}？">
+                          <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                         </button>
                       </form>
                     {% endif %}
@@ -330,14 +330,14 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="{{ 12 if can_device_bulk else 11 }}" class="text-center text-secondary py-4">暂无设备记录</td>
+                <td colspan="{{ 12 if can_device_bulk else 11 }}" class="text-center text-secondary py-4">{{ _('template.devices.no_devices') }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      {{ render_pagination(pagination, pagination_base, "台设备") }}
+      {{ render_pagination(pagination, pagination_base, _('template.backups.devices')) }}
     </div>
   </div>
 
@@ -373,33 +373,33 @@
             <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
               <h5 class="modal-title d-flex align-items-center">
                 <i class="bi bi-plus-circle-fill text-primary me-2"></i>
-                <span>新增设备</span>
+                <span>{{ _('template.devices.add_device') }}</span>
               </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
             </div>
             <div class="modal-body p-4">
               {% if credentials|length == 0 %}
                 <div class="alert alert-warning d-flex align-items-center border-0 shadow-sm mb-4">
                   <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                  <div>请先到“凭据管理”创建至少一个凭据，再新增设备。</div>
+                  <div>{{ _('template.devices.go_to') }}“{{ _('nav.credentials') }}”{{ _('template.devices.create_at_least_one_credential_add_device') }}。</div>
                 </div>
               {% endif %}
               <div class="row g-4">
                 <div class="col-12 col-lg-6">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-tag me-1"></i>设备名称
+                    <i class="bi bi-tag me-1"></i>{{ _('email.field.device_name') }}
                   </label>
-                  <input name="name" class="form-control form-control-lg fs-6" placeholder="例如：核心交换机-01" required />
+                  <input name="name" class="form-control form-control-lg fs-6" placeholder="{{ _('template.devices.for_example_core_switch') }}-01" required />
                 </div>
                 <div class="col-12 col-lg-6">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-hdd-network me-1"></i>IP / 主机名
+                    <i class="bi bi-hdd-network me-1"></i>IP / {{ _('template.devices.hostname') }}
                   </label>
                   <input name="host" class="form-control form-control-lg fs-6" placeholder="10.0.0.1" required />
                 </div>
                 <div class="col-12 col-lg-4">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-diagram-2 me-1"></i>登录方式
+                    <i class="bi bi-diagram-2 me-1"></i>{{ _('template.device_detail.login_method') }}
                   </label>
                   <select name="login_method" class="form-select form-select-lg fs-6" id="device-create-login-method" required>
                     <option value="ssh" selected>SSH</option>
@@ -408,13 +408,13 @@
                 </div>
                 <div class="col-12 col-lg-4">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-door-open me-1"></i>端口
+                    <i class="bi bi-door-open me-1"></i>{{ _('template.device_detail.port') }}
                   </label>
                   <input name="port" type="number" class="form-control form-control-lg fs-6" value="22" id="device-create-port" />
                 </div>
                 <div class="col-12 col-lg-4">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-cpu me-1"></i>设备类型
+                    <i class="bi bi-cpu me-1"></i>{{ _('template.device_detail.device_type') }}
                   </label>
                   <select name="platform" class="form-select form-select-lg fs-6" id="device-create-platform" required>
                     {% for p in ssh_platforms %}
@@ -427,7 +427,7 @@
                 </div>
                 <div class="col-12 col-lg-4">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-translate me-1"></i>设备编码
+                    <i class="bi bi-translate me-1"></i>{{ _('template.device_detail.device_encoding') }}
                   </label>
                   <select name="encoding" class="form-select form-select-lg fs-6">
                     <option value="utf-8" selected>utf-8</option>
@@ -438,11 +438,11 @@
                 </div>
                 <div class="col-12 col-lg-4">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-grid me-1"></i>设备分组
+                    <i class="bi bi-grid me-1"></i>{{ _('nav.groups') }}
                   </label>
                   <div class="dropdown custom-tree-select w-100">
                     <button class="form-select form-select-lg fs-6 text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="createGroupDropdownBtn">
-                      <span id="createGroupSelectedText" class="text-truncate">未分组</span>
+                      <span id="createGroupSelectedText" class="text-truncate">{{ _('template.device_detail.ungrouped') }}</span>
                     </button>
                     <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
                       <div id="createGroupTreeContainer"></div>
@@ -452,7 +452,7 @@
                 </div>
                 <div class="col-12 col-lg-6">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-shield-lock me-1"></i>登录凭据
+                    <i class="bi bi-shield-lock me-1"></i>{{ _('template.device_detail.login_credential') }}
                   </label>
                   <select name="credential_id" class="form-select form-select-lg fs-6" required>
                     {% for c in credentials %}
@@ -460,15 +460,15 @@
                     {% endfor %}
                   </select>
                   <div class="form-text x-small mt-2">
-                    <i class="bi bi-info-circle me-1"></i>如需新账号，请先到“凭据管理”创建
+                    <i class="bi bi-info-circle me-1"></i>{{ _('template.devices.if_account_go_to') }}“{{ _('nav.credentials') }}”{{ _('template.devices.create') }}
                   </div>
                 </div>
                 <div class="col-12 col-lg-6">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-file-earmark-code me-1"></i>备份模板
+                    <i class="bi bi-file-earmark-code me-1"></i>{{ _('template.devices.backup_template') }}
                   </label>
                   <select name="default_template_id" class="form-select form-select-lg fs-6">
-                    <option value="0">使用设备类型默认命令</option>
+                    <option value="0">{{ _('template.device_detail.use_the_default_commands_for_this_device_type') }}</option>
                     {% for t in templates %}
                       <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}">{{ t.name }} · {{ t.platform }}</option>
                     {% endfor %}
@@ -477,9 +477,9 @@
               </div>
             </div>
             <div class="modal-footer bg-body-tertiary border-top-0 py-3">
-              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
               <button class="btn btn-primary px-5 shadow-sm" type="submit" {% if credentials|length == 0 %}disabled{% endif %}>
-                <i class="bi bi-check-lg me-1"></i>确认保存
+                <i class="bi bi-check-lg me-1"></i>{{ _('template.credentials.confirm_save') }}
               </button>
             </div>
           </form>
@@ -497,7 +497,7 @@
             <div class="modal-header border-bottom-0 pb-0">
               <h5 class="modal-title d-flex align-items-center text-secondary">
                 <i class="bi bi-file-earmark-spreadsheet-fill text-success me-2 fs-4"></i>
-                <span>批量导入设备</span>
+                <span>{{ _('template.devices.import_devices') }}</span>
               </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -505,41 +505,39 @@
               <!-- File Upload Section -->
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label fw-bold text-secondary mb-0">选择 CSV 文件</label>
+                  <label class="form-label fw-bold text-secondary mb-0">{{ _('template.credentials.select') }} CSV {{ _('template.credentials.file') }}</label>
                   <a href="/devices/import_template.csv" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                    <i class="bi bi-download me-1"></i>下载导入模板
+                    <i class="bi bi-download me-1"></i>{{ _('template.credentials.download_import_template') }}
                   </a>
                 </div>
 
                 <div class="input-group mb-2">
                   <input class="visually-hidden" type="file" name="file" accept=".csv" id="importFile" required />
-                  <label class="btn btn-outline-secondary mb-0" for="importFile">浏览...</label>
-                  <span class="form-control bg-body text-secondary" id="importFileName">未选择任何文件</span>
+                  <label class="btn btn-outline-secondary mb-0" for="importFile">{{ _('template.credentials.browse') }}...</label>
+                  <span class="form-control bg-body text-secondary" id="importFileName">{{ _('template.devices.no_file_selected') }}</span>
                 </div>
 
                 <div class="form-text small text-secondary">
-                  <i class="bi bi-info-circle me-1"></i>文件列名：
+                  <i class="bi bi-info-circle me-1"></i>{{ _('template.credentials.file_columns') }}：
                   <code class="text-dark bg-light px-1 rounded">name</code>,
                   <code class="text-dark bg-light px-1 rounded">host</code>,
                   <code class="text-dark bg-light px-1 rounded">port</code>,
-                  <code class="text-dark bg-light px-1 rounded">login_method</code>(可选),
+                  <code class="text-dark bg-light px-1 rounded">login_method</code>({{ _('template.credentials.optional') }}),
                   <code class="text-dark bg-light px-1 rounded">platform</code>,
-                  <code class="text-dark bg-light px-1 rounded">encoding</code>(可选),
-                  <code class="text-dark bg-light px-1 rounded">group_name</code>(可选),
+                  <code class="text-dark bg-light px-1 rounded">encoding</code>({{ _('template.credentials.optional') }}),
+                  <code class="text-dark bg-light px-1 rounded">group_name</code>({{ _('template.credentials.optional') }}),
                   <code class="text-dark bg-light px-1 rounded">credential_name</code>,
-                  <code class="text-dark bg-light px-1 rounded">default_template_name</code>(可选)
+                  <code class="text-dark bg-light px-1 rounded">default_template_name</code>({{ _('template.credentials.optional') }})
                 </div>
                 <script>
                   (function () {
                     const input = document.getElementById("importFile");
                     const nameEl = document.getElementById("importFileName");
                     if (!input || !nameEl) return;
-                    const translate = window.NB && typeof window.NB.translateLegacy === "function"
-                      ? window.NB.translateLegacy
-                      : (value) => value;
-                    nameEl.textContent = translate("未选择任何文件");
+                    const translate = (value) => value;
+                    nameEl.textContent = translate("{{ _('template.devices.no_file_selected') }}");
                     input.addEventListener("change", () => {
-                      nameEl.textContent = input.files && input.files.length ? input.files[0].name : translate("未选择任何文件");
+                      nameEl.textContent = input.files && input.files.length ? input.files[0].name : translate("{{ _('template.devices.no_file_selected') }}");
                     });
                   })();
                 </script>
@@ -548,26 +546,26 @@
               <!-- Options Section -->
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label fw-bold text-secondary mb-1">导入模式</label>
+                  <label class="form-label fw-bold text-secondary mb-1">{{ _('template.credentials.import_mode') }}</label>
                   <select class="form-select" name="mode">
-                    <option value="insert">仅新增 (Skip Existing)</option>
-                    <option value="upsert">新增或更新 (Upsert)</option>
+                    <option value="insert">{{ _('template.credentials.create_only') }} (Skip Existing)</option>
+                    <option value="upsert">{{ _('template.credentials.create_or_update') }} (Upsert)</option>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label fw-bold text-secondary mb-1">匹配字段</label>
+                  <label class="form-label fw-bold text-secondary mb-1">{{ _('template.devices.match_field') }}</label>
                   <select class="form-select" name="match_by">
-                    <option value="host_port">Host IP + 端口</option>
-                    <option value="name">设备名称</option>
+                    <option value="host_port">Host IP + {{ _('template.device_detail.port') }}</option>
+                    <option value="name">{{ _('email.field.device_name') }}</option>
                   </select>
                 </div>
               </div>
             </div>
 
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
               <button type="submit" class="btn btn-success px-4 shadow-sm">
-                <i class="bi bi-cloud-upload me-2"></i>开始导入
+                <i class="bi bi-cloud-upload me-2"></i>{{ _('template.credentials.start_import') }}
               </button>
             </div>
           </form>
@@ -584,9 +582,9 @@
           <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
             <h5 class="modal-title d-flex align-items-center">
               <i class="bi bi-pencil-square text-primary me-2"></i>
-              <span>批量修改设备</span>
+              <span>{{ _('template.devices.bulk_edit_devices') }}</span>
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
           </div>
           <form method="post" action="/devices/bulk_update">
             <div class="modal-body p-4">
@@ -595,31 +593,31 @@
               <div class="alert alert-warning border-0 shadow-sm small d-flex align-items-start mb-4">
                 <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
                 <div>
-                  此操作将修改 <span id="bulk-update-count" class="fw-bold">0</span> 台设备的属性，修改后无法撤销。
+                  {{ _('template.devices.this_action_will_modify') }} <span id="bulk-update-count" class="fw-bold">0</span> {{ _('template.devices.devices_67980de5') }}。
                 </div>
               </div>
 
               <div class="row g-4 align-items-start">
                 <div class="col-12 col-lg-5">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-sliders me-1"></i>修改字段
+                    <i class="bi bi-sliders me-1"></i>{{ _('template.devices.field_to_change') }}
                   </label>
                   <select class="form-select form-select-lg fs-6" name="field" id="bulk-update-field">
-                    <option value="group_id">所属分组</option>
-                    <option value="platform">平台类型</option>
-                    <option value="login_method">登录方式</option>
-                    <option value="credential_id">登录凭据</option>
-                    <option value="encoding">设备编码</option>
+                    <option value="group_id">{{ _('template.devices.group') }}</option>
+                    <option value="platform">{{ _('template.devices.platform') }}</option>
+                    <option value="login_method">{{ _('template.device_detail.login_method') }}</option>
+                    <option value="credential_id">{{ _('template.device_detail.login_credential') }}</option>
+                    <option value="encoding">{{ _('template.device_detail.device_encoding') }}</option>
                   </select>
                 </div>
 
                 <div class="col-12 col-lg-7" id="bulk-update-value-container">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-input-cursor-text me-1"></i>新值
+                    <i class="bi bi-input-cursor-text me-1"></i>{{ _('template.devices.new_value') }}
                   </label>
 
                   <select class="form-select form-select-lg fs-6" name="value" id="bulk-update-group-select">
-                    <option value="0">无分组</option>
+                    <option value="0">{{ _('template.devices.no_group') }}</option>
                     {% for g in groups %}
                       <option value="{{ g.id }}" data-depth="{{ g.depth }}" data-nb-label="{{ g.name }}" data-i18n-preserve>
                         {{ g.name }}
@@ -634,7 +632,7 @@
                   </select>
 
                   <select class="form-select form-select-lg fs-6 d-none" name="value" id="bulk-update-platform-select" disabled>
-                    <option value="" selected disabled>选择平台...</option>
+                    <option value="" selected disabled>{{ _('template.devices.selectplatform') }}...</option>
                     {% for p in ssh_platforms %}
                       <option value="{{ p.id }}">{{ p.label }}</option>
                     {% endfor %}
@@ -658,8 +656,8 @@
               </div>
             </div>
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">取消</button>
-              <button type="submit" class="btn btn-primary px-4 shadow-sm">保存修改</button>
+              <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+              <button type="submit" class="btn btn-primary px-4 shadow-sm">{{ _('template.device_detail.save_changes') }}</button>
             </div>
           </form>
         </div>

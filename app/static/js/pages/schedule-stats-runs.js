@@ -20,27 +20,15 @@
           return span.innerHTML;
         }
 
-        function tr(text) {
-          return window.NB && typeof window.NB.tr === "function" ? window.NB.tr(text) : text;
-        }
+        function tr(text) { return text; }
 
-        function trHtml(html) {
-          return window.NB && typeof window.NB.trHtml === "function" ? window.NB.trHtml(html) : html;
-        }
+        function trHtml(html) { return html; }
 
         function renderRuns(items) {
           if (!runsTbody) return;
           const rows = Array.isArray(items) ? items : [];
           if (!rows.length) {
-            runsTbody.innerHTML = trHtml(`
-              <tr>
-                <td colspan="8" class="text-center text-secondary py-5">
-                  <div class="my-3">
-                    <i class="bi bi-inbox fs-1 opacity-25"></i>
-                    <p class="mt-2 text-xs">暂无运行记录</p>
-                  </div>
-                </td>
-              </tr>`);
+            runsTbody.innerHTML = trHtml(NB.t("js.schedule_stats_runs.tr_td_colspan_8_class_text_center_text"));
             return;
           }
 
@@ -64,17 +52,17 @@
             let durationHtml = escapeText(r.duration_text || "—");
             if (!r.finished_at && statusMeta) {
               if (r.status === "running") {
-                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "运行中")}</span>`;
+                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_primary_i_class_bi_bi", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.running"))});
               } else if (r.status === "finalizing") {
-                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || "收尾中")}</span>`;
+                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_primary_i_class_bi_bi_357be361", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.finalizing"))});
               } else if (r.status === "cancelling") {
-                durationHtml = `<span class="text-warning"><i class="bi bi-slash-circle me-1"></i>${escapeText(statusMeta.label || r.duration_text || "终止中")}</span>`;
+                durationHtml = NB.t("js.schedule_stats_runs.span_class_text_warning_i_class_bi_bi", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.cancelling"))});
               } else if (window.NB && typeof window.NB.isActiveScheduleRunStatus === "function" && window.NB.isActiveScheduleRunStatus(r.status)) {
                 durationHtml = `<span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>${escapeText(statusMeta.label || r.duration_text || r.status || "")}</span>`;
               }
             }
             const actionHtml = canTerminateRuns && canTerminateRun(r.status)
-              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${tr(isTerminating ? "处理中..." : "终止未运行任务")}</button>`
+              ? NB.t("js.schedule_stats_runs.button_class_btn_btn_outline_danger_btn_sm", {value0: escapeText(r.id || ""), value1: isTerminating ? "disabled" : "", value2: isTerminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks")})
               : '<span class="text-secondary opacity-50 text-xs">—</span>';
 
             return `
@@ -100,7 +88,7 @@
                 </td>
                 <td class="text-nowrap">${statusHtml}</td>
                 <td class="text-nowrap">${actionHtml}</td>
-                <td class="text-truncate text-secondary text-xs error-summary-cell" title="${escapeText(r.error_message || "")}">${escapeText(r.error_summary || r.error_message || "")}</td>
+                <td class="text-truncate text-secondary text-xs error-summary-cell" title="${escapeText(r.error_summary || r.error_message || "")}">${escapeText(r.error_summary || r.error_message || "")}</td>
               </tr>`;
           }).join(""));
         }
@@ -115,7 +103,7 @@
               if (result.response && result.response.status === 404) {
                 stopPolling();
                 if (window.NB && typeof window.NB.showToast === "function") {
-                  window.NB.showToast(detail || "定时任务不存在", "warning");
+                  window.NB.showToast(detail || NB.t("js.schedule_stats_runs.schedule_not_found"), "warning");
                 }
               }
               return;
@@ -143,7 +131,7 @@
             const result = await window.NB.api.request(`/api/schedules/runs/${encodeURIComponent(rid)}/terminate`, { method: "POST" });
             const data = result.data || null;
             if (!result.ok) {
-              const msg = await window.NB.api.extractErrorDetail(result.response, "终止失败");
+              const msg = await window.NB.api.extractErrorDetail(result.response, NB.t("js.schedule_stats_runs.cancellation_failed"));
               throw new Error(msg);
             }
             if (data && data.message && window.NB && typeof window.NB.showToast === "function") {
@@ -154,7 +142,7 @@
           } catch (e) {
             console.error(e);
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("终止失败: " + e.message, "error");
+              window.NB.showToast(NB.t("js.nb_common.cancellation_failed") + e.message, "error");
             }
           } finally {
             terminatingRunIds.delete(rid);
@@ -166,13 +154,13 @@
           if (!btn) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = trHtml('<span class="spinner-border spinner-border-sm me-1"></span>执行中');
+          btn.innerHTML = trHtml(NB.t("js.schedule_stats_runs.span_class_spinner_border_spinner_border_sm_me"));
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};
             if (!result.ok) {
               const detail = await window.NB.api.extractErrorDetail(result.response, "");
-              throw new Error(detail || "执行失败");
+              throw new Error(detail || NB.t("js.schedule_stats_runs.execution_failed"));
             }
             const records = (data && data.records) || [];
             const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
@@ -188,20 +176,20 @@
                 if (enqueueWarning) {
                   window.NB.showToast(enqueueWarning, "warning");
                 } else if (enqueueStatus === "partial") {
-                  window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
+                  window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks_some_tasks_failed_to_queue"), "warning");
                 } else {
-                  window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+                  window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks"), "info");
                 }
               }
               ensurePolling();
               await refreshRuns();
             } else if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("没有找到需要备份的设备", "warning");
+              window.NB.showToast(NB.t("js.schedule_stats_runs.no_devices_found_for_backup"), "warning");
             }
           } catch (e) {
             console.error(e);
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("手动执行失败: " + e.message, "error");
+              window.NB.showToast(NB.t("js.schedule_stats_runs.manual_execution_failed") + e.message, "error");
             }
           } finally {
             btn.disabled = false;
@@ -222,9 +210,9 @@
             if (!runId) return;
             if (window.NB && typeof window.NB.confirm === "function") {
               window.NB.confirm({
-                title: "确认终止",
-                message: "确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。",
-                confirmBtnText: "确认终止",
+                title: NB.t("js.nb_common.confirm_cancellation"),
+                message: NB.t("js.nb_common.cancel_tasks_in_this_run_that_have_not"),
+                confirmBtnText: NB.t("js.nb_common.confirm_cancellation"),
                 confirmBtnClass: "btn-danger",
                 onConfirm: () => {
                   terminatePendingTasks(runId);
@@ -232,7 +220,7 @@
               });
               return;
             }
-            if (window.confirm("确认终止本次运行中尚未开始的任务吗？已在执行中的任务将继续完成。")) {
+            if (window.confirm(NB.t("js.nb_common.cancel_tasks_in_this_run_that_have_not"))) {
               terminatePendingTasks(runId);
             }
           });

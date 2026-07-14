@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-      const tr = (text) => window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+      const tr = (text) => text;
       const initialRootContainer = document.getElementById('terminal-container');
       const reconnectBtn = document.getElementById('btn-reconnect');
       const exportBtn = document.getElementById('btn-export-log');
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
               cfg.username = manualUsernameInput.value.trim();
               cfg.password = manualPasswordInput.value;
               if (!cfg.username) {
-                  alert(tr('请输入用户名'));
+                  alert(tr(NB.t("template.login.enter_username")));
                   manualUsernameInput.focus();
                   return;
               }
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const splitVBtn = document.createElement('button');
               splitVBtn.className = 'pane-btn';
-              splitVBtn.title = tr('左右分栏');
+              splitVBtn.title = tr(NB.t("template.webshell.side_by_side"));
               splitVBtn.innerHTML = '<i class="bi bi-layout-split"></i>';
               splitVBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const splitHBtn = document.createElement('button');
               splitHBtn.className = 'pane-btn';
-              splitHBtn.title = tr('上下分栏');
+              splitHBtn.title = tr(NB.t("template.webshell.stacked"));
               splitHBtn.innerHTML = '<i class="bi bi-hdd-stack"></i>';
               splitHBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const closeBtn = document.createElement('button');
               closeBtn.className = 'pane-btn btn-close-pane';
-              closeBtn.title = tr('关闭此分栏');
+              closeBtn.title = tr(NB.t("js.webshell.close_this_pane"));
               closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
               closeBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -358,7 +358,7 @@ document.addEventListener('DOMContentLoaded', function() {
               }
 
               this.terminal.clear();
-              this.writeLine(tr('正在连接...'));
+              this.writeLine(tr(NB.t("js.webshell.connecting")));
 
               if (refreshToken) {
                   await refreshWebshellToken(this.tab);
@@ -387,12 +387,12 @@ document.addEventListener('DOMContentLoaded', function() {
                           this.terminal.write(payload.data || '');
                       } else if (payload.type === 'status') {
                           let msg = payload.message || '';
-                          if (msg.includes('连接成功') && this.connectionStartTime > 0) {
+                          if (msg.includes(NB.t("js.webshell.connected")) && this.connectionStartTime > 0) {
                               const duration = Date.now() - this.connectionStartTime;
-                              msg += ` (耗时: ${formatDuration(duration)})`;
+                              msg += NB.t("js.webshell.duration_value0", {value0: formatDuration(duration)});
                               this.connectionStartTime = 0;
                           }
-                          this.writeLine(`\r\n[${tr('系统')}] ${tr(msg)}`);
+                          this.writeLine(NB.t("js.webshell.r_n_value0_value1", {value0: NB.t("js.webshell.system"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
@@ -406,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
                           }
                       } else if (payload.type === 'error') {
                           const msg = payload.message || '';
-                          this.writeLine(`\r\n[${tr('错误')}] ${tr(msg)}`);
+                          this.writeLine(NB.t("js.webshell.r_n_value0_value1", {value0: NB.t("js.webshell.error"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
@@ -431,17 +431,17 @@ document.addEventListener('DOMContentLoaded', function() {
                           if (ok) {
                               this.connect({ refreshToken: false, resetAuthRetry: false });
                           } else {
-                              this.writeLine('\r\n' + tr('连接已关闭'));
+                              this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_closed")));
                           }
                       });
                       return;
                   }
-                  this.writeLine('\r\n' + tr('连接已关闭'));
+                  this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_closed")));
                   this.clearInactivityTimer();
               };
 
               this.socket.onerror = () => {
-                  this.writeLine('\r\n' + tr('连接异常'));
+                  this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_error")));
                   this.clearInactivityTimer();
               };
           }
@@ -484,7 +484,7 @@ document.addEventListener('DOMContentLoaded', function() {
           handleInactivity() {
               if (this.autoDisconnected) return;
               this.autoDisconnected = true;
-              this.writeLine('\r\n[' + tr('系统') + '] ' + tr('由于 5 分钟无活动，连接已自动断开'));
+              this.writeLine('\r\n[' + tr(NB.t("js.webshell.system")) + '] ' + tr(NB.t("js.webshell.disconnected_after_5_minutes_of_inactivity")));
               if (this.socket && this.socket.readyState === 1) {
                   this.socket.close();
               }
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (this.tab.sessions.size === 0) {
                   const btn = document.createElement('button');
                   btn.className = 'btn btn-primary';
-                  btn.textContent = tr('开启新会话');
+                  btn.textContent = tr(NB.t("js.webshell.open_new_session"));
                   btn.onclick = () => createSession(this.tab);
                   
                   const wrapper = document.createElement('div');
@@ -812,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const el = document.createElement('div');
           el.className = 'webshell-tab';
           el.dataset.deviceId = String(tab.device.id);
-          el.innerHTML = `<span class="webshell-tab-title" data-i18n-preserve>${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="${escapeHtml(tr('关闭'))}"><i class="bi bi-x"></i></span>`;
+          el.innerHTML = `<span class="webshell-tab-title" data-i18n-preserve>${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="${escapeHtml(tr(NB.t("template.base.close")))}"><i class="bi bi-x"></i></span>`;
           el.addEventListener('click', () => activateTab(tab));
           const closeEl = el.querySelector('.webshell-tab-close');
           if (closeEl) {

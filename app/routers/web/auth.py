@@ -540,7 +540,7 @@ def profile_change_password(
     crud.update_user(session, user.id, password=new_password)
     _log_action(request, session, "CHANGE_PASSWORD", "user", user.id, f"User {user.username} changed password via profile")
 
-    return RedirectResponse(url="/profile?msg=密码已修改", status_code=303)
+    return RedirectResponse(url="/profile?msg=message.password_changed", status_code=303)
 
 
 @router.get("/logout", summary="退出登录", description="注销当前用户并清除 Session")
@@ -624,7 +624,7 @@ def upsert_user(
             recovery_codes=result.recovery_codes,
             edit_id=int(user_id or (result.user.id if result.user else 0)),
         )
-    return RedirectResponse(url="/users?msg=已保存", status_code=303)
+    return RedirectResponse(url="/users?msg=message.saved", status_code=303)
 
 
 @router.post("/users/{user_id}/delete", summary="删除用户", description="删除指定用户（admin不可删除）", tags=["系统设置 (System)"])
@@ -636,7 +636,7 @@ def delete_user(request: Request, user_id: int, csrf_protect: CsrfProtect = Depe
     except identity_service.ServiceError as exc:
         return RedirectResponse(url=f"/users?err={exc.message}", status_code=303)
     _log_action(request, session, "DELETE_USER", "user", user_id, f"Username: {username}")
-    return RedirectResponse(url="/users?msg=已删除", status_code=303)
+    return RedirectResponse(url="/users?msg=message.deleted", status_code=303)
 
 
 @router.get("/roles", summary="角色管理页面", description="查看系统中所有角色的列表", tags=["系统设置 (System)"])
@@ -689,7 +689,7 @@ def upsert_role(
     log_action = "UPDATE_ROLE" if action == "update" else "CREATE_ROLE"
     log_target_id = role_id if action == "update" else role_obj.id
     _log_action(request, session, log_action, "role", log_target_id, f"Name: {role_obj.name}, Code: {role_obj.code}")
-    return RedirectResponse(url="/roles?msg=已保存", status_code=303)
+    return RedirectResponse(url="/roles?msg=message.saved", status_code=303)
 
 
 @router.post("/roles/{role_id}/delete", summary="删除角色", description="删除指定角色（系统内置角色不可删除）", tags=["系统设置 (System)"])
@@ -701,4 +701,4 @@ def delete_role(request: Request, role_id: int, csrf_protect: CsrfProtect = Depe
     except identity_service.ServiceError as exc:
         return RedirectResponse(url=f"/roles?err={exc.message}", status_code=303)
     _log_action(request, session, "DELETE_ROLE", "role", role_id, f"Name: {role.name}, Code: {role.code}")
-    return RedirectResponse(url="/roles?msg=已删除", status_code=303)
+    return RedirectResponse(url="/roles?msg=message.deleted", status_code=303)

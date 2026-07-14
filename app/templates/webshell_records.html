@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import render_pagination with context %}
-{% set page_title = "Webshell 回放" %}
-{% set page_subtitle = "查看和回放 WebShell 的操作录像" %}
+{% set page_title = _('nav.webshell_records') %}
+{% set page_subtitle = _('page.webshell_records.subtitle') %}
 {% set can_webshell_records = has_permission('webshell_records.view') %}
 
 {% block content %}
@@ -22,15 +22,15 @@
                 <div class="col-md-4 col-sm-6">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light border-end-0 py-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
-                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="搜索用户名或设备信息..." value="{{ q }}" />
+                        <input name="q" class="form-control border-start-0 ps-0 filter-control-sm" placeholder="{{ _('template.webshell_records.search_username_or_device_information') }}..." value="{{ q }}" />
                     </div>
                 </div>
                 <div class="col-md-auto col-sm-6 d-flex gap-2">
                     <button class="btn btn-sm btn-primary d-flex align-items-center justify-content-center px-3 filter-control-sm" type="submit">
-                        <i class="bi bi-funnel-fill me-1"></i>筛选
+                        <i class="bi bi-funnel-fill me-1"></i>{{ _('template.audit_logs.filter') }}
                     </button>
                     <a href="/webshell-records" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center px-3 filter-control-sm">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('template.audit_logs.reset') }}
                     </a>
                 </div>
             </form>
@@ -40,14 +40,14 @@
             <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
                 <thead class="bg-light text-secondary">
                     <tr>
-                        <th style="width: 60px;" class="fw-medium border-bottom-0">序号</th>
-                        <th style="width: 150px;" class="fw-medium border-bottom-0">操作用户名</th>
-                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备名</th>
-                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备IP</th>
-                        <th style="width: 150px;" class="fw-medium border-bottom-0">设备登录名</th>
-                        <th style="width: 180px;" class="fw-medium border-bottom-0">开始时间</th>
-                        <th style="width: 120px;" class="fw-medium border-bottom-0">录像时长</th>
-                        <th style="width: 100px;" class="fw-medium border-bottom-0">操作</th>
+                        <th style="width: 60px;" class="fw-medium border-bottom-0">{{ _('template.audit_logs.no') }}</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">{{ _('template.webshell_records.username') }}</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">{{ _('template.webshell_records.device_name') }}</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">{{ _('audit.resource.device') }}IP</th>
+                        <th style="width: 150px;" class="fw-medium border-bottom-0">{{ _('template.webshell_records.device_login_name') }}</th>
+                        <th style="width: 180px;" class="fw-medium border-bottom-0">{{ _('template.dashboard.start_time') }}</th>
+                        <th style="width: 120px;" class="fw-medium border-bottom-0">{{ _('template.webshell_records.recording_duration') }}</th>
+                        <th style="width: 100px;" class="fw-medium border-bottom-0">{{ _('audit.csv.action') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,10 +95,10 @@
                         <td>
                             {% if can_webshell_records %}
                             <button class="btn btn-sm btn-success d-flex align-items-center justify-content-center rounded-pill px-3" style="height: 28px; font-size: 12px; background-color: #20c997; border-color: #20c997;" onclick="playRecord({{ record.id }}, '{{ record.device_name | replace('\'', '\\\'') }}', '{{ record.device_host | replace('\'', '\\\'') }}', '{{ record.started_at | dt_local }}', {{ record.duration or 0 }}, '{{ record.username | replace('\'', '\\\'') }}', '{{ record.device_login_name or '' | replace('\'', '\\\'') }}')">
-                                <i class="bi bi-play-fill me-1"></i>回放
+                                <i class="bi bi-play-fill me-1"></i>{{ _('template.base.playback') }}
                             </button>
                             {% else %}
-                            <span class="text-muted small">无权限</span>
+                            <span class="text-muted small">{{ _('template.api_keys.permission_denied') }}</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -107,8 +107,8 @@
                         <td colspan="8" class="text-center py-5">
                             <div class="text-muted my-4">
                                 <i class="bi bi-film fs-1 d-block mb-3 text-secondary opacity-50"></i>
-                                <h6 class="fw-medium text-secondary mb-1">暂无录像记录</h6>
-                                <p class="small mb-0 opacity-75">未找到符合条件的 Webshell 操作录像</p>
+                                <h6 class="fw-medium text-secondary mb-1">{{ _('template.webshell_records.no_recordings') }}</h6>
+                                <p class="small mb-0 opacity-75">{{ _('template.webshell_records.not_found_items') }} Webshell {{ _('template.webshell_records.actions') }}</p>
                             </div>
                         </td>
                     </tr>
@@ -117,7 +117,7 @@
             </table>
         </div>
 
-        {{ render_pagination(pagination, pagination_base, "条录像记录") }}
+        {{ render_pagination(pagination, pagination_base, _('template.webshell_records.recordings')) }}
     </div>
 </div>
 
@@ -128,7 +128,7 @@
       <div class="modal-header border-bottom border-secondary bg-dark py-3 px-4 d-flex justify-content-between align-items-start">
         <div class="d-flex flex-column gap-2">
             <h5 class="modal-title fw-semibold d-flex align-items-center mb-0 text-white" id="playbackModalTitle">
-                <i class="bi bi-terminal me-2 text-info"></i>Webshell 回放
+                <i class="bi bi-terminal me-2 text-info"></i>Webshell {{ _('template.base.playback') }}
             </h5>
             <div class="d-flex flex-wrap gap-4 text-secondary" style="font-size: 0.85rem;">
                 <div class="d-flex align-items-center"><i class="bi bi-pc-display me-1 text-primary opacity-75"></i><span id="metaDevice"></span></div>
@@ -138,7 +138,7 @@
         </div>
         <div class="d-flex align-items-center mt-1">
                 <div class="d-flex align-items-center me-3 bg-secondary bg-opacity-25 rounded-pill px-3 py-1">
-                    <label for="playbackSpeed" class="form-label mb-0 me-2 small text-light fw-medium"><i class="bi bi-speedometer2 me-1"></i>倍速</label>
+                    <label for="playbackSpeed" class="form-label mb-0 me-2 small text-light fw-medium"><i class="bi bi-speedometer2 me-1"></i>{{ _('template.webshell_records.speed') }}</label>
                     <select class="form-select form-select-sm bg-transparent text-white border-0 shadow-none fw-bold py-0 ps-1 pe-4" id="playbackSpeed" style="width: 75px; background-image: url('data:image/svg+xml,%3csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3e%3cpath fill=%22none%22 stroke=%22%23ffffff%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22m2 5 6 6 6-6%22/%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.25rem center; background-size: 12px 12px; cursor: pointer; font-size: 0.85rem;">
                         <option value="0.5" class="text-dark">0.5x</option>
                         <option value="1" selected class="text-dark">1.0x</option>
@@ -182,9 +182,7 @@ let isMaximized = false;
     return span.innerHTML;
   }
 
-  function tr(text) {
-    return window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
-  }
+  function tr(text) { return text; }
 
 document.addEventListener('DOMContentLoaded', () => {
     const modalEl = document.getElementById('playbackModal');
@@ -247,9 +245,9 @@ function playRecord(id, deviceName, deviceHost, startedAt, duration, username, l
         }
     }
     
-    document.getElementById('metaDevice').innerHTML = `${tr('设备')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(deviceName)}</span> <span class="text-info opacity-75 font-monospace ms-1" data-i18n-preserve>[${escapeText(deviceHost)}]</span>`;
-    document.getElementById('metaUser').innerHTML = `${tr('操作用户')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(username)}</span> <span class="mx-1 opacity-50">/</span> ${tr('登录名')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(loginName || '-')}</span>`;
-    document.getElementById('metaTime').innerHTML = `${tr('时间')}: <span class="text-light fw-medium" data-i18n-preserve>${startedAt}${endTimeStr}</span> <span class="mx-1 opacity-50">|</span> ${tr('历时')}: <span class="text-light fw-medium">${formatDuration(duration)}</span>`;
+    document.getElementById('metaDevice').innerHTML = `${tr('{{ _('audit.resource.device') }}')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(deviceName)}</span> <span class="text-info opacity-75 font-monospace ms-1" data-i18n-preserve>[${escapeText(deviceHost)}]</span>`;
+    document.getElementById('metaUser').innerHTML = `${tr('{{ _('template.audit_logs.user') }}')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(username)}</span> <span class="mx-1 opacity-50">/</span> ${tr('{{ _('template.webshell_records.login_name') }}')}: <span class="text-light fw-medium" data-i18n-preserve>${escapeText(loginName || '-')}</span>`;
+    document.getElementById('metaTime').innerHTML = `${tr('{{ _('audit.csv.time') }}')}: <span class="text-light fw-medium" data-i18n-preserve>${startedAt}${endTimeStr}</span> <span class="mx-1 opacity-50">|</span> ${tr('{{ _('template.webshell_records.elapsed') }}')}: <span class="text-light fw-medium">${formatDuration(duration)}</span>`;
     
     document.getElementById('playbackSpeed').value = "1";
     

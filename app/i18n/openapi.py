@@ -8,7 +8,6 @@ from fastapi.openapi.utils import get_openapi
 
 from app.i18n.catalog import has_key, translate
 from app.i18n.validators import normalize_locale
-from app.i18n.legacy import translate_legacy_text
 
 
 _TRANSLATABLE_FIELDS = {"title", "description", "summary"}
@@ -28,33 +27,36 @@ def _operation_label(operation: dict[str, Any], method: str, path: str) -> str:
     return f"{method.upper()} {path}"
 
 
-def _localize_legacy_openapi(schema: dict[str, Any], locale: str) -> None:
-    if locale != "en-US":
-        return
-    tag_names = {
-        "设备管理": "Devices",
-        "分组管理": "Groups",
-        "凭据管理": "Credentials",
-        "备份管理": "Backups",
-        "其它": "Other",
+def _localize_openapi_operations(schema: dict[str, Any], locale: str) -> None:
+    tag_keys = {
+        "设备管理": "openapi.tag.devices",
+        "分组管理": "openapi.tag.groups",
+        "凭据管理": "openapi.tag.credentials",
+        "备份管理": "openapi.tag.backups",
+        "其它": "openapi.tag.other",
     }
     for tag in schema.get("tags") or []:
         name = str(tag.get("name") or "")
-        if _contains_han(name):
-            tag["name"] = tag_names.get(name, "Other")
+        key = tag_keys.get(name, name if name.startswith("openapi.tag.") else "")
+        if key:
+            tag["name"] = translate(locale, key, fallback=name)
         description = str(tag.get("description") or "")
-        if _contains_han(description):
+        if locale == "en-US" and _contains_han(description):
             tag["description"] = f"API endpoints for {tag['name'].lower()}"
     for path, path_item in (schema.get("paths") or {}).items():
         for method, operation in path_item.items():
             if method not in _HTTP_METHODS or not isinstance(operation, dict):
                 continue
             label = _operation_label(operation, method, path)
-            if _contains_han(str(operation.get("summary") or "")):
+            if locale == "en-US" and _contains_han(str(operation.get("summary") or "")):
                 operation["summary"] = label
-            if _contains_han(str(operation.get("description") or "")):
+            if locale == "en-US" and _contains_han(str(operation.get("description") or "")):
                 operation["description"] = f"{label}."
-            operation["tags"] = [tag_names.get(tag, "Other") if _contains_han(tag) else tag for tag in operation.get("tags") or []]
+            operation["tags"] = [
+                translate(locale, tag_keys.get(tag, tag), fallback=tag)
+                if tag in tag_keys or str(tag).startswith("openapi.tag.") else tag
+                for tag in operation.get("tags") or []
+            ]
 
 
 def _translate_schema_value(value: Any, locale: str, field: str | None = None) -> Any:
@@ -65,8 +67,7 @@ def _translate_schema_value(value: Any, locale: str, field: str | None = None) -
     if isinstance(value, str) and field in _TRANSLATABLE_FIELDS and has_key(value, locale):
         return translate(locale, value, fallback=value)
     if isinstance(value, str) and field in _TRANSLATABLE_FIELDS and locale == "en-US" and _contains_han(value):
-        localized = translate_legacy_text(value, locale)
-        return localized if not _contains_han(localized) else f"API {field}"
+        return f"API {field}"
     return value
 
 
@@ -87,5 +88,5 @@ def build_openapi_schema(app, locale: str) -> dict[str, Any]:
     schema = deepcopy(_cached_schema(id(app), normalized, app.title, app.version, app.description or "", len(app.routes)))
     schema.setdefault("info", {})["title"] = translate(normalized, "openapi.title", fallback=app.title)
     schema["info"]["description"] = translate(normalized, "openapi.description", fallback=app.description or "")
-    _localize_legacy_openapi(schema, normalized)
+    _localize_openapi_operations(schema, normalized)
     return schema

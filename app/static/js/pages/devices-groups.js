@@ -1,5 +1,5 @@
 const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.groupItems) || [];
-        const tr = (text) => window.NB && typeof window.NB.tr === 'function' ? window.NB.tr(text) : text;
+        const tr = (text) => text;
 
         function escapeText(text) {
             const span = document.createElement('span');
@@ -144,7 +144,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
               this.searchInput.type = 'text';
               this.searchInput.className = 'form-control form-control-sm'; // 去掉 mb-2，由容器 padding 控制
               this.searchInput.style.fontSize = '13px'; // 搜索框字体
-              this.searchInput.placeholder = tr('搜索...');
+              this.searchInput.placeholder = tr(NB.t("js.devices_groups.search"));
               this.searchInput.addEventListener('click', (e) => e.stopPropagation());
               searchContainer.appendChild(this.searchInput);
               this.menu.appendChild(searchContainer);
@@ -192,7 +192,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
               if (!hasVisibleOption) {
                   const li = document.createElement('li');
                   li.className = 'dropdown-item disabled text-muted text-center small';
-                  li.textContent = tr('无匹配项');
+                  li.textContent = tr(NB.t("js.devices_groups.no_matches"));
                   this.optionsList.appendChild(li);
               }
             }
@@ -247,14 +247,14 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
                   filterGroupIdInput.value = nodeId;
                   const selectedText = document.getElementById('filterGroupSelectedText');
                   if (nodeId == 0) {
-                      selectedText.textContent = tr('所属分组: 全部');
+                      selectedText.textContent = tr(NB.t("js.devices_groups.group_all"));
                   } else {
                       const selectedGroup = groupItems.find(g => g.id == nodeId);
-                      selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : tr('所属分组: 全部');
+                      selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : tr(NB.t("js.devices_groups.group_all"));
                   }
 
                   const treeData = [
-                      { id: 0, name: tr('所属分组: 全部'), depth: 0, children: [] },
+                      { id: 0, name: tr(NB.t("js.devices_groups.group_all")), depth: 0, children: [] },
                       ...buildTree(groupItems)
                   ];
 

@@ -28,7 +28,6 @@ from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
 from app.i18n import get_current_locale, translate, validate_catalogs
-from app.i18n.legacy import translate_legacy_text
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale, set_locale_cookie
 from app.i18n.openapi import build_openapi_schema
 
@@ -85,11 +84,11 @@ app = FastAPI(
     description="Network Backup 系统 API 接口文档，包含设备管理、分组管理、凭据管理等功能。",
     version=settings.app_version.lstrip("vV"),
     openapi_tags=[
-        {"name": "设备管理"},
-        {"name": "分组管理"},
-        {"name": "凭据管理"},
-        {"name": "备份管理"},
-        {"name": "其它"},
+        {"name": "openapi.tag.devices"},
+        {"name": "openapi.tag.groups"},
+        {"name": "openapi.tag.credentials"},
+        {"name": "openapi.tag.backups"},
+        {"name": "openapi.tag.other"},
     ],
     lifespan=lifespan,
     docs_url=None,
@@ -163,7 +162,6 @@ def _api_error_json(
         params,
         fallback=message or code,
     )
-    localized_message = translate_legacy_text(str(localized_message), response_locale)
     if response_locale == "en-US" and any("\u4e00" <= char <= "\u9fff" for char in localized_message):
         localized_message = code.replace("_", " ").strip().capitalize()
     response = JSONResponse(

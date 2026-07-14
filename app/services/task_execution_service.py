@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class BackupExecutionContext:
     record_id: UUID
-    run_id: UUID | None
     device_id: int
     task_id: str
     request_id: str
@@ -40,6 +39,7 @@ class BackupExecutionContext:
     effective_template_id: int | None
     template_commands: str | None
     secrets: dict[str, str | None]
+    run_id: UUID | None = None
 
 
 @dataclass(slots=True)
