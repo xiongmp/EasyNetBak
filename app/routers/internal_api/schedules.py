@@ -81,7 +81,11 @@ def api_toggle_schedule(request: Request, schedule_id: int, session: Session = D
     session.commit()
     sync_scheduler_from_db()
     try:
-        next_run = schedule_service.get_schedule_next_run_payload(session, schedule_id=int(schedule_id))
+        next_run = schedule_service.get_schedule_next_run_payload(
+            session,
+            schedule_id=int(schedule_id),
+            locale=request.state.locale,
+        )
     except schedule_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return {"success": True, "enabled": new_status, "next_run": next_run}

@@ -191,7 +191,7 @@
                 <td class="text-start text-nowrap">
                   {% if nr %}
                     <div class="small fw-medium js-next-run {% if nr.tone == 'danger' %}text-danger{% elif nr.tone == 'primary' %}text-primary{% else %}text-secondary{% endif %}">
-                      <i class="bi bi-clock me-1"></i>{{ _(nr.text, fallback=nr.text) }}
+                      <i class="bi bi-clock me-1"></i><span data-i18n-preserve>{{ nr.text }}</span>
                     </div>
                   {% else %}
                     <span class="text-muted x-small italic">-</span>
@@ -446,6 +446,6 @@
   <script src="/static/js/cronstrue-i18n.min.js"></script>
   <script src="/static/js/pages/schedules-cron.js"></script>
   {% if can_schedule_update %}
-    <script src="/static/js/pages/schedules.js?v={{ app_version }}-i18n-prepaint-2"></script>
+    <script src="/static/js/pages/schedules.js?v={{ app_version }}-i18n-next-run-3"></script>
   {% endif %}
 {% endblock %}

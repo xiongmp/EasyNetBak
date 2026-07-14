@@ -138,12 +138,18 @@ document.addEventListener('DOMContentLoaded', function() {
           if (btnSelected) btnSelected.disabled = true;
           if (btnAll) btnAll.disabled = true;
           if (backupModeInput) backupModeInput.value = mode;
+          if (window.NB && typeof window.NB.beginBackupTracking === 'function') {
+            window.NB.beginBackupTracking();
+          }
 
           const fd = new FormData(bulkBackupForm);
           try {
             const result = await window.NB.api.request('/api/devices/bulk_backup', { method: 'POST', body: fd });
             const data = result.data || {};
             if (!result.ok) {
+              if (window.NB && typeof window.NB.cancelPendingBackupTracking === 'function') {
+                window.NB.cancelPendingBackupTracking();
+              }
               const detail = await window.NB.api.extractErrorDetail(result.response, '');
               if (window.NB && typeof window.NB.showToast === 'function') {
                 window.NB.showToast(detail || '??????', 'error');
@@ -170,6 +176,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
               }
             } else {
+              if (window.NB && typeof window.NB.cancelPendingBackupTracking === 'function') {
+                window.NB.cancelPendingBackupTracking();
+              }
               if (window.NB && typeof window.NB.showToast === 'function') {
                 window.NB.showToast(NB.t("js.devices_bulk.no_devices_available_for_backup"), 'warning');
               }
@@ -177,6 +186,9 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBulkAll();
             if (btnAll) btnAll.disabled = false;
           } catch (err) {
+            if (window.NB && typeof window.NB.cancelPendingBackupTracking === 'function') {
+              window.NB.cancelPendingBackupTracking();
+            }
             if (window.NB && typeof window.NB.showToast === 'function') {
               window.NB.showToast(NB.t("js.devices_bulk.request_failed") + err.message, 'error');
             }

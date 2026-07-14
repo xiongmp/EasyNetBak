@@ -42,7 +42,8 @@
                 <td data-i18n-preserve>{{ u.username }}</td>
                 <td>
                   {% set role_info = role_map.get(u.role) %}
-                  {% set role_label = role_info.name if role_info else u.role %}
+                  {% set stored_role_label = role_info.name if role_info else u.role %}
+                  {% set role_label = role_labels.get(u.role, stored_role_label) %}
                   {% if u.role in admin_role_codes %}
                     <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system and u.role not in admin_role_codes %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-badge-fill"></i>{{ role_label }}
@@ -160,8 +161,10 @@
                     <option value="" selected disabled>{{ _('template.users.select_a_role') }}</option>
                   {% endif %}
                   {% for r in roles %}
-                    <option value="{{ r.code }}" data-nb-label="{{ (r.name ~ (' (Full Access)' if r.is_admin else ''))|e }}" {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %} {% if current and current.role == r.code %}selected{% endif %}>
-                      {{ r.name }}{% if r.is_admin %} (Full Access){% endif %}
+                    {% set role_display_name = role_labels.get(r.code, r.name) if r.is_system or r.code in admin_role_codes else r.name %}
+                    {% set role_option_label = role_display_name ~ (' (' ~ _('role.full_access') ~ ')' if r.is_admin else '') %}
+                    <option value="{{ r.code }}" data-nb-label="{{ role_option_label|e }}" {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %} {% if current and current.role == r.code %}selected{% endif %}>
+                      {{ role_option_label }}
                     </option>
                   {% endfor %}
                 </select>

@@ -261,6 +261,7 @@ def _build_next_run_payload(
     schedules: list[BackupSchedule],
     *,
     timezone_offset: str | None,
+    locale: str | None = None,
 ) -> dict[int, dict[str, str]]:
     tz_value = normalize_timezone_offset(timezone_offset, default=settings.timezone_offset)
     offset_minutes = parse_timezone_offset_to_minutes(tz_value) or 0
@@ -273,23 +274,23 @@ def _build_next_run_payload(
             continue
         schedule_id = int(schedule.id)
         if not bool(schedule.enabled):
-            next_runs[schedule_id] = {"text": "已禁用", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.disabled"), "tone": "secondary"}
             continue
 
         crontab = (schedule.crontab or "").strip()
         if not crontab:
-            next_runs[schedule_id] = {"text": "未配置", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.not_configured"), "tone": "secondary"}
             continue
 
         try:
             trigger = CronTrigger.from_crontab(crontab, timezone=tzinfo)
             next_fire_time = trigger.get_next_fire_time(None, now)
         except Exception:
-            next_runs[schedule_id] = {"text": "Cron 无效", "tone": "danger"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.invalid_cron"), "tone": "danger"}
             continue
 
         if next_fire_time is None:
-            next_runs[schedule_id] = {"text": "无后续执行", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.none"), "tone": "secondary"}
             continue
 
         next_runs[schedule_id] = {
@@ -300,14 +301,19 @@ def _build_next_run_payload(
     return next_runs
 
 
-def get_schedule_next_run_payload(session: Session, *, schedule_id: int) -> dict[str, str]:
+def get_schedule_next_run_payload(
+    session: Session,
+    *,
+    schedule_id: int,
+    locale: str | None = None,
+) -> dict[str, str]:
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
         raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     timezone_offset = crud.get_setting(session, key="timezone_offset")
-    return _build_next_run_payload([schedule], timezone_offset=timezone_offset).get(
+    return _build_next_run_payload([schedule], timezone_offset=timezone_offset, locale=locale).get(
         int(schedule_id),
-        {"text": "未知", "tone": "secondary"},
+        {"text": translate(locale, "schedule.next_run.unknown"), "tone": "secondary"},
     )
 
 
@@ -318,6 +324,7 @@ def get_schedule_page_payload(
     limit: int = 10,
     edit_id: str | None = None,
     include_limit_param: bool = False,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     params = pagination_service.normalize_pagination_params(
         page=page,
@@ -370,7 +377,7 @@ def get_schedule_page_payload(
         "group_map": group_map,
         "device_map": {d.id: d.name for d in devices if d.id},
         "last_runs": crud.list_latest_schedule_runs(session, [int(schedule.id) for schedule in items if schedule.id]),
-        "next_runs": _build_next_run_payload(items, timezone_offset=timezone_offset),
+        "next_runs": _build_next_run_payload(items, timezone_offset=timezone_offset, locale=locale),
         "pagination": pagination.as_dict(),
         "pagination_base": pagination_base,
     }

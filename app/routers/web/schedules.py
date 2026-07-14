@@ -29,6 +29,7 @@ def schedules_page(request: Request, session: Session = Depends(get_session)):
         limit=list_query.limit,
         edit_id=list_query.edit,
         include_limit_param=list_query.include_limit_param,
+        locale=request.state.locale,
     )
 
     return templates.TemplateResponse(

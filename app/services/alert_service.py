@@ -12,6 +12,7 @@ from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minute
 from app.models import BackupRecord, Device
 from app.services.notification_service import send_email
 from app.services import task_state_service
+from app.services.backup_error_service import localize_backup_error_message
 from app.i18n import get_current_locale, translate
 from app.i18n.email import render_email_template
 from app.i18n.validators import normalize_locale
@@ -407,6 +408,11 @@ def _handle_failure_alert(session: Session, device: Device, record: BackupRecord
             "record": record,
             "backup_time": _format_datetime(record.started_at, session),
             "duration": duration_str,
+            "error_message": localize_backup_error_message(
+                record.error_message,
+                record.failure_type,
+                locale=locale,
+            ) or translate(locale, "email.unknown_error"),
         },
     )
     return _send_alert_email(subject, content, mode="failure", reason="failure_rule_matched", locale=locale)
@@ -473,7 +479,12 @@ def _handle_config_change_alert(session: Session, device: Device, record: Backup
         reason="no_config_change",
     )
 
-def check_and_alert_batch(session: Session, run_id: UUID):
+def check_and_alert_batch(
+    session: Session,
+    run_id: UUID,
+    *,
+    records: list[BackupRecord] | None = None,
+):
     """
     检查批量备份任务并发送汇总告警邮件
     """
@@ -481,14 +492,18 @@ def check_and_alert_batch(session: Session, run_id: UUID):
     if not run:
         return {"mode": "batch_summary", "skipped": True, "reason": "run_missing"}
 
-    # 检查是否有任何失败或变更
-    # 获取该批次的所有记录
-    items = crud.list_schedule_run_items(session, run_id)
-    if not items:
-        return {"mode": "batch_summary", "skipped": True, "reason": "no_items"}
-
-    backup_ids = [item.backup_id for item in items]
-    records = crud.list_backups_by_ids(session, backup_ids)
+    # Finalizer 应传入其完成统计所使用的同一记录快照，避免批次汇总数字
+    # 与邮件明细因二次查询时序不同而不一致。保留查询路径供独立调用兼容。
+    if records is None:
+        items = crud.list_schedule_run_items(session, run_id)
+        if not items:
+            return {"mode": "batch_summary", "skipped": True, "reason": "no_items"}
+        backup_ids = [item.backup_id for item in items]
+        records = crud.list_backups_by_ids(session, backup_ids)
+    else:
+        records = list(records)
+    if not records:
+        return {"mode": "batch_summary", "skipped": True, "reason": "no_records"}
     
     failed_records = []
     cancelled_records = []
@@ -674,7 +689,19 @@ def check_and_alert_batch(session: Session, run_id: UUID):
             "run": run,
             "task_time": _format_datetime(run.started_at, session),
             "cancelled": cancelled_records,
-            "failed_records": failed_records,
+            "failed_records": [
+                {
+                    "device": device,
+                    "record": record,
+                    "duration": f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-",
+                    "error_message": localize_backup_error_message(
+                        record.error_message,
+                        record.failure_type,
+                        locale=locale,
+                    ) or translate(locale, "email.unknown_error"),
+                }
+                for device, record in failed_records
+            ],
             "cancelled_records": cancelled_records,
             "changed_records": [
                 (device, record, _render_localized_change_summary_html(summary, locale))

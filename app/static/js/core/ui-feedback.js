@@ -40,14 +40,11 @@ window.NB = window.NB || {};
   };
 
   window.NB.confirmDelete = function(message, onConfirm) {
-    const t = window.NB && typeof window.NB.t === 'function'
-      ? window.NB.t
-      : function(key, params, fallback) { return fallback || key; };
     window.NB.confirm({
-      title: t('dialog.delete.title'),
-      message: message || t('dialog.delete.default_message'),
+      title: NB.t('dialog.delete.title'),
+      message: message || NB.t('dialog.delete.default_message'),
       onConfirm: onConfirm,
-      confirmBtnText: t('dialog.delete.confirm'),
+      confirmBtnText: NB.t('dialog.delete.confirm'),
       confirmBtnClass: 'btn-danger'
     });
   };

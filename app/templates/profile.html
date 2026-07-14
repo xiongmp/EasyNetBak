@@ -1,245 +1,173 @@
 {% extends "base.html" %}
 {% set page_title = _('template.profile.profile') %}
 {% set page_subtitle = _('template.profile.manage_account_security_and_personalization') %}
+{% set body_class = 'profile-page' %}
 
 {% block content %}
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body">
-    <h6 class="fw-bold mb-1"><i class="bi bi-translate me-2"></i>{{ _("language.settings") }}</h6>
-    <p class="small text-secondary mb-3">{{ _("language.description") }}</p>
-    <form method="post" action="/profile/locale" class="row g-2 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <div class="col-sm-8 col-md-6">
-        <select class="form-select form-select-sm" name="locale" aria-label="{{ _('language.settings') }}">
-          {% for locale_code in supported_locales %}
-            <option value="{{ locale_code }}" data-i18n-preserve {% if locale_code == locale %}selected{% endif %}>{{ locale_label_map.get(locale_code, locale_code) }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-primary btn-sm px-4">{{ _("button.save") }}</button>
-      </div>
-    </form>
-  </div>
-</div>
-<div class="row g-4">
-  <div class="col-12">
-    <!-- 统一的大卡片容器 -->
-    <div class="card border-0 shadow-sm overflow-hidden main-profile-card">
-      <div class="row g-0">
-        <!-- 左侧导航侧边栏 (在卡片内部) -->
-        <div class="col-12 col-md-3 border-end bg-light-subtle profile-sidebar">
-          <div class="p-3">
-            <!-- 用户简要信息 -->
-            <div class="text-center mb-3 pb-2 border-bottom">
-              <div class="position-relative d-inline-block mb-2">
-                <div class="avatar-wrapper rounded-circle p-1 bg-white shadow-sm border">
-                  <div class="avatar-display bg-primary bg-gradient text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
-                    <i class="bi bi-person-fill fs-4"></i>
-                  </div>
-                </div>
-                <span class="position-absolute bottom-0 end-0 bg-success border border-white border-2 rounded-circle p-1" title="{{ _('status.device.online') }}"></span>
-              </div>
-              <h6 class="fw-bold mb-0 small">{{ user.username }}</h6>
-              <p class="x-small text-secondary mb-0">{{ role_labels.get(user.role, user.role) }}</p>
-            </div>
+<div class="profile-settings-shell">
+  {% if msg %}
+    <div class="alert alert-success profile-alert d-flex align-items-center" role="status">
+      <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+      <div>{{ _(msg, fallback=msg) }}</div>
+    </div>
+  {% endif %}
 
-            <!-- 导航菜单 -->
-            <div class="nav flex-column custom-profile-nav" id="v-pills-tab" role="tablist">
-              <div class="nav-link active d-flex align-items-center mb-1 py-1 px-3 small">
-                <i class="bi bi-person-lines-fill me-2"></i>{{ _('template.profile.profile_and_security') }}
-              </div>
-            </div>
+  {% if err %}
+    <div class="alert alert-danger profile-alert d-flex align-items-center" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      <div>{{ _(err, fallback=err) }}</div>
+    </div>
+  {% endif %}
+
+  <article class="profile-console">
+    <header class="profile-console-header">
+      <div class="profile-overview">
+        <div class="profile-console-avatar" aria-hidden="true">
+          {{ user.username[:1]|upper }}
+          <span></span>
+        </div>
+        <div class="profile-overview-copy">
+          <div class="profile-console-kicker">{{ _('template.profile.account_information') }}</div>
+          <h1>{{ user.username }}</h1>
+          <div class="profile-console-role">
+            <i class="bi bi-shield-check" aria-hidden="true"></i>
+            {{ role_labels.get(user.role, user.role) }}
           </div>
         </div>
+      </div>
 
-        <!-- 右侧内容区域 -->
-        <div class="col-12 col-md-9">
-          <div class="p-3 p-lg-4">
-            
-            <!-- 账户信息 (直接展示) -->
-            <div class="section-header mb-3">
-              <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-person-badge me-2"></i>{{ _('template.profile.account_information') }}</h6>
-            </div>
-
-            <div class="row g-2 mb-4">
-              <div class="col-md-6">
-                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
-                  <div class="x-small text-secondary mb-0">{{ _('audit.csv.username') }}</div>
-                  <div class="fw-bold small">{{ user.username }}</div>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
-                  <div class="x-small text-secondary mb-0">{{ _('template.profile.system_role') }}</div>
-                  <div class="fw-bold text-primary small">{{ role_labels.get(user.role, user.role) }}</div>
-                </div>
-              </div>
-              <div class="col-12">
-                <div class="info-item p-2 px-3 rounded-3 border bg-light-subtle">
-                  <div class="x-small text-secondary mb-0">{{ _('template.profile.permission_scope') }}</div>
-                  <p class="x-small text-body mb-0">
-                    {% if user.role in admin_role_codes %}
-                      {{ _('template.profile.has_full_administrative_access_to_manage_devices_users') }}。
-                    {% else %}
-                      {{ _('template.profile.restricted_resourceviewpermissions') }}。
-                    {% endif %}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-3 opacity-10">
-
-            <!-- 账户安全 (直接展示) -->
-            <div class="section-header mb-3">
-              <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-shield-lock me-2"></i>{{ _('template.profile.change_password') }}</h6>
-            </div>
-
-            {% if msg %}
-              <div class="alert alert-success border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i>
-                <div>{{ _(msg, fallback=msg) }}</div>
-              </div>
+      <div class="profile-access-summary">
+        <div class="profile-access-icon" aria-hidden="true"><i class="bi bi-key"></i></div>
+        <div>
+          <div class="profile-access-label">{{ _('template.profile.permission_scope') }}</div>
+          <p>
+            {% if user.role in admin_role_codes %}
+              {{ _('template.profile.has_full_administrative_access_to_manage_devices_users') }}
+            {% else %}
+              {{ _('template.profile.restricted_resourceviewpermissions') }}
             {% endif %}
-            
-            {% if err %}
-              <div class="alert alert-danger border-0 py-2 px-3 shadow-sm d-flex align-items-center mb-3 small" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <div>{{ _(err, fallback=err) }}</div>
-              </div>
-            {% endif %}
-
-            <form method="post" action="/profile/change-password" class="needs-validation" id="passwordForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <div class="form-group mb-2">
-                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">{{ _('template.profile.current_password') }}</label>
-                      <div class="input-group input-group-modern input-group-sm">
-                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-key"></i></span>
-                        <input name="old_password" id="old_password" type="password" class="form-control border-start-0" placeholder="{{ _('template.profile.verify_identity') }}" required />
-                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('old_password', this)">
-                          <i class="bi bi-eye"></i>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="form-group mb-2">
-                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">{{ _('template.profile.set_new_password') }}</label>
-                      <div class="input-group input-group-modern input-group-sm">
-                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-lock"></i></span>
-                        <input name="new_password" id="new_password" type="password" class="form-control border-start-0" placeholder="{{ _('template.change_password.new_password') }}" required minlength="5" oninput="checkStrength(this.value)" />
-                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('new_password', this)">
-                          <i class="bi bi-eye"></i>
-                        </button>
-                      </div>
-                      <div class="progress mt-1" style="height: 3px;">
-                        <div id="strengthBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
-                      </div>
-                      <div class="d-flex justify-content-between mt-1">
-                        <span id="strengthText" class="x-small text-secondary">{{ _('template.profile.strength') }}</span>
-                        <span class="x-small text-secondary">{{ _('template.profile.text_8476871a') }} 5 {{ _('template.profile.text_2618f373') }}</span>
-                      </div>
-                    </div>
-
-                    <div class="form-group mb-3">
-                      <label class="form-label fw-bold x-small text-uppercase tracking-wider text-secondary mb-1">{{ _('template.change_password.confirm_new_password') }}</label>
-                      <div class="input-group input-group-modern input-group-sm">
-                        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-lock-check"></i></span>
-                        <input name="confirm_password" id="confirm_password" type="password" class="form-control border-start-0" placeholder="{{ _('template.profile.confirm_password') }}" required oninput="checkMatch()" />
-                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="togglePass('confirm_password', this)">
-                          <i class="bi bi-eye"></i>
-                        </button>
-                      </div>
-                      <div id="matchFeedback" class="x-small mt-1 d-none"></div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm rounded-pill">
-                      {{ _('template.device_detail.save_changes') }}
-                    </button>
-                  </div>
-
-                  <!-- 侧边提示 -->
-                  <div class="col-md-6">
-                    <div class="bg-light rounded-3 p-3 border border-dashed h-100">
-                      <h6 class="fw-bold x-small mb-2"><i class="bi bi-info-circle me-1"></i>{{ _('template.profile.security_recommendations') }}</h6>
-                      <ul class="x-small text-secondary ps-3 mb-0">
-                        <li class="mb-1">{{ _('template.profile.avoid_making_it_too_similar_to_the_username') }}。</li>
-                        <li class="mb-1">{{ _('template.profile.use_a_mix_of_uppercase_and_lowercase_letters') }}。</li>
-                        <li>{{ _('template.profile.text_0c1971bf') }} 90 {{ _('template.profile.days_password') }}。</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </form>
-          </div>
+          </p>
         </div>
+      </div>
+    </header>
+
+    <div class="profile-console-body">
+      <nav class="profile-console-nav" aria-label="{{ _('template.profile.profile_and_security') }}">
+        <div class="profile-nav-label">{{ _('template.profile.profile_and_security') }}</div>
+        <a href="#profile-language" class="profile-nav-link">
+          <i class="bi bi-translate" aria-hidden="true"></i>
+          <span>{{ _('language.settings') }}</span>
+        </a>
+        <a href="#profile-security" class="profile-nav-link">
+          <i class="bi bi-lock" aria-hidden="true"></i>
+          <span>{{ _('template.profile.change_password') }}</span>
+        </a>
+      </nav>
+
+      <div class="profile-console-content">
+        <section class="profile-console-section profile-language-section" id="profile-language" aria-labelledby="profile-language-title">
+          <div class="profile-console-section-heading">
+            <h2 id="profile-language-title">{{ _('language.settings') }}</h2>
+            <p>{{ _('language.description') }}</p>
+          </div>
+
+          <form method="post" action="/profile/locale" class="profile-console-language-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <label class="visually-hidden" for="profile-locale">{{ _('language.settings') }}</label>
+            <select class="form-select" id="profile-locale" name="locale">
+              {% for locale_code in supported_locales %}
+                <option value="{{ locale_code }}" data-i18n-preserve {% if locale_code == locale %}selected{% endif %}>{{ locale_label_map.get(locale_code, locale_code) }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-primary">{{ _('button.save') }}</button>
+          </form>
+        </section>
+
+        <section class="profile-console-section profile-security-section" id="profile-security" aria-labelledby="profile-password-title">
+          <div class="profile-console-section-heading">
+            <h2 id="profile-password-title">{{ _('template.profile.change_password') }}</h2>
+            <p>{{ _('template.profile.security_recommendations') }}</p>
+          </div>
+
+          <form
+            method="post"
+            action="/profile/change-password"
+            id="passwordForm"
+            class="profile-console-password-form"
+            data-strength-default="{{ _('template.profile.strength') }}"
+            data-strength-weak="{{ _('template.profile.strength_weak') }}"
+            data-strength-medium="{{ _('template.profile.strength_in') }}"
+            data-strength-strong="{{ _('template.profile.strength_strong') }}"
+            data-password-match="{{ _('template.profile.passwordmatched_02ba787f') }}"
+            data-password-mismatch="{{ _('template.profile.passwords_do_not_match') }}"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+            <div class="profile-password-fields profile-console-fields">
+              <div class="profile-field profile-field-current">
+                <label for="old_password">{{ _('template.profile.current_password') }}</label>
+                <div class="profile-password-input">
+                  <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                  <input name="old_password" id="old_password" type="password" class="form-control" placeholder="{{ _('template.profile.verify_identity') }}" autocomplete="current-password" required />
+                  <button class="profile-password-toggle" type="button" data-password-toggle="old_password" aria-label="{{ _('template.profile.password') }}">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="profile-field">
+                <label for="new_password">{{ _('template.profile.set_new_password') }}</label>
+                <div class="profile-password-input">
+                  <i class="bi bi-key" aria-hidden="true"></i>
+                  <input name="new_password" id="new_password" type="password" class="form-control" placeholder="{{ _('template.change_password.new_password') }}" autocomplete="new-password" required minlength="5" />
+                  <button class="profile-password-toggle" type="button" data-password-toggle="new_password" aria-label="{{ _('template.profile.password') }}">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div class="profile-strength" aria-live="polite">
+                  <div class="profile-strength-track" aria-hidden="true"><span id="strengthBar"></span></div>
+                  <div class="profile-field-meta">
+                    <span id="strengthText">{{ _('template.profile.strength') }}</span>
+                    <span>{{ _('template.profile.text_8476871a') }} 5 {{ _('template.profile.text_2618f373') }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="profile-field">
+                <label for="confirm_password">{{ _('template.change_password.confirm_new_password') }}</label>
+                <div class="profile-password-input">
+                  <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                  <input name="confirm_password" id="confirm_password" type="password" class="form-control" placeholder="{{ _('template.profile.confirm_password') }}" autocomplete="new-password" required />
+                  <button class="profile-password-toggle" type="button" data-password-toggle="confirm_password" aria-label="{{ _('template.profile.password') }}">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div id="matchFeedback" class="profile-match-feedback" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="profile-console-advice">
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+              <ul>
+                <li>{{ _('template.profile.avoid_making_it_too_similar_to_the_username') }}</li>
+                <li>{{ _('template.profile.use_a_mix_of_uppercase_and_lowercase_letters') }}</li>
+                <li>{{ _('template.profile.text_0c1971bf') }} 90 {{ _('template.profile.days_password') }}</li>
+              </ul>
+            </div>
+
+            <div class="profile-console-actions">
+              <button type="submit" class="btn btn-primary">
+                {{ _('template.device_detail.save_changes') }}
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
     </div>
-  </div>
+  </article>
 </div>
+{% endblock %}
 
-
-<script>
-  // 切换密码可见性
-  function togglePass(id, btn) {
-    const input = document.getElementById(id);
-    const icon = btn.querySelector('i');
-    if (input.type === 'password') {
-      input.type = 'text';
-      icon.classList.replace('bi-eye', 'bi-eye-slash');
-    } else {
-      input.type = 'password';
-      icon.classList.replace('bi-eye-slash', 'bi-eye');
-    }
-  }
-
-  // 密码强度检测
-  function checkStrength(pwd) {
-    const bar = document.getElementById('strengthBar');
-    const text = document.getElementById('strengthText');
-    let strength = 0;
-    
-    if (pwd.length >= 5) strength += 20;
-    if (pwd.length >= 8) strength += 20;
-    if (/[A-Z]/.test(pwd)) strength += 20;
-    if (/[0-9]/.test(pwd)) strength += 20;
-    if (/[^A-Za-z0-9]/.test(pwd)) strength += 20;
-
-    bar.style.width = strength + '%';
-    
-    if (strength <= 40) {
-      bar.className = 'progress-bar bg-danger';
-      text.innerText = '{{ _('template.profile.strength_weak') }}';
-    } else if (strength <= 80) {
-      bar.className = 'progress-bar bg-warning';
-      text.innerText = '{{ _('template.profile.strength_in') }}';
-    } else {
-      bar.className = 'progress-bar bg-success';
-      text.innerText = '{{ _('template.profile.strength_strong') }}';
-    }
-  }
-
-  // 密码匹配检测
-  function checkMatch() {
-    const p1 = document.getElementById('new_password').value;
-    const p2 = document.getElementById('confirm_password').value;
-    const feedback = document.getElementById('matchFeedback');
-    
-    if (!p2) {
-      feedback.classList.add('d-none');
-      return;
-    }
-
-    feedback.classList.remove('d-none');
-    if (p1 === p2) {
-      feedback.innerText = '✓ {{ _('template.profile.passwordmatched_02ba787f') }}';
-      feedback.className = 'x-small mt-1 text-success';
-    } else {
-      feedback.innerText = '✗ {{ _('template.profile.passwords_do_not_match') }}';
-      feedback.className = 'x-small mt-1 text-danger';
-    }
-  }
-</script>
+{% block scripts %}
+<script src="/static/js/pages/profile.js?v={{ app_version }}"></script>
 {% endblock %}

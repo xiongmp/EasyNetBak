@@ -504,7 +504,7 @@ def profile_update_locale(
     try:
         normalized = validate_locale(locale)
     except ValueError:
-        return RedirectResponse(url="/profile?err=Unsupported+language", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.unsupported_language", status_code=303)
     crud.update_user(session, user.id, locale=normalized)
     response = RedirectResponse(url="/profile?msg=language.saved", status_code=303)
     set_locale_cookie(response, normalized)
@@ -526,15 +526,15 @@ def profile_change_password(
         return RedirectResponse(url="/login", status_code=303)
     
     if new_password != confirm_password:
-        return RedirectResponse(url="/profile?err=两次输入的密码不一致", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.password_mismatch", status_code=303)
     
     if len(new_password) < 5:
-        return RedirectResponse(url="/profile?err=密码长度至少为5位", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.password_too_short", status_code=303)
 
     # 验证旧密码
     db_user = crud.authenticate_user(session, username=user.username, password=old_password)
     if not db_user:
-        return RedirectResponse(url="/profile?err=当前密码错误", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.current_password_incorrect", status_code=303)
 
     # 更新密码
     crud.update_user(session, user.id, password=new_password)

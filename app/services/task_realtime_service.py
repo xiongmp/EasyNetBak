@@ -514,6 +514,54 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
         else:
             content_size = f"{content_bytes} B"
         duration_seconds = details.get("duration_seconds")
+        line_count = int(details.get("line_count") or 0)
+        storage_label = str(event.storage_type or details.get("storage_type") or "").strip() or (
+            "remote storage" if normalized == "en-US" else "远端存储"
+        )
+        storage_target = storage_label
+        storage_options = ""
+        if storage_label.upper() == "FTP":
+            ftp_host = str(details.get("host") or "").strip()
+            ftp_port = str(details.get("port") or "").strip()
+            storage_target = f"FTP: {ftp_host}:{ftp_port}" if ftp_host and ftp_port else f"FTP: {ftp_host or 'FTP'}"
+            base_dir = str(details.get("base_dir") or "").strip().strip("/")
+            passive = str(details.get("passive") or "").strip()
+            if normalized == "en-US":
+                storage_options = f"; directory: /{base_dir}" if base_dir else ""
+                storage_options += f"; passive mode: {passive}" if passive else ""
+            else:
+                storage_options = f"，目录 /{base_dir}" if base_dir else ""
+                storage_options += f"，被动模式 {passive}" if passive else ""
+        elif storage_label.upper() == "S3":
+            bucket = str(details.get("bucket") or "").strip()
+            prefix = str(details.get("prefix") or "").strip().strip("/")
+            endpoint = str(details.get("endpoint") or "").strip()
+            storage_target = f"S3: {bucket or 'S3'}"
+            if normalized == "en-US":
+                storage_options = f"; prefix: {prefix}" if prefix else ""
+                storage_options += f"; endpoint: {endpoint}" if endpoint else ""
+            else:
+                storage_options = f"，前缀 {prefix}" if prefix else ""
+                storage_options += f"，端点 {endpoint}" if endpoint else ""
+        upload_ok = bool(event.success if event.success is not None else details.get("success"))
+        effective_error = str(details.get("error") or event.failure_type or details.get("failure_type") or "").strip()
+        retries_done = int(details.get("retries_done") or event.retries_done or 0)
+        max_retries = int(details.get("max_retries") or event.max_retries or 0)
+        planned_count = int(details.get("planned_count") or details.get("total_devices") or 0)
+        schedule_id = int(details.get("schedule_id") or 0)
+        trigger = str(details.get("trigger") or "").strip()
+        job_count = int(details.get("job_count") or 0)
+        enqueued_count = int(details.get("enqueued_count") or 0)
+        terminated_records = int(details.get("terminated_records") or 0)
+        running_records = int(details.get("running_records") or 0)
+        skipped_records = int(details.get("skipped_records") or 0)
+        retried_records = int(details.get("retried_records") or 0)
+        backup_count = int(details.get("backup_count") or 0)
+        success_count = int(details.get("success_count") or 0)
+        fail_count = int(details.get("fail_count") or 0)
+        duration_text = str(details.get("duration_text") or "").strip()
+        if not duration_text and duration_seconds is not None:
+            duration_text = str(duration_seconds)
         params.update(
             {
                 "target": target,
@@ -531,6 +579,77 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
                     f"; duration: {duration_seconds}s"
                     if normalized == "en-US" and duration_seconds is not None
                     else f"，耗时 {duration_seconds}s" if duration_seconds is not None else ""
+                ),
+                "line_count": line_count,
+                "collection_summary": (
+                    f"; {line_count} lines"
+                    if normalized == "en-US" and line_count
+                    else f"，共 {line_count} 行" if line_count
+                    else f"; size: {content_size}" if normalized == "en-US" and content_bytes
+                    else f"，大小 {content_size}" if content_bytes
+                    else ""
+                ),
+                "storage_label": storage_label,
+                "storage_target": storage_target,
+                "storage_options": storage_options,
+                "content_size_suffix": (
+                    f"; data: {content_size}"
+                    if normalized == "en-US" and content_bytes
+                    else f"，数据 {content_size}" if content_bytes
+                    else ""
+                ),
+                "upload_result": (
+                    "succeeded" if normalized == "en-US" and upload_ok
+                    else "failed" if normalized == "en-US"
+                    else "成功" if upload_ok
+                    else "失败"
+                ),
+                "upload_failure_hint": (
+                    "; check the storage configuration, network connectivity, and directory permissions"
+                    if normalized == "en-US" and not upload_ok
+                    else "，请检查存储配置、网络连通性和目录权限" if not upload_ok
+                    else ""
+                ),
+                "error": effective_error or ("unknown error" if normalized == "en-US" else "未知错误"),
+                "retry_position": f"{retries_done + 1}/{max_retries or retries_done + 1}",
+                "planned_count": planned_count,
+                "schedule_suffix": (
+                    f"; schedule ID: {schedule_id}"
+                    if normalized == "en-US" and schedule_id
+                    else f"，计划 ID {schedule_id}" if schedule_id
+                    else ""
+                ),
+                "trigger_suffix": (
+                    f"; trigger: {trigger}"
+                    if normalized == "en-US" and trigger
+                    else f"，触发方式 {trigger}" if trigger
+                    else ""
+                ),
+                "job_count": job_count,
+                "enqueued_count": enqueued_count,
+                "failed_count": int(details.get("failed_count") or job_count or 0),
+                "reason_suffix": (
+                    f": {str(details.get('reason') or effective_error).strip()}"
+                    if str(details.get("reason") or effective_error).strip()
+                    else ""
+                ),
+                "terminated_records": terminated_records,
+                "running_records": running_records,
+                "skipped_records": skipped_records,
+                "retried_records": retried_records,
+                "backup_count_suffix": (
+                    f"; tracking {backup_count} tasks"
+                    if normalized == "en-US" and backup_count
+                    else f"，跟踪 {backup_count} 个任务" if backup_count
+                    else ""
+                ),
+                "success_count": success_count,
+                "fail_count": fail_count,
+                "total_duration_suffix": (
+                    f"; total duration: {duration_text}"
+                    if normalized == "en-US" and duration_text
+                    else f"，总耗时 {duration_text}" if duration_text
+                    else ""
                 ),
             }
         )

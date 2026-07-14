@@ -1214,7 +1214,7 @@ def finalize_schedule_run(
         cancelled_count=cancelled_count,
         unfinished_count=unfinished_count,
     )
-    alert_result = check_and_alert_batch(session, run_id)
+    alert_result = check_and_alert_batch(session, run_id, records=records)
     alert_event_details = dict(alert_result or {})
     alert_event_details.setdefault("success_count", success_count)
     alert_event_details.setdefault("fail_count", fail_count)

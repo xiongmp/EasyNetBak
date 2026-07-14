@@ -267,17 +267,21 @@ async def device_webshell(websocket: WebSocket, device_id: int):
         except Exception:
             pass
 
-    async def send_status(message: str):
-        await websocket.send_text(json.dumps({"type": "status", "message": message}))
+    async def send_status(message_key: str, params: dict | None = None):
+        await websocket.send_text(
+            json.dumps({"type": "status", "message_key": message_key, "message_params": params or {}})
+        )
 
-    async def send_error(message: str):
-        await websocket.send_text(json.dumps({"type": "error", "message": message}))
+    async def send_error(message_key: str, params: dict | None = None):
+        await websocket.send_text(
+            json.dumps({"type": "error", "message_key": message_key, "message_params": params or {}})
+        )
 
     try:
         init_msg_raw = await websocket.receive_text()
         init_payload = json.loads(init_msg_raw)
         if init_payload.get("type") != "init":
-            await send_error("无效的初始化请求")
+            await send_error("webshell.error.invalid_init")
             await websocket.close()
             return
         
@@ -296,7 +300,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
 
     username = context.get("username")
     if not username:
-        await send_error("未配置凭据")
+        await send_error("webshell.error.credentials_missing")
         await websocket.close()
         return
 
@@ -307,7 +311,10 @@ async def device_webshell(websocket: WebSocket, device_id: int):
     conn = None
 
     try:
-        await send_status(f"连接 {context.get('host')}:{context.get('port')}...")
+        await send_status(
+            "webshell.status.connecting",
+            {"target": f"{context.get('host')}:{context.get('port')}"},
+        )
         if login_method == "telnet":
             reader, writer = await telnetlib3.open_connection(
                 host=context.get("host"),
@@ -322,7 +329,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 password=context.get("password") or None,
             )
             if legacy_mode:
-                await send_status("已启用旧算法兼容模式")
+                await send_status("webshell.status.legacy_compatibility")
             process = await conn.create_process(
                 term_type="xterm",
                 term_size=(120, 30),
@@ -331,7 +338,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
             )
             reader = process.stdout
             writer = process.stdin
-        await send_status("连接成功")
+        await send_status("webshell.status.connected")
 
         started_at = datetime.utcnow()
         start_ts = time.time()
@@ -383,7 +390,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 pass
 
     except Exception as exc:
-        await send_error(f"连接失败: {str(exc)}")
+        await send_error("webshell.error.connection_failed", {"error": str(exc)})
         await websocket.close()
         return
 

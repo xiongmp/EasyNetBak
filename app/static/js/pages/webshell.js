@@ -45,6 +45,26 @@ document.addEventListener('DOMContentLoaded', function() {
       const csrfToken = webshellConfig.csrfToken || '';
       const inactivityLimitMs = 5 * 60 * 1000;
 
+      function localizeSocketMessage(payload) {
+          const params = payload && payload.message_params ? payload.message_params : {};
+          switch (payload && payload.message_key) {
+              case 'webshell.status.connecting':
+                  return NB.t('webshell.status.connecting', params);
+              case 'webshell.status.legacy_compatibility':
+                  return NB.t('webshell.status.legacy_compatibility', params);
+              case 'webshell.status.connected':
+                  return NB.t('webshell.status.connected', params);
+              case 'webshell.error.invalid_init':
+                  return NB.t('webshell.error.invalid_init', params);
+              case 'webshell.error.credentials_missing':
+                  return NB.t('webshell.error.credentials_missing', params);
+              case 'webshell.error.connection_failed':
+                  return NB.t('webshell.error.connection_failed', params);
+              default:
+                  return payload && payload.message ? String(payload.message) : '';
+          }
+      }
+
       let currentTheme = 'Default';
       let pasteModal = null;
       let loginModal = null;
@@ -386,8 +406,8 @@ document.addEventListener('DOMContentLoaded', function() {
                       if (payload.type === 'output') {
                           this.terminal.write(payload.data || '');
                       } else if (payload.type === 'status') {
-                          let msg = payload.message || '';
-                          if (msg.includes(NB.t("js.webshell.connected")) && this.connectionStartTime > 0) {
+                          let msg = localizeSocketMessage(payload);
+                          if (payload.message_key === 'webshell.status.connected' && this.connectionStartTime > 0) {
                               const duration = Date.now() - this.connectionStartTime;
                               msg += NB.t("js.webshell.duration_value0", {value0: formatDuration(duration)});
                               this.connectionStartTime = 0;
@@ -405,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function() {
                               loginModal.show();
                           }
                       } else if (payload.type === 'error') {
-                          const msg = payload.message || '';
+                          const msg = localizeSocketMessage(payload);
                           this.writeLine(NB.t("js.webshell.r_n_value0_value1", {value0: NB.t("js.webshell.error"), value1: msg}));
                           if (
                               loginModal &&

@@ -8,9 +8,9 @@
 {% if failed_records %}
 <h3 style="color:#d9534f">{{ _("email.section.failed") }}</h3>
 <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
-<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.details") }}</th></tr>
-{% for device, record in failed_records %}
-<tr><td>{{ device.name }}</td><td>{{ device.host }}</td><td>{{ record.error_message or record.failure_type or _("email.unknown_error") }}</td></tr>
+<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.duration") }}</th><th>{{ _("email.field.failure_type") }}</th><th>{{ _("email.field.error") }}</th></tr>
+{% for item in failed_records %}
+<tr><td>{{ item.device.name }}</td><td>{{ item.device.host }}</td><td>{{ item.duration }}</td><td>{{ item.record.failure_type or "UNKNOWN" }}</td><td style="color:#d9534f">{{ item.error_message }}</td></tr>
 {% endfor %}
 </table>
 {% endif %}

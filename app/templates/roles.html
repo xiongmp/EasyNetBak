@@ -32,9 +32,10 @@
           <tbody>
             {% for r in items %}
               {% set perm_count = r.permissions.split(',')|length if r.permissions else 0 %}
+              {% set role_display_name = role_labels.get(r.code, r.name) if r.is_system or r.code in admin_role_codes else r.name %}
               <tr>
                 <td>{{ r.id }}</td>
-                <td {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %}>{{ r.name }}</td>
+                <td {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %}>{{ role_display_name }}</td>
                 <td class="text-secondary small" data-i18n-preserve>{{ r.code }}</td>
                 <td>
                   {% if r.code in admin_role_codes %}

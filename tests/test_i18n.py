@@ -15,9 +15,9 @@ from app.i18n.render import javascript_messages
 from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
-from app.models import TaskEvent
+from app.models import BackupRecord, BackupSchedule, BackupScheduleRun, Device, TaskEvent
 from app.routers.web_context import _layout_context, templates
-from app.services import schedule_service, task_realtime_service, task_state_service
+from app.services import alert_service, schedule_service, task_realtime_service, task_state_service
 from app.services.backup_error_service import localize_backup_error_message
 
 
@@ -92,6 +92,9 @@ def test_browser_catalog_contains_only_explicit_frontend_contract():
     browser_messages = javascript_messages("en-US")
     assert "js.nb_common.processing" in browser_messages
     assert "dialog.delete.group" in browser_messages
+    assert browser_messages["dialog.delete.title"] == "Confirm deletion"
+    assert browser_messages["dialog.delete.confirm"] == "Confirm deletion"
+    assert browser_messages["webshell.status.connected"] == "Connected"
     assert "openapi.description" not in browser_messages
     assert len(browser_messages) < 400
 
@@ -233,6 +236,35 @@ def test_flash_message_key_and_params_are_localized_server_side():
     request.state.locale = "en-US"
     context = _layout_context(request=request, active="devices")
     assert context["flash_message"] == "4 devices updated"
+    assert context["role_labels"]["admin"] == "System administrator"
+    assert context["role_labels"]["operator"] == "Operator"
+    assert context["role_labels"]["readonly"] == "Read-only user"
+
+
+def test_users_list_uses_localized_role_labels():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "app" / "templates" / "users.html").read_text(encoding="utf-8-sig")
+    assert "role_labels.get(u.role, stored_role_label)" in source
+
+
+def test_schedule_next_run_states_are_localized():
+    disabled = BackupSchedule(id=1, name="disabled", crontab="0 2 * * *", enabled=False, targets="all")
+    payload = schedule_service._build_next_run_payload(
+        [disabled],
+        timezone_offset="+08:00",
+        locale="en-US",
+    )
+    assert payload[1] == {"text": "Disabled", "tone": "secondary"}
+
+
+def test_webshell_status_line_has_no_escaped_newline_prefix():
+    line = translate(
+        "en-US",
+        "js.webshell.r_n_value0_value1",
+        {"value0": "System", "value1": "Connected"},
+    )
+    assert line == "[System] Connected"
+    assert "\\r\\n" not in line
 
 
 def test_schedule_error_summary_is_localized_for_english():
@@ -267,6 +299,41 @@ def test_task_events_return_localized_message_and_stable_payload():
     assert item["message"] == "Running command: show running-config"
     assert item["message_key"] == "task.event.backup_record_command_started"
     assert item["message_params"] == {"command": "show running-config"}
+
+
+def test_task_events_keep_operational_details_after_localization():
+    collection = TaskEvent(
+        event="backup_record_collection_completed",
+        details='{"line_count":192,"content_bytes":6144}',
+    )
+    collection_zh = task_realtime_service._serialize_task_event(collection, offset_minutes=0, locale="zh-CN")
+    collection_en = task_realtime_service._serialize_task_event(collection, offset_minutes=0, locale="en-US")
+    assert collection_zh["message"] == "配置采集完成，共 192 行"
+    assert collection_en["message"] == "Configuration collection completed; 192 lines"
+
+    upload = TaskEvent(
+        event="backup_record_storage_upload_started",
+        storage_type="FTP",
+        details=(
+            '{"storage_type":"FTP","host":"192.168.225.1","port":"21",'
+            '"base_dir":"网络设备配置","passive":"1","content_bytes":6144}'
+        ),
+    )
+    upload_zh = task_realtime_service._serialize_task_event(upload, offset_minutes=0, locale="zh-CN")
+    assert upload_zh["message"] == (
+        "开始上传到 FTP: 192.168.225.1:21，目录 /网络设备配置，被动模式 1，数据 6.0 KB"
+    )
+
+    planned = TaskEvent(
+        event="schedule_run_planned",
+        details='{"planned_count":31,"schedule_id":7,"trigger":"manual"}',
+    )
+    planned_zh = task_realtime_service._serialize_task_event(planned, offset_minutes=0, locale="zh-CN")
+    planned_en = task_realtime_service._serialize_task_event(planned, offset_minutes=0, locale="en-US")
+    assert planned_zh["message"] == "批次已创建，计划备份 31 台设备，计划 ID 7，触发方式 manual"
+    assert planned_en["message"] == (
+        "Batch created; 31 device backups planned; schedule ID: 7; trigger: manual"
+    )
 
 
 def test_backup_execution_log_messages_are_fully_localized():
@@ -323,3 +390,101 @@ def test_backup_error_message_is_fully_localized_and_keeps_technical_detail():
 def test_backup_error_message_leaves_already_english_errors_unchanged():
     raw = "Authentication failure: invalid credentials"
     assert localize_backup_error_message(raw, "AUTH_FAILED", locale="en-US") == raw
+
+
+def test_batch_email_uses_finalizer_snapshot_for_failure_and_change_lists(monkeypatch):
+    run = BackupScheduleRun(schedule_id=1, total_devices=2, success_count=1, fail_count=1)
+    failed_device = Device(id=1, name="failed-device", host="192.0.2.10", platform="cisco_ios")
+    changed_device = Device(id=2, name="changed-device", host="192.0.2.20", platform="cisco_ios")
+    failed_record = BackupRecord(
+        device_id=1,
+        status=task_state_service.BACKUP_RECORD_STATUS_FAILED,
+        success=False,
+        error_message=(
+            "连接超时: 设备不可达或端口不通 "
+            "(TCP connection to device failed. Wrong TCP port.)"
+        ),
+        failure_type="TIMEOUT",
+        duration_seconds=21.04,
+    )
+    changed_record = BackupRecord(
+        device_id=2,
+        status=task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED,
+        success=True,
+        config_text="hostname changed-device",
+    )
+    previous_record = BackupRecord(
+        device_id=2,
+        status=task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED,
+        success=True,
+        config_text="hostname old-device",
+    )
+    devices = {1: failed_device, 2: changed_device}
+    settings = {
+        "always_send_summary": "1",
+        "alert_on_fail": "1",
+        "alert_on_config_change": "1",
+        "timezone_offset": "+00:00",
+    }
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(crud, "get_schedule_run", lambda session, run_id: run)
+    monkeypatch.setattr(crud, "get_setting", lambda session, key: settings.get(key))
+    monkeypatch.setattr(crud, "get_device", lambda session, device_id: devices.get(device_id))
+    monkeypatch.setattr(
+        crud,
+        "list_schedule_run_items",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("snapshot path must not re-query run items")),
+    )
+    monkeypatch.setattr(crud, "list_device_backups", lambda session, device_id, limit=2: [changed_record, previous_record])
+    monkeypatch.setattr(
+        alert_service,
+        "_config_change_summary_after_diff_rules",
+        lambda *args, **kwargs: {
+            "changed": True,
+            "context_lines": 3,
+            "sample_limit": 1,
+            "total_sample_rows": 1,
+            "sample_lines": [{"prefix": "+", "text": "hostname changed-device", "kind": "add"}],
+        },
+    )
+    monkeypatch.setattr(
+        alert_service,
+        "send_email",
+        lambda subject, content, content_type="html": captured.update(subject=subject, content=content) or True,
+    )
+
+    result = alert_service.check_and_alert_batch(
+        None,
+        run.id,
+        records=[failed_record, changed_record],
+    )
+
+    assert result["email_sent"] is True
+    assert result["failed_count"] == 1
+    assert result["changed_count"] == 1
+    assert "失败列表" in captured["content"]
+    assert "failed-device" in captured["content"]
+    assert "耗时" in captured["content"]
+    assert "21.04s" in captured["content"]
+    assert "错误类型" in captured["content"]
+    assert "TIMEOUT" in captured["content"]
+    assert "连接超时: 设备不可达或端口不通" in captured["content"]
+    assert "配置变更列表" in captured["content"]
+    assert "changed-device" in captured["content"]
+    assert "hostname changed-device" in captured["content"]
+
+    failed_record.locale = "en-US"
+    captured.clear()
+    english_result = alert_service.check_and_alert_batch(
+        None,
+        run.id,
+        records=[failed_record, changed_record],
+    )
+    assert english_result["email_sent"] is True
+    assert "Duration" in captured["content"]
+    assert "Failure type" in captured["content"]
+    assert "Error details" in captured["content"]
+    assert "Connection timed out: the device is unreachable or the port is unavailable" in captured["content"]
+    assert "TCP connection to device failed. Wrong TCP port." in captured["content"]
+    assert "连接超时" not in captured["content"]

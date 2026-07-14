@@ -1694,7 +1694,14 @@ window.NB = window.NB || {};
             });
             if (!rows.length) {
               rows.push(
-                NB.t("js.nb_common.tr_td_colspan_5_class_text_center_text")
+                `<tr>
+                  <td colspan="5" class="text-center text-secondary py-4 small">
+                    <span class="d-inline-flex align-items-center gap-2" role="status" aria-live="polite">
+                      <span class="spinner-border spinner-border-sm text-primary nb-task-loading-spinner" aria-hidden="true"></span>
+                      <span>${escapeText(NB.t("js.nb_common.loading_task_status"))}</span>
+                    </span>
+                  </td>
+                </tr>`
               );
             }
             tbody.innerHTML = rows.join("");
@@ -1833,6 +1840,44 @@ window.NB = window.NB || {};
             const pad = (n) => String(n).padStart(2, "0");
             return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
           }
+
+          window.NB.beginBackupTracking = function () {
+            if (!CAN_TRACK_BACKUPS) return false;
+            stopTimer();
+            closeTaskSocket();
+            state.jobs = [{
+              id: `pending:${Date.now()}`,
+              run_id: "",
+              backup_id: "",
+              requested_at: nowStr(),
+              devices: [],
+              run_status: "",
+              pending: true,
+            }];
+            state.selectedBackupIds = [];
+            state.warningMessage = "";
+            state.taskLogsVisible = false;
+            state.taskLogTarget = null;
+            setTaskChannelMode("idle");
+            resetTaskLogs();
+            state.panelVisible = true;
+            render();
+            return true;
+          };
+
+          window.NB.cancelPendingBackupTracking = function () {
+            const job = state.jobs.length ? state.jobs[0] : null;
+            if (!job || !job.pending) return false;
+            state.jobs = [];
+            state.panelVisible = false;
+            state.selectedBackupIds = [];
+            state.warningMessage = "";
+            state.taskLogsVisible = false;
+            state.taskLogTarget = null;
+            resetTaskLogs();
+            render();
+            return true;
+          };
 
           window.NB.trackBackups = function (payload) {
             if (!CAN_TRACK_BACKUPS) return;
