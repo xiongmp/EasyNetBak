@@ -919,7 +919,7 @@
   "template.schedule_stats.platform": "平台:",
   "template.schedules.for_example_core_switch_daily_backup": "例如：核心交换机每日备份",
   "template.schedules.expression": "表达式",
-  "template.schedules.day": "分 时 日 月 周",
+  "template.schedules.apscheduler_hint": "分 时 日 月 周",
   "template.schedules.minute": "分钟",
   "template.schedules.hour": "小时",
   "template.schedules.day": "日",

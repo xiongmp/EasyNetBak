@@ -919,7 +919,7 @@
   "template.schedule_stats.platform": "Platform:",
   "template.schedules.for_example_core_switch_daily_backup": "For example: core switch daily backup",
   "template.schedules.expression": "Expression",
-  "template.schedules.day": "minute hour day month weekday",
+  "template.schedules.apscheduler_hint": "minute hour day month weekday",
   "template.schedules.minute": "minute",
   "template.schedules.hour": "hour",
   "template.schedules.day": "day",

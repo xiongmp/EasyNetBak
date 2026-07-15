@@ -39,7 +39,7 @@
                   </div>
 
                   <div class="mb-4">
-                    <label class="form-label small text-secondary fw-bold mb-2">Cron {{ _('template.schedules.expression') }} (APScheduler: {{ _('template.schedules.day') }})</label>
+                    <label class="form-label small text-secondary fw-bold mb-2">Cron {{ _('template.schedules.expression') }} (APScheduler: {{ _('template.schedules.apscheduler_hint') }})</label>
                     <input id="crontab-input" name="crontab" class="form-control font-monospace" value="{{ current.crontab if current else '0 2 * * *' }}" required />
                     <div id="crontab-meaning" class="form-text small text-primary mt-2 fw-medium min-height-1" style="min-height: 1.25rem;"></div>
 
