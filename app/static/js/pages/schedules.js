@@ -147,7 +147,7 @@
             platformsData = result.data || [];
             renderPlatforms();
           } catch (e) {
-            platformSelection.innerHTML = trHtml(NB.t("js.schedules.load_failed_html"));
+            platformSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
@@ -159,7 +159,7 @@
             groupsData = result.data || [];
             renderGroups();
           } catch (e) {
-            groupSelection.innerHTML = trHtml(NB.t("js.schedules.load_failed_html"));
+            groupSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
@@ -174,14 +174,14 @@
             devicesData = data.devices || [];
             renderDevices();
           } catch (e) {
-            deviceSelection.innerHTML = trHtml(NB.t("js.schedules.load_failed_html"));
+            deviceSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
         // 渲染平台选择器
         function renderPlatforms() {
           if (!platformsData.length) {
-            platformSelection.innerHTML = trHtml(NB.t("js.schedules.no_platform_data_html"));
+            platformSelection.innerHTML = `<div class="text-secondary small">${escapeText(NB.t("js.schedules.no_platform_data"))}</div>`;
             return;
           }
           
@@ -329,7 +329,7 @@
         // 渲染分组选择器
         function renderGroups(searchText = "") {
           if (!groupsData.length) {
-            groupSelection.innerHTML = trHtml(NB.t("js.schedules.no_group_data_html"));
+            groupSelection.innerHTML = `<div class="text-secondary small">${escapeText(NB.t("js.schedules.no_group_data"))}</div>`;
             return;
           }
           
@@ -360,7 +360,7 @@
           }
 
           if (searchText && !filteredGroups.length) {
-            groupSelection.innerHTML = trHtml(NB.t("js.schedules.no_matching_groups_html"));
+            groupSelection.innerHTML = `<div class="p-3 text-secondary small text-center">${escapeText(NB.t("js.schedules.no_matching_groups"))}</div>`;
             return;
           }
 
@@ -384,7 +384,7 @@
           const countEl = document.getElementById('device-selection-count');
           
           if (!devicesData.length) {
-            container.innerHTML = trHtml(NB.t("js.schedules.no_matching_devices_html"));
+            container.innerHTML = `<div class="p-3 text-secondary small text-center">${escapeText(NB.t("js.schedules.no_matching_devices"))}</div>`;
             if (countEl) countEl.textContent = tr(NB.t("js.schedules.total_0_devices"));
             return;
           }
@@ -520,7 +520,7 @@
               // 如果有内容，通过透明度和顶部加载提示来避免布局跳动
               drawerPreviewCounts.classList.add('opacity-50');
               drawerPreviewDevices.classList.add('opacity-50');
-              drawerPreviewSummary.innerHTML = trHtml(NB.t("js.schedules.calculating_html"));
+              drawerPreviewSummary.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${escapeText(NB.t("js.schedules.calculating"))}`;
               drawerPreviewLoading.classList.add('d-none');
             } else {
               // 如果没内容，显示加载占位符
@@ -576,13 +576,13 @@
             const list = Object.entries(counts.platforms).sort().map(([p, c]) => 
               `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(p)} · ${c}</span>`
             ).join(' ');
-            countHtml += NB.t("js.schedules.matched_platforms_html", {value0: list});
+            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_platforms"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
           }
           if (counts.groups && Object.keys(counts.groups).length > 0) {
             const list = Object.entries(counts.groups).sort().map(([g, c]) => 
               `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(g)} · ${c}</span>`
             ).join(' ');
-            countHtml += NB.t("js.schedules.matched_groups_html", {value0: list});
+            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_groups"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
           }
           drawerPreviewCounts.innerHTML = trHtml(countHtml);
           
@@ -595,7 +595,7 @@
           ).join('');
           
           if (deviceBadges) {
-            drawerPreviewDevices.innerHTML = trHtml(NB.t("js.schedules.matched_devices_html", {value0: deviceBadges}));
+            drawerPreviewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_devices"))}</div><div class="d-flex flex-wrap gap-1" data-i18n-preserve>${deviceBadges}</div></div>`;
           } else {
             drawerPreviewDevices.innerHTML = '';
           }
@@ -869,14 +869,14 @@
           if (!targetsEl || !targetsSummaryText) return;
           const val = targetsEl.value.trim();
           if (!val) {
-            targetsSummaryText.innerHTML = trHtml(NB.t("js.schedules.no_device_selected_html"));
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.no_device_selected"))}</span>`;
             return;
           }
           const lines = val.split('\n').filter(l => l.trim());
           if (lines.length === 1 && lines[0] === 'all') {
-            targetsSummaryText.innerHTML = trHtml(NB.t("js.schedules.all_devices_html"));
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.all_devices"))}</span>`;
           } else {
-            targetsSummaryText.innerHTML = trHtml(NB.t("js.schedules.selected_config_items_html", {value0: lines.length}));
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.selected_config_items", {value0: lines.length}))}</span>`;
           }
         }
 
@@ -942,7 +942,7 @@
           if (!scheduleId) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = trHtml(NB.t("js.schedule_stats_runs.running_button_html"));
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${escapeText(NB.t("js.schedule_stats_runs.running_button"))}`;
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};
@@ -1014,11 +1014,11 @@
             let countHtml = '';
              if (Object.keys(platforms).length > 0) {
                const list = Object.keys(platforms).sort().map(k => `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(k || "unknown")} · ${platforms[k]}</span>`).join(' ');
-               countHtml += NB.t("js.schedules.matched_platforms_html", {value0: list});
+               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_platforms"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
              }
              if (Object.keys(groups).length > 0) {
                const list = Object.keys(groups).sort().map(k => `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(k)} · ${groups[k]}</span>`).join(' ');
-               countHtml += NB.t("js.schedules.matched_groups_html", {value0: list});
+               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_groups"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
              }
             previewCounts.innerHTML = trHtml(countHtml);
 
@@ -1039,7 +1039,7 @@
                   .join("");
             
             if (deviceBadges) {
-              previewDevices.innerHTML = trHtml(NB.t("js.schedules.matched_devices_html", {value0: deviceBadges}));
+              previewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_devices"))}</div><div class="d-flex flex-wrap gap-1" data-i18n-preserve>${deviceBadges}</div></div>`;
             } else {
               previewDevices.innerHTML = "";
             }

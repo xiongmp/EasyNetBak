@@ -1632,7 +1632,7 @@ def create_user(
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
     enable_watermark: bool = True,
-    locale: str = "zh-CN",
+    locale: str | None = None,
 ) -> User:
     username = username.strip()
     role = (role or "").strip().lower()
@@ -1640,6 +1640,9 @@ def create_user(
         role = "readonly"
     if get_user_by_username(session, username) is not None:
         raise RuntimeError("Username already exists")
+    if locale is None:
+        from app.i18n.validators import default_locale
+        locale = default_locale()
     user = User(
         username=username,
         role=role,

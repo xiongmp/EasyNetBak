@@ -12,7 +12,7 @@ from app.core.settings import settings
 from app.core.time import format_local_datetime
 from app.platforms import PLATFORMS, TELNET_PLATFORMS, TELNET_PLATFORM_IDS, normalize_platform_id
 from app.routers.support import _current_user, has_permission, _user_effective_perms
-from app.i18n import get_messages, has_key, translate
+from app.i18n import get_messages, has_key, message_placeholders, translate, translate_plural
 from app.i18n.render import javascript_messages
 from app.i18n.validators import locale_capabilities, supported_locales
 
@@ -52,6 +52,27 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
     flash_params = dict(request.query_params)
     flash_message_key = (request.query_params.get("msg") or "").strip()
     flash_error_key = (request.query_params.get("err") or "").strip()
+    def localized_flash(key: str) -> str:
+        if not key or not has_key(key, locale):
+            return ""
+        selected_params = {
+            name: flash_params[name]
+            for name in message_placeholders(locale, key)
+            if name in flash_params
+        }
+        if "count" in flash_params and has_key(f"{key}.other", locale):
+            try:
+                count = int(flash_params["count"])
+            except (TypeError, ValueError):
+                pass
+            else:
+                plural_params = {
+                    name: flash_params[name]
+                    for name in message_placeholders(locale, f"{key}.other")
+                    if name in flash_params
+                }
+                return translate_plural(locale, key, count, plural_params)
+        return translate(locale, key, selected_params)
     page_subtitle_keys = {
         "dashboard": "page.dashboard.subtitle",
         "devices": "page.devices.subtitle",
@@ -99,16 +120,8 @@ def _layout_context(*, request: Request, active: str) -> dict[str, Any]:
             locale_code: get_messages(locale_code).get("language.name", locale_code)
             for locale_code in supported_locales()
         },
-        "js_messages": javascript_messages(locale),
-        "flash_message": (
-            translate(locale, flash_message_key, flash_params)
-            if flash_message_key and has_key(flash_message_key, locale)
-            else ""
-        ),
-        "flash_error": (
-            translate(locale, flash_error_key, flash_params)
-            if flash_error_key and has_key(flash_error_key, locale)
-            else ""
-        ),
+        "js_messages": javascript_messages(locale, page=active),
+        "flash_message": localized_flash(flash_message_key),
+        "flash_error": localized_flash(flash_error_key),
         "_": lambda key, params=None, fallback=None: translate(locale, key, params, fallback),
     }

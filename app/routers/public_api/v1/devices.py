@@ -18,7 +18,7 @@ from app.services import backup_service, device_service
 router = public_api_router()
 
 
-@router.get("/devices", summary="获取设备列表", response_model=DeviceListResponseSchema, tags=["设备管理"])
+@router.get("/devices", summary="openapi.operation.get_devices", response_model=DeviceListResponseSchema, tags=["设备管理"])
 def get_devices(
     request: Request,
     session: Session = Depends(get_session),
@@ -46,7 +46,7 @@ def get_devices(
     )
 
 
-@router.get("/devices/unreachable", summary="获取当前不可达设备列表", response_model=DeviceListResponseSchema, tags=["其它"])
+@router.get("/devices/unreachable", summary="openapi.operation.get_unreachable_devices", response_model=DeviceListResponseSchema, tags=["其它"])
 def get_unreachable_devices(
     request: Request,
     page: int = page_query(),
@@ -71,7 +71,7 @@ def get_unreachable_devices(
         total=payload["total"],
     )
 
-@router.get("/devices/{device_id}", summary="获取设备详情", response_model=DeviceResponseSchema, tags=["设备管理"])
+@router.get("/devices/{device_id}", summary="openapi.operation.get_device", response_model=DeviceResponseSchema, tags=["设备管理"])
 def get_device(request: Request, device_id: int, session: Session = Depends(get_session)):
     user = _require_api_permission(request, "devices.view")
     allowed_ids = get_user_allowed_group_ids(user, session=session)
@@ -85,7 +85,7 @@ def get_device(request: Request, device_id: int, session: Session = Depends(get_
         raise_service_api_error(exc)
 
 
-@router.post("/devices", status_code=201, summary="新增设备", response_model=DeviceResponseSchema, tags=["设备管理"])
+@router.post("/devices", status_code=201, summary="openapi.operation.create_device", response_model=DeviceResponseSchema, tags=["设备管理"])
 def create_device_api(request: Request, data: DeviceCreateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "devices.create")
     try:
@@ -107,7 +107,7 @@ def create_device_api(request: Request, data: DeviceCreateSchema, session: Sessi
         raise_service_api_error(exc)
 
 
-@router.put("/devices/{device_id}", summary="更新设备", response_model=DeviceResponseSchema, tags=["设备管理"])
+@router.put("/devices/{device_id}", summary="openapi.operation.update_device", response_model=DeviceResponseSchema, tags=["设备管理"])
 def update_device_api(request: Request, device_id: int, data: DeviceUpdateSchema, session: Session = Depends(get_session)):
     user = _require_api_permission(request, "devices.update")
     allowed_ids = get_user_allowed_group_ids(user, session=session)
@@ -132,7 +132,7 @@ def update_device_api(request: Request, device_id: int, data: DeviceUpdateSchema
         raise_service_api_error(exc)
 
 
-@router.delete("/devices/{device_id}", summary="删除设备", response_model=OperationStatusSchema, tags=["设备管理"])
+@router.delete("/devices/{device_id}", summary="openapi.operation.delete_device", response_model=OperationStatusSchema, tags=["设备管理"])
 def delete_device_api(request: Request, device_id: int, session: Session = Depends(get_session)):
     user = _require_api_permission(request, "devices.delete")
     allowed_ids = get_user_allowed_group_ids(user, session=session)
@@ -143,7 +143,7 @@ def delete_device_api(request: Request, device_id: int, session: Session = Depen
     return {"status": "success"}
 
 
-@router.get("/devices/{device_id}/backups", summary="获取设备备份历史", response_model=DeviceBackupsResponseSchema, tags=["备份管理"])
+@router.get("/devices/{device_id}/backups", summary="openapi.operation.get_device_backups", response_model=DeviceBackupsResponseSchema, tags=["备份管理"])
 def get_device_backups(
     request: Request,
     device_id: int,

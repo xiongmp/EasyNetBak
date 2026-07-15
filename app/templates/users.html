@@ -195,7 +195,7 @@
 
                     <div id="mfaSetupPanel" style="display: {{ 'block' if not current or (current and not current.mfa_enabled) or (current and current.mfa_enabled and not current.mfa_secret) else 'none' }};">
                       <div class="form-text x-small text-secondary mt-0">
-                        {{ _('template.users.when_enabled_users_will_be_prompted_to_scan') }}Microsoft Authenticator），{{ _('template.users.and_enter_a_verification_code_to_finish_setup') }}。
+                        {{ _('template.users.mfa_first_sign_in_help') }}
                       </div>
                     </div>
                     

@@ -28,7 +28,7 @@ from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
 from app.i18n import get_current_locale, locale_capabilities, translate, validate_catalogs
-from app.i18n.middleware import i18n_http_middleware, resolve_request_locale, set_locale_cookie
+from app.i18n.middleware import i18n_http_middleware, localize_response, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
 
 
@@ -312,14 +312,15 @@ async def _auth_middleware(request, call_next):
     user = request.state.user
     locale, persist_locale_cookie = resolve_request_locale(request, user=user)
     request.state.locale = locale
+    request.state.persist_locale_cookie = persist_locale_cookie
 
     def localized_response(response):
-        response.headers["Content-Language"] = locale
-        response.headers.add_vary_header("Accept-Language")
-        response.headers.add_vary_header("Cookie")
-        if persist_locale_cookie:
-            set_locale_cookie(response, locale)
-        return response
+        return localize_response(
+            request,
+            response,
+            locale,
+            persist_cookie=persist_locale_cookie,
+        )
 
     if skip_auth or allow_anonymous:
         return await call_next(request)

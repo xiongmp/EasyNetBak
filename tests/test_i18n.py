@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
 from app import crud
@@ -17,9 +18,11 @@ from app.i18n import (
     reset_current_locale,
     set_current_locale,
     translate,
+    translate_plural,
     validate_catalogs,
 )
-from app.i18n.catalog import CatalogValidationError, _placeholders
+from app.i18n import catalog as catalog_module
+from app.i18n.catalog import CatalogValidationError, _load_catalog_file, _placeholders
 from app.i18n.middleware import i18n_http_middleware, resolve_request_locale
 from app.i18n.openapi import build_openapi_schema
 from app.i18n.render import is_frontend_message_key, javascript_messages
@@ -86,6 +89,22 @@ def test_catalogs_are_read_only_and_placeholders_are_simple_identifiers():
         _placeholders("Value {count:03d}")
 
 
+def test_catalog_loader_rejects_duplicate_keys(monkeypatch, tmp_path):
+    (tmp_path / "en-US.json").write_text('{"same":"first","same":"second"}', encoding="utf-8")
+    monkeypatch.setattr(catalog_module, "_LOCALES_DIR", tmp_path)
+    with pytest.raises(CatalogValidationError, match="duplicate keys"):
+        _load_catalog_file("en-US")
+
+
+def test_strict_interpolation_and_plural_rules():
+    assert translate_plural("en-US", "message.devices_updated", 1) == "1 device updated"
+    assert translate_plural("en-US", "message.devices_updated", 2) == "2 devices updated"
+    assert translate_plural("zh-CN", "message.devices_updated", 2) == "成功更新 2 台设备"
+    with pytest.raises(CatalogValidationError, match=r"missing=\['count'\]"):
+        translate("en-US", "message.devices_updated", strict=True)
+    assert translate("en-US", "button.save", {"unused": 1}, strict=True) == "Save"
+
+
 def test_locale_capabilities_support_non_binary_locale_behavior(monkeypatch):
     monkeypatch.setattr(settings, "supported_locales", "zh-CN,en-US,fr-FR,ar-SA")
     french = locale_capabilities("fr-FR")
@@ -130,6 +149,7 @@ def test_frontend_source_references_match_explicit_message_contract():
     catalog = get_messages("en-US")
     patterns = (
         re.compile(r"(?:window\.)?NB\.t\(\s*(['\"])([^'\"]+)\1"),
+        re.compile(r"(?:window\.)?NB\.tp\(\s*(['\"])([^'\"]+)\1"),
         re.compile(r"data-(?:confirm|i18n)-key\s*=\s*(['\"])([^'\"]+)\1"),
     )
     invalid: dict[str, list[str]] = {}
@@ -185,6 +205,29 @@ def test_browser_catalog_contains_only_explicit_frontend_contract():
     assert browser_messages["webshell.status.connected"] == "Connected"
     assert "openapi.description" not in browser_messages
     assert len(browser_messages) < 400
+
+
+def test_browser_catalog_is_page_scoped_and_contains_no_markup():
+    dashboard_messages = javascript_messages("en-US", page="dashboard")
+    schedule_messages = javascript_messages("en-US", page="schedules")
+    assert "js.dashboard.change_count" in dashboard_messages
+    assert "js.schedules.syncing" not in dashboard_messages
+    assert "js.schedules.syncing" in schedule_messages
+    assert "webshell.status.connected" in javascript_messages("en-US", page="devices")
+    assert dashboard_messages["task.selected_devices.one"] == "{count} device selected"
+    assert len(dashboard_messages) < len(javascript_messages("en-US"))
+    assert all(not re.search(r"<\s*/?\s*[A-Za-z]", value) for value in schedule_messages.values())
+
+
+def test_catalog_messages_are_plain_text_and_quality_regressions_are_absent():
+    for locale in ("zh-CN", "en-US"):
+        messages = get_messages(locale)
+        assert not [key for key in messages if key.endswith("_html")]
+        assert not [value for value in messages.values() if re.search(r"<\s*/?\s*[A-Za-z]", value)]
+    english = get_messages("en-US")
+    assert english["template.schedules.noneschedules"] == "No schedules"
+    assert english["template.templates.usesystemdefault"] == "Use system default"
+    assert english["js.nb_common.devicelogs"] == "Device logs"
 
 
 def test_accept_language_quality_and_exclusions():
@@ -254,6 +297,27 @@ def test_middleware_sets_context_header_and_cookie():
     assert "HttpOnly" in response.headers["Set-Cookie"]
 
 
+def test_static_responses_do_not_vary_by_locale(tmp_path):
+    (tmp_path / "asset.js").write_text("const ok = true;", encoding="utf-8")
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory=tmp_path), name="static")
+    app.middleware("http")(i18n_http_middleware)
+    response = TestClient(app).get("/static/asset.js", headers={"Accept-Language": "en-US"})
+    assert response.status_code == 200
+    assert "Content-Language" not in response.headers
+    assert "Vary" not in response.headers
+
+
+def test_model_locale_defaults_follow_configuration(monkeypatch):
+    monkeypatch.setattr(settings, "supported_locales", "zh-CN,en-US")
+    monkeypatch.setattr(settings, "default_locale", "en-US")
+    assert Device(name="device", host="127.0.0.1").name == "device"
+    from app.models import User
+
+    assert User(username="user", password_hash="hash").locale == "en-US"
+    assert BackupRecord(device_id=1).locale == "en-US"
+
+
 def test_api_error_keeps_code_and_localizes_message():
     token = set_current_locale("en-US")
     try:
@@ -278,6 +342,16 @@ def test_openapi_and_audit_translation():
     schema = build_openapi_schema(main_app, "en-US")
     assert schema["info"]["title"] == "EasyNetBak API"
     assert "API documentation" in schema["info"]["description"]
+    public_summaries = [
+        operation["summary"]
+        for path, path_item in schema["paths"].items()
+        if path.startswith("/api/v1/")
+        for operation in path_item.values()
+        if isinstance(operation, dict) and "summary" in operation
+    ]
+    assert "List devices" in public_summaries
+    assert not [summary for summary in public_summaries if summary.startswith("openapi.")]
+    assert not [summary for summary in public_summaries if re.search(r"[\u4e00-\u9fff]", summary)]
     assert translate_audit_action("CREATE_DEVICE", "en-US") == "Create device"
     assert translate_audit_resource("device", "en-US") == "Device"
     assert translate_login_fail_reason("invalid_mfa", "en-US") == "Invalid verification code"

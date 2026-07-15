@@ -24,7 +24,7 @@ from app.services import resource_service
 router = public_api_router()
 
 
-@router.get("/templates", summary="获取所有自定义备份模板", response_model=TemplateListResponseSchema, tags=["备份管理"])
+@router.get("/templates", summary="openapi.operation.get_templates", response_model=TemplateListResponseSchema, tags=["备份管理"])
 def get_templates(
     request: Request,
     page: int = page_query(),
@@ -41,7 +41,7 @@ def get_templates(
     )
 
 
-@router.get("/templates/{template_id}", summary="获取备份模板详情", response_model=TemplateResponseSchema, tags=["备份管理"])
+@router.get("/templates/{template_id}", summary="openapi.operation.get_template", response_model=TemplateResponseSchema, tags=["备份管理"])
 def get_template(request: Request, template_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "templates.view")
     template = crud.get_template(session, template_id)
@@ -50,7 +50,7 @@ def get_template(request: Request, template_id: int, session: Session = Depends(
     return template
 
 
-@router.post("/templates", status_code=201, summary="新增备份模板", response_model=TemplateResponseSchema, tags=["备份管理"])
+@router.post("/templates", status_code=201, summary="openapi.operation.create_template", response_model=TemplateResponseSchema, tags=["备份管理"])
 def create_template_api(request: Request, data: TemplateCreateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "templates.create")
     try:
@@ -66,7 +66,7 @@ def create_template_api(request: Request, data: TemplateCreateSchema, session: S
         raise_service_api_error(exc)
 
 
-@router.put("/templates/{template_id}", summary="更新备份模板", response_model=TemplateResponseSchema, tags=["备份管理"])
+@router.put("/templates/{template_id}", summary="openapi.operation.update_template", response_model=TemplateResponseSchema, tags=["备份管理"])
 def update_template_api(request: Request, template_id: int, data: TemplateUpdateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "templates.update")
     try:
@@ -83,7 +83,7 @@ def update_template_api(request: Request, template_id: int, data: TemplateUpdate
         raise_service_api_error(exc)
 
 
-@router.delete("/templates/{template_id}", summary="删除备份模板", response_model=OperationStatusSchema, tags=["备份管理"])
+@router.delete("/templates/{template_id}", summary="openapi.operation.delete_template", response_model=OperationStatusSchema, tags=["备份管理"])
 def delete_template_api(request: Request, template_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "templates.delete")
     try:

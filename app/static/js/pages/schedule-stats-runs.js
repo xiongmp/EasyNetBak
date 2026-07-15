@@ -28,7 +28,7 @@
           if (!runsTbody) return;
           const rows = Array.isArray(items) ? items : [];
           if (!rows.length) {
-            runsTbody.innerHTML = trHtml(NB.t("js.schedule_stats_runs.empty_runs_html"));
+            runsTbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-5"><div class="my-3"><i class="bi bi-inbox fs-1 opacity-25"></i><p class="mt-2 text-xs">${escapeText(NB.t("js.schedule_stats_runs.empty_runs"))}</p></div></td></tr>`;
             return;
           }
 
@@ -52,17 +52,17 @@
             let durationHtml = escapeText(r.duration_text || "—");
             if (!r.finished_at && statusMeta) {
               if (r.status === "running") {
-                durationHtml = NB.t("js.schedule_stats_runs.running_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.running"))});
+                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.running"))}</span>`;
               } else if (r.status === "finalizing") {
-                durationHtml = NB.t("js.schedule_stats_runs.finalizing_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.finalizing"))});
+                durationHtml = `<span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>${escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.finalizing"))}</span>`;
               } else if (r.status === "cancelling") {
-                durationHtml = NB.t("js.schedule_stats_runs.cancelling_status_html", {value0: escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.cancelling"))});
+                durationHtml = `<span class="text-warning"><i class="bi bi-slash-circle me-1"></i>${escapeText(statusMeta.label || r.duration_text || NB.t("status.schedule_run.cancelling"))}</span>`;
               } else if (window.NB && typeof window.NB.isActiveScheduleRunStatus === "function" && window.NB.isActiveScheduleRunStatus(r.status)) {
                 durationHtml = `<span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>${escapeText(statusMeta.label || r.duration_text || r.status || "")}</span>`;
               }
             }
             const actionHtml = canTerminateRuns && canTerminateRun(r.status)
-              ? NB.t("js.schedule_stats_runs.terminate_button_html", {value0: escapeText(r.id || ""), value1: isTerminating ? "disabled" : "", value2: isTerminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks")})
+              ? `<button class="btn btn-outline-danger btn-sm js-run-terminate" type="button" data-run-id="${escapeText(r.id || "")}" ${isTerminating ? "disabled" : ""}>${escapeText(isTerminating ? NB.t("js.nb_common.processing") : NB.t("template.schedule_stats.cancel_pending_tasks"))}</button>`
               : '<span class="text-secondary opacity-50 text-xs">—</span>';
 
             return `
@@ -154,7 +154,7 @@
           if (!btn) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = trHtml(NB.t("js.schedule_stats_runs.running_button_html"));
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${escapeText(NB.t("js.schedule_stats_runs.running_button"))}`;
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};

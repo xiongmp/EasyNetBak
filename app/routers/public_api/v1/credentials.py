@@ -24,7 +24,7 @@ from app.services import resource_service
 router = public_api_router()
 
 
-@router.get("/credentials", summary="获取所有登录凭据", response_model=CredentialListResponseSchema, tags=["凭据管理"])
+@router.get("/credentials", summary="openapi.operation.get_credentials", response_model=CredentialListResponseSchema, tags=["凭据管理"])
 def get_credentials(
     request: Request,
     page: int = page_query(),
@@ -41,7 +41,7 @@ def get_credentials(
     )
 
 
-@router.get("/credentials/{credential_id}", summary="获取登录凭据详情", response_model=CredentialResponseSchema, tags=["凭据管理"])
+@router.get("/credentials/{credential_id}", summary="openapi.operation.get_credential", response_model=CredentialResponseSchema, tags=["凭据管理"])
 def get_credential(request: Request, credential_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "credentials.view")
     cred = crud.get_credential(session, credential_id)
@@ -50,7 +50,7 @@ def get_credential(request: Request, credential_id: int, session: Session = Depe
     return cred
 
 
-@router.post("/credentials", status_code=201, summary="新增登录凭据", response_model=CredentialResponseSchema, tags=["凭据管理"])
+@router.post("/credentials", status_code=201, summary="openapi.operation.create_credential", response_model=CredentialResponseSchema, tags=["凭据管理"])
 def create_credential_api(request: Request, data: CredentialCreateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "credentials.create")
     try:
@@ -68,7 +68,7 @@ def create_credential_api(request: Request, data: CredentialCreateSchema, sessio
         raise_service_api_error(exc)
 
 
-@router.put("/credentials/{credential_id}", summary="更新登录凭据", response_model=CredentialResponseSchema, tags=["凭据管理"])
+@router.put("/credentials/{credential_id}", summary="openapi.operation.update_credential", response_model=CredentialResponseSchema, tags=["凭据管理"])
 def update_credential_api(request: Request, credential_id: int, data: CredentialUpdateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "credentials.update")
     try:
@@ -87,7 +87,7 @@ def update_credential_api(request: Request, credential_id: int, data: Credential
         raise_service_api_error(exc)
 
 
-@router.delete("/credentials/{credential_id}", summary="删除登录凭据", response_model=OperationStatusSchema, tags=["凭据管理"])
+@router.delete("/credentials/{credential_id}", summary="openapi.operation.delete_credential", response_model=OperationStatusSchema, tags=["凭据管理"])
 def delete_credential_api(request: Request, credential_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "credentials.delete")
     try:

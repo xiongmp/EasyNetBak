@@ -25,7 +25,7 @@ from app.services import resource_service
 router = public_api_router()
 
 
-@router.get("/groups", summary="获取所有设备分组", response_model=GroupListResponseSchema, tags=["分组管理"])
+@router.get("/groups", summary="openapi.operation.get_groups", response_model=GroupListResponseSchema, tags=["分组管理"])
 def get_groups(
     request: Request,
     page: int = page_query(),
@@ -42,13 +42,13 @@ def get_groups(
     )
 
 
-@router.get("/groups/tree", summary="获取设备分组树", response_model=list[GroupTreeNodeSchema], tags=["分组管理"])
+@router.get("/groups/tree", summary="openapi.operation.get_group_tree", response_model=list[GroupTreeNodeSchema], tags=["分组管理"])
 def get_group_tree(request: Request, session: Session = Depends(get_session)):
     _require_api_permission(request, "groups.view")
     return resource_service.list_group_tree(session)
 
 
-@router.get("/groups/{group_id}", summary="获取设备分组详情", response_model=GroupResponseSchema, tags=["分组管理"])
+@router.get("/groups/{group_id}", summary="openapi.operation.get_group", response_model=GroupResponseSchema, tags=["分组管理"])
 def get_group(request: Request, group_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "groups.view")
     group = crud.get_group(session, group_id)
@@ -57,7 +57,7 @@ def get_group(request: Request, group_id: int, session: Session = Depends(get_se
     return group
 
 
-@router.post("/groups", status_code=201, summary="新增设备分组", response_model=GroupResponseSchema, tags=["分组管理"])
+@router.post("/groups", status_code=201, summary="openapi.operation.create_group", response_model=GroupResponseSchema, tags=["分组管理"])
 def create_group_api(request: Request, data: GroupCreateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "groups.create")
     try:
@@ -69,7 +69,7 @@ def create_group_api(request: Request, data: GroupCreateSchema, session: Session
         raise_service_api_error(exc)
 
 
-@router.put("/groups/{group_id}", summary="更新设备分组", response_model=GroupResponseSchema, tags=["分组管理"])
+@router.put("/groups/{group_id}", summary="openapi.operation.update_group", response_model=GroupResponseSchema, tags=["分组管理"])
 def update_group_api(request: Request, group_id: int, data: GroupUpdateSchema, session: Session = Depends(get_session)):
     _require_api_permission(request, "groups.update")
     try:
@@ -82,7 +82,7 @@ def update_group_api(request: Request, group_id: int, data: GroupUpdateSchema, s
         raise_service_api_error(exc)
 
 
-@router.delete("/groups/{group_id}", summary="删除设备分组", response_model=OperationStatusSchema, tags=["分组管理"])
+@router.delete("/groups/{group_id}", summary="openapi.operation.delete_group", response_model=OperationStatusSchema, tags=["分组管理"])
 def delete_group_api(request: Request, group_id: int, session: Session = Depends(get_session)):
     _require_api_permission(request, "groups.delete")
     try:

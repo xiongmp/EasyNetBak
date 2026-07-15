@@ -45,17 +45,34 @@ def resolve_request_locale(request: Request, user=None) -> tuple[str, bool]:
     return normalize_locale(header_locale or settings.default_locale), False
 
 
+def localize_response(request: Request, response, locale: str, *, persist_cookie: bool = False):
+    """Apply locale metadata only to dynamic responses that can vary by language."""
+    if request.url.path.startswith("/static/"):
+        return response
+    response.headers["Content-Language"] = locale
+    response.headers.add_vary_header("Accept-Language")
+    if not request.url.path.startswith("/api/v1/"):
+        response.headers.add_vary_header("Cookie")
+    if persist_cookie:
+        set_locale_cookie(response, locale)
+    return response
+
+
 async def i18n_http_middleware(request: Request, call_next):
-    locale, persist_cookie = resolve_request_locale(request, user=getattr(request.state, "user", None))
-    request.state.locale = locale
+    locale = getattr(request.state, "locale", None)
+    persist_cookie = bool(getattr(request.state, "persist_locale_cookie", False))
+    if not locale:
+        locale, persist_cookie = resolve_request_locale(request, user=getattr(request.state, "user", None))
+        request.state.locale = locale
+        request.state.persist_locale_cookie = persist_cookie
     token = set_current_locale(locale)
     try:
         response = await call_next(request)
     finally:
         reset_current_locale(token)
-    response.headers["Content-Language"] = getattr(request.state, "locale", locale)
-    response.headers.add_vary_header("Accept-Language")
-    response.headers.add_vary_header("Cookie")
-    if persist_cookie:
-        set_locale_cookie(response, locale)
-    return response
+    return localize_response(
+        request,
+        response,
+        getattr(request.state, "locale", locale),
+        persist_cookie=persist_cookie,
+    )

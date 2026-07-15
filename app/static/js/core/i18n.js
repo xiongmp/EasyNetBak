@@ -28,6 +28,14 @@
         : (fallback == null ? key : fallback);
       return interpolate(message, params);
     },
+    plural(key, count, params, fallback) {
+      const category = new Intl.PluralRules(this.locale).select(Number(count));
+      const values = Object.assign({ count }, params || {});
+      const selected = Object.prototype.hasOwnProperty.call(messages, `${key}.${category}`)
+        ? `${key}.${category}`
+        : `${key}.other`;
+      return this.t(selected, values, fallback);
+    },
     formatNumber(value, options) {
       return new Intl.NumberFormat(this.locale, options || {}).format(value);
     },
@@ -50,5 +58,6 @@
   };
 
   NB.t = NB.i18n.t.bind(NB.i18n);
+  NB.tp = NB.i18n.plural.bind(NB.i18n);
   document.documentElement.lang = NB.i18n.locale;
 })(window);

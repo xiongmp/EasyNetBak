@@ -10,6 +10,23 @@ FRONTEND_MESSAGE_NAMESPACES = (
     "webshell.",
 )
 
+COMMON_FRONTEND_NAMESPACES = (
+    "dialog.",
+    "status.",
+    "js.nb_common.",
+    "js.shell_controls.",
+    "js.ui_feedback.",
+)
+
+PAGE_FRONTEND_NAMESPACES = {
+    "dashboard": ("js.dashboard.",),
+    "devices": ("js.devices_bulk.", "js.devices_groups.", "js.webshell.", "webshell."),
+    "groups": ("js.devices_groups.",),
+    "schedules": ("js.schedules.", "js.schedule_stats_"),
+    "webshell": ("js.webshell.", "webshell."),
+    "webshell_records": ("js.webshell.", "webshell."),
+}
+
 FRONTEND_MESSAGE_KEYS = frozenset(
     {
         "audit.csv.action",
@@ -21,6 +38,8 @@ FRONTEND_MESSAGE_KEYS = frozenset(
         "label.test_time",
         "login.csv.status",
         "task.selected_devices",
+        "task.selected_devices.one",
+        "task.selected_devices.other",
         "task.start_time",
         "template.backups.no_backup_records",
         "template.backups.platform",
@@ -59,19 +78,27 @@ def is_frontend_message_key(key: str) -> bool:
     return key in FRONTEND_MESSAGE_KEYS or key.startswith(FRONTEND_MESSAGE_NAMESPACES)
 
 
-def javascript_messages(locale: str | None) -> dict[str, str]:
+def javascript_messages(locale: str | None, *, page: str | None = None) -> dict[str, str]:
     normalized = normalize_locale(locale)
+    namespaces = FRONTEND_MESSAGE_NAMESPACES if page is None else (
+        *COMMON_FRONTEND_NAMESPACES,
+        *PAGE_FRONTEND_NAMESPACES.get(page, ()),
+    )
+
+    def include(key: str) -> bool:
+        return key in FRONTEND_MESSAGE_KEYS or key.startswith(namespaces)
+
     messages = {
         key: value
         for key, value in get_messages(default_locale()).items()
-        if is_frontend_message_key(key)
+        if include(key)
     }
     if normalized != default_locale():
         messages.update(
             {
                 key: value
                 for key, value in get_messages(normalized).items()
-                if is_frontend_message_key(key)
+                if include(key)
             }
         )
     return messages

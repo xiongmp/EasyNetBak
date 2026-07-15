@@ -10,6 +10,7 @@ from sqlmodel import Field, SQLModel
 
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services import task_state_service
+from app.i18n.validators import default_locale
 
 
 class User(SQLModel, table=True):
@@ -25,7 +26,7 @@ class User(SQLModel, table=True):
     recovery_codes_hashed: Optional[str] = None
     recovery_codes_enabled: bool = Field(default=False)
     enable_watermark: bool = Field(default=True)
-    locale: str = Field(default="zh-CN", index=True, max_length=16)
+    locale: str = Field(default_factory=default_locale, index=True, max_length=16)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     @property
@@ -221,7 +222,7 @@ class BackupRecord(SQLModel, table=True):
     error_message: Optional[str] = None
     duration_seconds: Optional[float] = None
     failure_type: Optional[str] = None
-    locale: str = Field(default="zh-CN", max_length=16)
+    locale: str = Field(default_factory=default_locale, max_length=16)
     config_snapshot_hash: Optional[str] = None
 
 

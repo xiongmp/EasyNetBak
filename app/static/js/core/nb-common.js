@@ -556,7 +556,7 @@ window.NB = window.NB || {};
             if (!state.jobs.length) {
               logTitle.textContent = tr(NB.t("template.base.task_live_log"));
               logStatus.textContent = tr(NB.t("js.nb_common.untracked_task"));
-              logList.innerHTML = trHtml(NB.t("js.nb_common.no_live_logs_html"));
+              logList.innerHTML = `<div class="text-secondary opacity-75">${escapeText(NB.t("js.nb_common.no_live_logs"))}</div>`;
               return;
             }
             if (!state.taskLogsVisible) {
@@ -566,7 +566,7 @@ window.NB = window.NB || {};
             logTitle.textContent = (state.taskLogTarget && state.taskLogTarget.label) || tr(NB.t("template.base.task_live_log"));
             logStatus.textContent = tr(getTaskChannelModeMeta().text);
             if (!state.taskLogs.length) {
-              logList.innerHTML = trHtml(NB.t("js.nb_common.no_logs_html"));
+              logList.innerHTML = `<div class="text-secondary opacity-75">${escapeText(NB.t("js.nb_common.no_logs"))}</div>`;
               return;
             }
             const toneMap = {
@@ -579,8 +579,14 @@ window.NB = window.NB || {};
               const toneClass = toneMap[String(item.tone || "")] || "text-light";
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || "");
-              const eventText = escapeText(item.event || "");
-              return NB.t("js.nb_common.live_log_entry_html", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
+              const eventText = String(item.event || "");
+              return `<div class="py-1 border-bottom border-secondary-subtle">
+                <div class="d-flex align-items-start gap-2">
+                  <span class="text-secondary opacity-75 text-nowrap">${timeText}</span>
+                  <span class="${toneClass} flex-grow-1">${messageText}</span>
+                </div>
+                <div class="x-small text-secondary opacity-75 mt-1">${escapeText(NB.t("js.nb_common.event_value0", {value0: eventText}))}</div>
+              </div>`;
             }).join("");
             logList.scrollTop = logList.scrollHeight;
           }
@@ -1311,7 +1317,7 @@ window.NB = window.NB || {};
           function renderBackupLogItems(items) {
             if (!backupLogList) return;
             if (!items || !items.length) {
-              backupLogList.innerHTML = trHtml(NB.t("js.nb_common.no_execution_log_html"));
+              backupLogList.innerHTML = `<div class="text-secondary opacity-75 p-2">${escapeText(NB.t("js.nb_common.no_execution_log"))}</div>`;
               return;
             }
             backupLogList.innerHTML = items.map((item) => {
@@ -1324,8 +1330,14 @@ window.NB = window.NB || {};
               const toneClass = toneMap[String(item.tone || "")] || "text-info";
               const timeText = escapeText(item.created_at || "");
               const messageText = escapeText(item.message || item.event || "");
-              const eventText = escapeText(item.event || "");
-              return NB.t("js.nb_common.backup_log_entry_html", {value0: timeText, value1: toneClass, value2: messageText, value3: eventText});
+              const eventText = String(item.event || "");
+              return `<div class="backup-log-item py-2 border-bottom border-secondary-subtle">
+                <div class="d-flex align-items-start gap-2">
+                  <span class="text-secondary opacity-75 text-nowrap">${timeText}</span>
+                  <span class="${toneClass} flex-grow-1">${messageText}</span>
+                </div>
+                <div class="x-small text-secondary opacity-75 mt-1">${escapeText(NB.t("js.nb_common.event_value0", {value0: eventText}))}</div>
+              </div>`;
             }).join("");
             backupLogList.scrollTop = backupLogList.scrollHeight;
           }
@@ -1536,7 +1548,12 @@ window.NB = window.NB || {};
               0,
             );
             
-            summary.innerHTML = trHtml(NB.t("js.nb_common.job_summary_html", {value0: allDevices, value1: runningDevices, value2: successDevices, value3: failedDevices, value4: cancelledDevices}));
+            summary.innerHTML = `
+              <div class="nb-job-summary-item" data-filter="all"><span class="nb-job-summary-label">${escapeText(NB.t("js.nb_common.total_devices"))}</span><span class="nb-job-summary-value text-primary">${allDevices}</span></div>
+              <div class="nb-job-summary-item" data-filter="active"><span class="nb-job-summary-label">${escapeText(NB.t("status.backup.running"))}</span><span class="nb-job-summary-value text-warning">${runningDevices}</span></div>
+              <div class="nb-job-summary-item" data-filter="succeeded"><span class="nb-job-summary-label">${escapeText(NB.t("status.backup.succeeded"))}</span><span class="nb-job-summary-value text-success">${successDevices}</span></div>
+              <div class="nb-job-summary-item" data-filter="failed"><span class="nb-job-summary-label">${escapeText(NB.t("status.backup.failed"))}</span><span class="nb-job-summary-value text-danger">${failedDevices}</span></div>
+              <div class="nb-job-summary-item cancelled" data-filter="cancelled"><span class="nb-job-summary-label">${escapeText(NB.t("status.backup.cancelled"))}</span><span class="nb-job-summary-value">${cancelledDevices}</span></div>`;
             syncSummaryCardActiveState();
             bindSummaryCardClicks();
 
@@ -1551,7 +1568,7 @@ window.NB = window.NB || {};
                   <i class="bi bi-broadcast"></i>${channelMeta.text}
                 </span>
                 ${batchStartedAt ? `<span class="nb-header-badge"><i class="bi bi-clock"></i>${NB.t("task.start_time")}: <span data-i18n-preserve>${batchStartedAt}</span></span>` : ""}
-                ${selectedDevices.length ? `<span class="nb-header-badge"><i class="bi bi-check2-square"></i>${NB.t("task.selected_devices", {count: selectedDevices.length})}</span>` : ""}
+                ${selectedDevices.length ? `<span class="nb-header-badge"><i class="bi bi-check2-square"></i>${NB.tp("task.selected_devices", selectedDevices.length)}</span>` : ""}
               `);
               if (bulkTerminateBtn) {
                 const canBulkTerminate = canBulkTerminateTrackedRun(latest);
@@ -1644,7 +1661,7 @@ window.NB = window.NB || {};
               // 如果有多个批次，显示一个简单的分割线或更紧凑的标识
               if (jobs.length > 1) {
                 rows.push(
-                  NB.t("js.nb_common.job_group_header_html", {value0: escapeText(req), value1: cnt}),
+                  `<tr class="nb-job-group-header"><td colspan="5" class="py-1"><div class="d-flex justify-content-between x-small opacity-75"><span>${escapeText(NB.t("js.nb_common.batch_value0", {value0: req}))}</span><span>${escapeText(NB.t("js.nb_common.device_value0", {value0: cnt}))}</span></div></td></tr>`,
                 );
               }
 

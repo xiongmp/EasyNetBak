@@ -6,6 +6,7 @@ from typing import Any
 from sqlmodel import Session
 
 from app import crud
+from app.i18n.validators import default_locale
 from app.services import pagination_service, resource_service
 from app.services.auth import generate_recovery_codes, hash_recovery_code
 from app.services.errors import ServiceError
@@ -80,7 +81,7 @@ def create_user(
     mfa_enabled: bool = False,
     mfa_secret: str | None = None,
     enable_watermark: bool = True,
-    locale: str = "zh-CN",
+    locale: str | None = None,
 ):
     try:
         return crud.create_user(
@@ -94,7 +95,7 @@ def create_user(
             mfa_enabled=mfa_enabled,
             mfa_secret=mfa_secret,
             enable_watermark=enable_watermark,
-            locale=locale,
+            locale=locale or default_locale(),
         )
     except RuntimeError as exc:
         raise ServiceError(str(exc), code="USER_SAVE_FAILED") from exc
@@ -380,7 +381,7 @@ def upsert_user(
         mfa_enabled=enable_mfa,
         mfa_secret=None,
         enable_watermark=enable_watermark,
-        locale=locale or "zh-CN",
+        locale=locale or default_locale(),
     )
     return UserMutationResult(user=user, action="create", recovery_codes=[])
 

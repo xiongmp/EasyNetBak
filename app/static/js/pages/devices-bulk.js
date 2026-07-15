@@ -275,9 +275,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!items || !items.length) {
            if (lastReachItems.length > 0) {
-             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.no_matching_records_html"));
+             reachTbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-3">${escapeText(NB.t("js.devices_bulk.no_matching_records"))}</td></tr>`;
            } else {
-             reachTbody.innerHTML = trHtml(NB.t("js.devices_bulk.empty_test_results_html"));
+             reachTbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-3">${escapeText(NB.t("js.devices_bulk.empty_test_results"))}</td></tr>`;
            }
            return;
         }
@@ -309,14 +309,14 @@ document.addEventListener('DOMContentLoaded', function() {
       function updateReachSummary(summary) {
          if (!reachSummary) return;
          if (!summary) {
-             reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.ready_status_html"));
+             reachSummary.innerHTML = `<span class="text-secondary">${escapeText(NB.t("js.devices_bulk.ready_status"))}</span>`;
              return;
          }
          const total = summary.total || 0;
          const ok = summary.success || 0;
          const bad = summary.failed || 0;
 
-         reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.reachability_summary_html", {value0: total, value1: window.NB.t('status.device.reachable'), value2: ok, value3: window.NB.t('status.device.unreachable'), value4: bad}));
+         reachSummary.innerHTML = `<div class="backup-status" style="background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color);">${escapeText(NB.t("js.devices_bulk.total_value0", {value0: total}))}</div><div class="backup-status backup-status-success">${escapeText(NB.t('status.device.reachable'))} ${ok}</div><div class="backup-status backup-status-failed">${escapeText(NB.t('status.device.unreachable'))} ${bad}</div>`;
       }
 
       if (reachFilterGroup) {
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (reachProgressText) reachProgressText.textContent = tr(NB.t("js.devices_bulk.ready_to_start"));
 
           if (reachSummary) {
-            reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.starting_status_html"));
+            reachSummary.innerHTML = `<span class="text-secondary">${escapeText(NB.t("js.devices_bulk.starting_status"))}</span>`;
           }
 
           // Reset filter
@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const taskId = data.task_id;
 
             if (!taskId) {
-                if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.no_testable_devices_html"));
+                if (reachSummary) reachSummary.innerHTML = `<span class="text-warning">${escapeText(NB.t("js.devices_bulk.no_testable_devices"))}</span>`;
                 if (reachProgressContainer) reachProgressContainer.style.display = 'none';
                 startReachTestBtn.disabled = false;
                 startReachTestBtn.classList.remove('disabled');
@@ -499,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
 
           } catch (e) {
-            if (reachSummary) reachSummary.innerHTML = trHtml(NB.t("js.devices_bulk.request_failed_html"));
+            if (reachSummary) reachSummary.innerHTML = `<span class="text-danger">${escapeText(NB.t("js.devices_bulk.request_failed_short"))}</span>`;
             if (reachProgressContainer) reachProgressContainer.style.display = 'none';
             console.error(e);
             startReachTestBtn.disabled = false;
