@@ -5141,6 +5141,11 @@ input[type=number] {
   z-index: 2070 !important;
 }
 
+/* Global feedback is the topmost interactive layer, including above the watermark. */
+.toast-container.nb-toast-layer {
+  z-index: 11000 !important;
+}
+
 .preview-scroll {
   max-height: 400px;
   overflow-y: auto;

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.db import get_session
+from app.i18n import translate
 from app.routers.support import _current_user, _log_action, _require_any_permission, _require_permission, get_user_allowed_group_ids
 from app.scheduler import resolve_schedule_device_ids, sync_scheduler_from_db
 from app.services import backup_service, schedule_service, task_event_bus_service, task_orchestration_service
@@ -28,7 +29,7 @@ def api_run_schedule(request: Request, schedule_id: int, session: Session = Depe
     _require_permission(request, "devices.backup")
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
-        raise HTTPException(status_code=404, detail="定时任务不存在")
+        raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.schedule.not_found"))
     allowed_group_ids = get_user_allowed_group_ids(_current_user(request), session=session)
     device_ids = resolve_schedule_device_ids(
         session,
@@ -60,7 +61,7 @@ def api_run_schedule(request: Request, schedule_id: int, session: Session = Depe
     if not enqueue_result.enqueued and enqueue_result.enqueue_error_message:
         raise HTTPException(status_code=503, detail=enqueue_result.enqueue_error_message)
     if enqueue_result.enqueue_status == "none":
-        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
+        raise HTTPException(status_code=503, detail=translate(request.state.locale, "task.command.queue_unavailable"))
     return {
         "run_id": str(run_id),
         "records": [str(record_id) for record_id in enqueue_result.enqueued_record_ids],
@@ -117,6 +118,7 @@ def api_terminate_schedule_run(request: Request, run_id: UUID, session: Session 
         result = task_orchestration_service.terminate_schedule_run(
             session,
             run_id=run_id,
+            locale=request.state.locale,
         )
     except task_orchestration_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
@@ -161,6 +163,7 @@ def api_terminate_selected_schedule_run(
             run_id=run_id,
             backup_ids=list(payload.backup_ids or []),
             allowed_group_ids=allowed_group_ids,
+            locale=request.state.locale,
         )
     except task_orchestration_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
@@ -204,6 +207,7 @@ def api_retry_schedule_run(request: Request, run_id: UUID, session: Session = De
             session,
             run_id=run_id,
             allowed_group_ids=allowed_group_ids,
+            locale=request.state.locale,
         )
     except task_orchestration_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
@@ -248,6 +252,7 @@ def api_retry_selected_schedule_run(
             run_id=run_id,
             backup_ids=list(payload.backup_ids or []),
             allowed_group_ids=allowed_group_ids,
+            locale=request.state.locale,
         )
     except task_orchestration_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

@@ -7,6 +7,7 @@ from sqlmodel import select
 from app.celery_app import celery_app
 from app.celery_tasks import bulk_reachability_task
 from app.db import get_session
+from app.i18n import translate
 from app.models import Device
 from app.routers.support import _current_user, _log_action, _require_permission, get_user_allowed_group_ids
 from app.routers.web_context import _dt_local_str
@@ -33,19 +34,19 @@ def api_trigger_backup(request: Request, device_id: int, template_id: int = Form
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_DEVICE_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="设备不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.device.not_found"))
         if exc.code == "BACKUP_TEMPLATE_NOT_FOUND":
-            raise HTTPException(status_code=400, detail="备份模板不存在")
+            raise HTTPException(status_code=400, detail=translate(request.state.locale, "error.template.not_found"))
         if exc.code == "BACKUP_TEMPLATE_PLATFORM_MISMATCH":
-            raise HTTPException(status_code=400, detail="备份模板与设备平台不兼容")
+            raise HTTPException(status_code=400, detail=translate(request.state.locale, "error.template.platform_mismatch"))
         if int(getattr(exc, "status_code", 400)) == 403:
-            raise HTTPException(status_code=403, detail="无权访问该设备")
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.device.access_denied"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "TRIGGER_BACKUP_API", "device", device_id, f"Backup Record ID: {result.record_id}")
     if not result.enqueued:
         if result.enqueue_error_message:
             raise HTTPException(status_code=503, detail=result.enqueue_error_message)
-        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
+        raise HTTPException(status_code=503, detail=translate(request.state.locale, "task.command.queue_unavailable"))
     return {
         "run_id": str(result.run_id) if result.run_id else None,
         "enqueue_status": result.enqueue_status,
@@ -89,7 +90,7 @@ def api_bulk_backup(
     if not result.enqueued and result.enqueue_error_message:
         raise HTTPException(status_code=503, detail=result.enqueue_error_message)
     if result.enqueue_status == "none":
-        raise HTTPException(status_code=503, detail="Celery 未启用或不可用")
+        raise HTTPException(status_code=503, detail=translate(request.state.locale, "task.command.queue_unavailable"))
     return {
         "run_id": str(result.run_id) if result.run_id else None,
         "records": [str(record_id) for record_id in result.enqueued_record_ids],

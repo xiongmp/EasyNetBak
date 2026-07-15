@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import crud
 from app.core.settings import settings
 from app.db import session_scope
+from app.i18n import translate
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ def load_task_time_limit() -> int:
     return time_limit
 
 
-def get_task_runtime_degradation_status() -> list[dict[str, str]]:
+def get_task_runtime_degradation_status(locale: str | None = None) -> list[dict[str, str]]:
     degraded: list[dict[str, str]] = []
     broker_url = (settings.celery.broker_url or "").strip()
     if not broker_url:
@@ -183,7 +184,7 @@ def get_task_runtime_degradation_status() -> list[dict[str, str]]:
             {
                 "component": "celery",
                 "status": "degraded",
-                "message": "Celery 未配置 broker，异步任务入队能力不可用。",
+                "message": translate(locale, "task.health.broker_not_configured"),
             }
         )
     return degraded

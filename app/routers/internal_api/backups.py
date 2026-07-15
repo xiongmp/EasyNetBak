@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from app import crud
 from app.db import engine, get_session
 from app.core.settings import settings
+from app.i18n import translate
 from app.routers.support import _current_user, _log_action, _require_permission, get_remote_ip, get_user_allowed_group_ids, has_permission
 from app.services import backup_service, request_context_service, task_event_bus_service, task_orchestration_service, task_realtime_service
 from app.services.auth import decode_session_token
@@ -112,10 +113,10 @@ async def _handle_task_ws_message(
                 tz_offset_minutes=tz_offset_minutes,
                 locale=locale,
             )
-        except Exception as exc:
+        except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_error", "message": f"订阅参数无效: {str(exc)}"},
+                {"type": "task_error", "message": translate(locale, "task.ws.invalid_subscription")},
             )
             return
         await task_realtime_service.task_realtime_hub.subscribe(connection_id, subscription)
@@ -130,10 +131,10 @@ async def _handle_task_ws_message(
                 tz_offset_minutes=tz_offset_minutes,
                 locale=locale,
             )
-        except Exception as exc:
+        except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_error", "message": f"日志订阅参数无效: {str(exc)}"},
+                {"type": "task_error", "message": translate(locale, "task.ws.invalid_log_subscription")},
             )
             return
         after_id_raw = payload.get("after_id")
@@ -152,7 +153,7 @@ async def _handle_task_ws_message(
         if not has_permission(user, "schedules.update"):
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "缺少 schedules.update 权限"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.permission_required", {"permission": "schedules.update"})},
             )
             return
         run_id_raw = payload.get("run_id")
@@ -161,13 +162,13 @@ async def _handle_task_ws_message(
         except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "run_id 无效"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.invalid_run_id")},
             )
             return
 
         def _terminate() -> dict[str, object]:
             with Session(engine, expire_on_commit=False) as session:
-                result = task_orchestration_service.terminate_schedule_run(session, run_id=run_id)
+                result = task_orchestration_service.terminate_schedule_run(session, run_id=run_id, locale=locale)
                 session.commit()
             _create_websocket_audit_log(
                 user=user,
@@ -210,7 +211,7 @@ async def _handle_task_ws_message(
         if not has_permission(user, "schedules.update"):
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "缺少 schedules.update 权限"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.permission_required", {"permission": "schedules.update"})},
             )
             return
         run_id_raw = payload.get("run_id")
@@ -219,14 +220,14 @@ async def _handle_task_ws_message(
         except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "run_id 无效"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.invalid_run_id")},
             )
             return
         selected_backup_ids = _parse_selected_backup_ids(payload.get("backup_ids"))
         if not selected_backup_ids:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "请选择至少一个任务"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.command.select_at_least_one")},
             )
             return
 
@@ -237,6 +238,7 @@ async def _handle_task_ws_message(
                     run_id=run_id,
                     backup_ids=selected_backup_ids,
                     allowed_group_ids=allowed_group_ids,
+                    locale=locale,
                 )
                 session.commit()
             _create_websocket_audit_log(
@@ -285,7 +287,7 @@ async def _handle_task_ws_message(
         if not has_permission(user, "devices.backup"):
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "缺少 devices.backup 权限"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.permission_required", {"permission": "devices.backup"})},
             )
             return
         run_id_raw = payload.get("run_id")
@@ -294,7 +296,7 @@ async def _handle_task_ws_message(
         except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "run_id 无效"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.invalid_run_id")},
             )
             return
 
@@ -304,6 +306,7 @@ async def _handle_task_ws_message(
                     session,
                     run_id=run_id,
                     allowed_group_ids=allowed_group_ids,
+                    locale=locale,
                 )
                 session.commit()
             _create_websocket_audit_log(
@@ -347,7 +350,7 @@ async def _handle_task_ws_message(
         if not has_permission(user, "devices.backup"):
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "缺少 devices.backup 权限"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.permission_required", {"permission": "devices.backup"})},
             )
             return
         run_id_raw = payload.get("run_id")
@@ -356,14 +359,14 @@ async def _handle_task_ws_message(
         except Exception:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "run_id 无效"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.ws.invalid_run_id")},
             )
             return
         selected_backup_ids = _parse_selected_backup_ids(payload.get("backup_ids"))
         if not selected_backup_ids:
             await task_realtime_service.task_realtime_hub.send(
                 connection_id,
-                {"type": "task_command_result", "action": action, "ok": False, "message": "请选择至少一个任务"},
+                {"type": "task_command_result", "action": action, "ok": False, "message": translate(locale, "task.command.select_at_least_one")},
             )
             return
 
@@ -374,6 +377,7 @@ async def _handle_task_ws_message(
                     run_id=run_id,
                     backup_ids=selected_backup_ids,
                     allowed_group_ids=allowed_group_ids,
+                    locale=locale,
                 )
                 session.commit()
             _create_websocket_audit_log(
@@ -417,7 +421,7 @@ async def _handle_task_ws_message(
 
     await task_realtime_service.task_realtime_hub.send(
         connection_id,
-        {"type": "task_error", "message": f"不支持的动作: {action or 'unknown'}"},
+        {"type": "task_error", "message": translate(locale, "task.ws.unsupported_action", {"action": action or "unknown"})},
     )
 
 
@@ -471,7 +475,7 @@ def api_tasks_backups_query(request: Request, payload: BackupBatchQueryRequest, 
             "items": data.get("items") or [],
             "running": int(data.get("running") or 0),
         }
-    raise HTTPException(status_code=400, detail="缺少 run_id 或 backup_id")
+    raise HTTPException(status_code=400, detail=translate(request.state.locale, "task.command.tracking_id_required"))
 
 
 @router.get("/api/tasks/backups/recent", summary="获取最近备份任务", description="查询当前用户可见的最近活动或最近完成备份任务")
@@ -504,6 +508,7 @@ async def ws_tasks_backups(websocket: WebSocket):
         await websocket.close(code=4403)
         return
 
+    locale = str(getattr(user, "locale", settings.default_locale) or settings.default_locale)
     await websocket.accept()
     connection_id = await task_realtime_service.task_realtime_hub.register(websocket)
     await task_realtime_service.task_realtime_hub.send(
@@ -533,13 +538,13 @@ async def ws_tasks_backups(websocket: WebSocket):
             except Exception:
                 await task_realtime_service.task_realtime_hub.send(
                     connection_id,
-                    {"type": "task_error", "message": "消息必须是 JSON"},
+                    {"type": "task_error", "message": translate(locale, "task.ws.json_required")},
                 )
                 continue
             if not isinstance(data, dict):
                 await task_realtime_service.task_realtime_hub.send(
                     connection_id,
-                    {"type": "task_error", "message": "消息格式无效"},
+                    {"type": "task_error", "message": translate(locale, "task.ws.invalid_message")},
                 )
                 continue
             await _handle_task_ws_message(
@@ -549,14 +554,14 @@ async def ws_tasks_backups(websocket: WebSocket):
                 user=user,
                 allowed_group_ids=context["allowed_group_ids"],
                 tz_offset_minutes=int(context["tz_offset_minutes"] or 0),
-                locale=str(getattr(user, "locale", settings.default_locale) or settings.default_locale),
+                locale=locale,
             )
     except WebSocketDisconnect:
         pass
     except Exception:
         await task_realtime_service.task_realtime_hub.send(
             connection_id,
-            {"type": "task_error", "message": "任务通道异常关闭"},
+            {"type": "task_error", "message": translate(locale, "task.ws.channel_closed")},
         )
     finally:
         await task_realtime_service.task_realtime_hub.unregister(connection_id)
@@ -613,9 +618,9 @@ def api_device_backups(request: Request, device_id: int, page: int = 1, limit: i
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_DEVICE_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="设备不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.device.not_found"))
         if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
-            raise HTTPException(status_code=403, detail="无权访问该设备")
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.device.access_denied"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -634,9 +639,9 @@ def api_backup_view(request: Request, backup_id: UUID, session: Session = Depend
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="备份记录不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.backup.not_found"))
         if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
-            raise HTTPException(status_code=403, detail="无权访问该备份记录")
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.backup.access_denied"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -656,9 +661,9 @@ def api_backup_logs(request: Request, backup_id: UUID, limit: int = 300, session
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="备份记录不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.backup.not_found"))
         if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
-            raise HTTPException(status_code=403, detail="无权访问该备份记录")
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.backup.access_denied"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -692,9 +697,9 @@ def api_backup_diff(
         )
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="备份记录不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.backup.not_found"))
         if exc.code in {"BACKUP_DEVICE_FORBIDDEN", "DEVICE_ACCESS_FORBIDDEN"} or int(getattr(exc, "status_code", 400)) == 403:
-            raise HTTPException(status_code=403, detail="无权访问该备份记录")
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.backup.access_denied"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
@@ -706,9 +711,9 @@ def api_delete_backup(request: Request, backup_id: UUID, session: Session = Depe
         detail = backup_service.delete_backup(session, backup_id, allowed_group_ids=allowed_group_ids)
     except backup_service.ServiceError as exc:
         if exc.code == "BACKUP_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="备份记录不存在")
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.backup.not_found"))
         if exc.code == "BACKUP_DELETE_ACTIVE_RECORD":
-            raise HTTPException(status_code=409, detail="执行中的备份任务无法删除")
+            raise HTTPException(status_code=409, detail=translate(request.state.locale, "error.backup.active_delete"))
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     record = detail.record
     device = detail.device

@@ -19,7 +19,7 @@ from app.models import BackupRecord, BackupScheduleRun, BackupScheduleRunItem, D
 from app.platforms import DEFAULT_COMMANDS, normalize_platform_id
 from app.platforms import platforms_compatible
 from app.core.time import format_local_datetime
-from app.i18n import get_current_locale
+from app.i18n import get_current_locale, translate
 from app.services import device_service, pagination_service, task_orchestration_service, task_state_service
 from app.services.backup_error_service import localize_backup_error_message
 from app.services.netmiko_client import run_netmiko_commands
@@ -81,7 +81,8 @@ DEFAULT_DIFF_RULES = [
 ]
 DIFF_RULES_SETTING_KEY = "diff_ignore_rules"
 NOISE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in DEFAULT_NOISE_RULES]
-WORKER_UNAVAILABLE_MESSAGE = "Celery worker 未启动或无响应，任务已加入队列，worker 启动后会自动执行"
+def _worker_unavailable_message() -> str:
+    return translate(get_current_locale(), "task.queue.worker_unavailable_queued")
 
 
 def _enqueue_failure_from_records(session: Session, record_ids: list[UUID]) -> tuple[str, str]:
@@ -92,10 +93,10 @@ def _enqueue_failure_from_records(session: Session, record_ids: list[UUID]) -> t
         failure_type = str(getattr(record, "failure_type", "") or "").strip()
         error_message = str(getattr(record, "error_message", "") or "").strip()
         if failure_type == "WORKER_UNAVAILABLE":
-            return "worker_unavailable", WORKER_UNAVAILABLE_MESSAGE
+            return "worker_unavailable", _worker_unavailable_message()
         if error_message:
             return "none", error_message
-    return "none", "Celery 未启用或不可用"
+    return "none", translate(get_current_locale(), "task.command.queue_unavailable")
 
 
 def normalize_commands(commands_text: str) -> list[str]:
@@ -843,7 +844,7 @@ def trigger_backup(
     )
     enqueue_status = "all"
     enqueue_error_message = ""
-    enqueue_warning_message = WORKER_UNAVAILABLE_MESSAGE if enqueued and not worker_available else ""
+    enqueue_warning_message = _worker_unavailable_message() if enqueued and not worker_available else ""
     if not enqueued:
         enqueue_status, enqueue_error_message = _enqueue_failure_from_records(session, [planned.record_id])
         enqueue_warning_message = ""
@@ -971,7 +972,7 @@ def enqueue_schedule_jobs(
     )
     enqueue_error_message = ""
     enqueue_warning_message = (
-        WORKER_UNAVAILABLE_MESSAGE if enqueue_status in ("all", "partial") and not worker_available else ""
+        _worker_unavailable_message() if enqueue_status in ("all", "partial") and not worker_available else ""
     )
     if enqueue_status == "none":
         enqueue_status, enqueue_error_message = _enqueue_failure_from_records(

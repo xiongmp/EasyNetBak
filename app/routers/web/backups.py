@@ -44,7 +44,7 @@ def update_diff_rules(request: Request, rules_json: str = Form(""), session: Ses
     try:
         payload = json.loads(rules_json or "[]")
     except Exception:
-        return RedirectResponse(url="/diff-rules?err=规则解析失败", status_code=303)
+        return RedirectResponse(url="/diff-rules?err=error.diff_rules.parse", status_code=303)
     normalized, required_permissions = backup_service.get_diff_rules_required_permissions(session, payload)
     for code in sorted(required_permissions):
         _require_permission(request, code)

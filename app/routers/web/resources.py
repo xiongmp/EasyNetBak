@@ -153,7 +153,7 @@ async def import_credentials_csv(
     else:
         _require_permission(request, "credentials.create")
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        return RedirectResponse(url="/credentials?err=请上传CSV文件", status_code=303)
+        return RedirectResponse(url="/credentials?err=credential_import.error.csv_required", status_code=303)
     content = await file.read()
     text = None
     for enc in ("utf-8-sig", "gbk", "utf-8"):
@@ -167,7 +167,7 @@ async def import_credentials_csv(
     reader = csv.DictReader(io.StringIO(text))
     required = {"name", "username"}
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
-        return RedirectResponse(url="/credentials?err=CSV缺少必要列", status_code=303)
+        return RedirectResponse(url="/credentials?err=credential_import.error.invalid_columns", status_code=303)
 
     created = 0
     updated = 0

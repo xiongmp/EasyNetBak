@@ -86,9 +86,9 @@ def delete_schedule(request: Request, schedule_id: int, session: Session = Depen
         name = schedule_service.delete_schedule(session, int(schedule_id))
     except schedule_service.ServiceError as exc:
         if exc.code == "SCHEDULE_NOT_FOUND":
-            return RedirectResponse(url="/schedules?err=定时任务不存在", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.not_found", status_code=303)
         if exc.code == "SCHEDULE_DELETE_ACTIVE_RUNS":
-            return RedirectResponse(url="/schedules?err=定时任务存在执行中的批次，无法删除", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.active_runs_delete", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_SCHEDULE", "schedule", schedule_id, f"Name: {name}")
     session.commit()
@@ -112,7 +112,7 @@ def schedule_stats_page(request: Request, schedule_id: int, session: Session = D
         )
     except schedule_service.ServiceError as exc:
         if exc.code == "SCHEDULE_NOT_FOUND":
-            return RedirectResponse(url="/schedules?err=定时任务不存在", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.not_found", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     return templates.TemplateResponse(

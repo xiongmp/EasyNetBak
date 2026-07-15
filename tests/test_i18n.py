@@ -186,6 +186,27 @@ def test_all_templates_compile_and_static_translation_keys_exist():
     assert missing == {}
 
 
+def test_global_toast_layer_stays_above_drawers_and_bypasses_stale_css():
+    root = Path(__file__).resolve().parents[1]
+    template_source = (root / "app" / "templates" / "base.html").read_text(encoding="utf-8-sig")
+    css_source = (root / "app" / "static" / "css" / "app.css").read_text(encoding="utf-8-sig")
+
+    assert re.search(r'href="/static/css/app\.css\?v=\{\{ app_version \}\}[^\"]*"', template_source)
+    assert re.search(
+        r'class="toast-container nb-toast-layer[^\"]*"\s+style="z-index:\s*11000;"',
+        template_source,
+    )
+
+    toast_layer_rule = re.search(
+        r"\.toast-container\.nb-toast-layer\s*\{[^}]*z-index:\s*11000\s*!important;?[^}]*\}",
+        css_source,
+        re.DOTALL,
+    )
+    assert toast_layer_rule is not None
+    assert toast_layer_rule.start() > css_source.rfind(".toast-container {")
+    assert toast_layer_rule.start() > css_source.rfind(".offcanvas.show")
+
+
 def test_frontend_source_references_match_explicit_message_contract():
     root = Path(__file__).resolve().parents[1]
     catalog = get_messages("en-US")
@@ -212,6 +233,35 @@ def test_redirect_error_messages_use_catalog_keys():
     root = Path(__file__).resolve().parents[1]
     source = (root / "app" / "routers" / "web" / "auth.py").read_text(encoding="utf-8-sig")
     assert not re.search(r"[?&](?:err|msg)=[^\"']*[\u3400-\u9fff]", source)
+
+
+def test_user_visible_message_sinks_do_not_hardcode_chinese():
+    root = Path(__file__).resolve().parents[1]
+    han = r"[\u3400-\u9fff]"
+    sink_patterns = (
+        re.compile(rf"(?:RedirectResponse|HTTPException|showToast)\([^\n]*{han}"),
+        re.compile(rf"[\"']message[\"']\s*:\s*[^\n]*{han}"),
+        re.compile(rf"\bmessage\s*=\s*[^\n]*{han}"),
+    )
+    offenders: list[str] = []
+    checked_paths = [
+        *(root / "app" / "routers").rglob("*.py"),
+        root / "app" / "services" / "api_key_management_service.py",
+        root / "app" / "services" / "backup_service.py",
+        root / "app" / "services" / "device_service.py",
+        root / "app" / "services" / "ftp_service.py",
+        root / "app" / "services" / "s3_service.py",
+        root / "app" / "services" / "task_orchestration_service.py",
+        root / "app" / "services" / "task_realtime_service.py",
+        root / "app" / "services" / "task_runtime_config_service.py",
+    ]
+    for path in checked_paths:
+        source = path.read_text(encoding="utf-8-sig")
+        for pattern in sink_patterns:
+            if pattern.search(source):
+                offenders.append(str(path.relative_to(root)))
+                break
+    assert offenders == []
 
 
 def test_legacy_i18n_cannot_be_reintroduced():

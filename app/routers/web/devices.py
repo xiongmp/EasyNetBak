@@ -199,7 +199,7 @@ def device_webshell_open(
         )
     except device_service.ServiceError as exc:
         if exc.status_code == 404:
-            return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+            return RedirectResponse(url="/devices?err=error.device.not_found", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "OPEN_WEBSHELL", "device", device_id, f"Name: {device.name}")
     token = create_webshell_token(user_id=int(user.id), device_id=int(device_id), ttl_seconds=60)
@@ -595,11 +595,11 @@ def bulk_backup(
     if not result.requested_ids:
         return RedirectResponse(url="/devices", status_code=303)
     if not result.jobs:
-        return RedirectResponse(url="/devices?err=未找到有效设备", status_code=303)
+        return RedirectResponse(url="/devices?err=error.device.none_valid", status_code=303)
     if not result.enqueued and result.enqueue_error_message:
         return RedirectResponse(url=f"/devices?{urlencode({'err': result.enqueue_error_message})}", status_code=303)
     if result.enqueue_status == "none":
-        return RedirectResponse(url="/devices?err=Celery 未启用或不可用", status_code=303)
+        return RedirectResponse(url="/devices?err=task.command.queue_unavailable", status_code=303)
     if result.enqueue_status == "partial":
         started = len(result.enqueued_record_ids)
         return RedirectResponse(
@@ -623,7 +623,7 @@ def bulk_delete_devices(request: Request, session: Session = Depends(get_session
         deleted = device_service.bulk_delete_devices(session, device_ids=ids, allowed_group_ids=allowed_ids)
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_BULK_DELETE_ACTIVE_BACKUPS":
-            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="存在执行中的备份任务，无法删除设备"), status_code=303)
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.active_backups_delete"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     for item in deleted:
         _log_action(
@@ -648,7 +648,7 @@ def bulk_update_devices(
     _require_permission(request, "devices.update")
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     if not ids:
-        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="未选择设备"), status_code=303)
+        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.none_selected"), status_code=303)
     try:
         result = device_service.bulk_update_devices(
             session,
@@ -798,7 +798,7 @@ async def import_devices_csv(
     else:
         _require_permission(request, "devices.create")
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        return RedirectResponse(url="/devices?err=请上传CSV文件", status_code=303)
+        return RedirectResponse(url="/devices?err=device_import.error.csv_required", status_code=303)
     content = await file.read()
     text = None
     for enc in ("utf-8-sig", "gbk", "utf-8"):
@@ -815,10 +815,11 @@ async def import_devices_csv(
             csv_text=text,
             mode=mode,
             match_by=match_by,
+            locale=request.state.locale,
         )
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_IMPORT_INVALID_COLUMNS":
-            return RedirectResponse(url="/devices?err=CSV缺少必要列", status_code=303)
+            return RedirectResponse(url="/devices?err=device_import.error.invalid_columns", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     for entry in result.log_entries:
@@ -909,9 +910,9 @@ def delete_device(request: Request, device_id: int, session: Session = Depends(g
         name = device_service.delete_device(session, device_id=device_id, allowed_group_ids=allowed_ids)
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_NOT_FOUND":
-            return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+            return RedirectResponse(url="/devices?err=error.device.not_found", status_code=303)
         if exc.code == "DEVICE_DELETE_ACTIVE_BACKUPS":
-            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="设备存在执行中的备份任务，无法删除"), status_code=303)
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.active_backups_delete"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_DEVICE", "device", device_id, f"Name: {name}")
     return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="message.device_deleted"), status_code=303)
@@ -1028,7 +1029,7 @@ def trigger_backup(request: Request, device_id: int, session: Session = Depends(
                 url=f"/devices/{device_id}?{urlencode({'err': result.enqueue_error_message})}",
                 status_code=303,
             )
-        return RedirectResponse(url=f"/devices/{device_id}?err=Celery 未启用或不可用", status_code=303)
+        return RedirectResponse(url=f"/devices/{device_id}?err=task.command.queue_unavailable", status_code=303)
     if result.enqueue_warning_message:
         return RedirectResponse(
             url=f"/devices/{device_id}?{urlencode({'msg': result.enqueue_warning_message})}",

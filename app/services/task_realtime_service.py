@@ -964,7 +964,7 @@ class TaskRealtimeHub:
                 {
                     "type": "task_error",
                     "track": {"kind": subscription.kind, "id": subscription.track_id},
-                    "message": "任务状态同步失败",
+                    "message": translate(subscription.locale, "task.ws.status_sync_failed"),
                 },
             )
             return
@@ -1062,7 +1062,7 @@ class TaskRealtimeHub:
                         {
                             "type": "task_error",
                             "track": {"kind": subscription.kind, "id": subscription.track_id},
-                            "message": "任务状态同步失败",
+                            "message": translate(subscription.locale, "task.ws.status_sync_failed"),
                         },
                     )
                     await asyncio.sleep(2.0)
@@ -1106,7 +1106,7 @@ class TaskRealtimeHub:
                         {
                             "type": "task_error",
                             "track": {"kind": subscription.kind, "id": subscription.track_id},
-                            "message": "任务日志同步失败",
+                            "message": translate(subscription.locale, "task.ws.log_sync_failed"),
                         },
                     )
                     await asyncio.sleep(2.0)

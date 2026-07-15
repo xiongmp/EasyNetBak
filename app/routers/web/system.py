@@ -419,15 +419,18 @@ def test_notifications(
 
     try:
         success = send_email(
-            subject="【测试】网络设备备份系统 - 测试邮件",
-            content="这是一封来自网络设备备份系统的测试邮件，证明您的 SMTP 配置工作正常。",
+            subject=translate(request.state.locale, "notification.test_email.subject"),
+            content=translate(request.state.locale, "notification.test_email.content"),
             smtp_config=config,
         )
         if success:
-            return {"success": True, "message": "测试邮件已发送，请检查收件箱。"}
-        return {"success": False, "message": "邮件发送失败，请检查配置。"}
+            return {"success": True, "message": translate(request.state.locale, "notification.test_email.sent")}
+        return {"success": False, "message": translate(request.state.locale, "notification.test_email.failed")}
     except Exception as exc:
-        return {"success": False, "message": f"发送出错: {str(exc)}"}
+        return {
+            "success": False,
+            "message": translate(request.state.locale, "notification.test_email.error", {"error": str(exc)}),
+        }
 
 
 @router.post("/notifications", summary="更新通知设置", description="修改通知参数")

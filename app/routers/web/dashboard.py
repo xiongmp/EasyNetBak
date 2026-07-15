@@ -76,6 +76,7 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
     task_health = task_observability_service.get_task_health_snapshot(
         session,
         window_hours=int(selected_window["hours"]),
+        locale=locale,
     )
 
     device_ids = {r.device_id for r in recent_backups}

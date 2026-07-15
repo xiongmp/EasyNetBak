@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app import crud
+from app.i18n import translate
 from app.models import Device
 from app.platforms import TELNET_DEVICE_TYPE_MAP, normalize_platform_id, platforms_compatible
 from app.schemas.inputs import DeviceCreateInput, DeviceUpdateInput
@@ -898,11 +899,12 @@ def import_devices_from_csv(
     csv_text: str,
     mode: str,
     match_by: str,
+    locale: str | None = None,
 ) -> DeviceImportResult:
     reader = csv.DictReader(io.StringIO(csv_text))
     required = {"name", "host", "port", "platform", "credential_name"}
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
-        raise ServiceError("CSV缺少必要列", code="DEVICE_IMPORT_INVALID_COLUMNS")
+        raise ServiceError(translate(locale, "device_import.error.invalid_columns"), code="DEVICE_IMPORT_INVALID_COLUMNS")
 
     normalized_match_by = (match_by or "host_port").strip()
     if normalized_match_by not in {"host_port", "name"}:
@@ -942,7 +944,7 @@ def import_devices_from_csv(
                     "action": "skip",
                     "name": name,
                     "host": host,
-                    "message": "字段缺失或端口非法",
+                    "message": translate(locale, "device_import.row.invalid_fields"),
                 }
             )
             continue
@@ -959,7 +961,7 @@ def import_devices_from_csv(
                         "action": "skip",
                         "name": name,
                         "host": host,
-                        "message": "Telnet 不支持该平台类型",
+                        "message": translate(locale, "device_import.row.telnet_unsupported"),
                     }
                 )
                 continue
@@ -976,7 +978,7 @@ def import_devices_from_csv(
                     "action": "skip",
                     "name": name,
                     "host": host,
-                    "message": "未找到匹配的 credential_name",
+                    "message": translate(locale, "device_import.row.credential_not_found"),
                 }
             )
             continue
@@ -992,16 +994,16 @@ def import_devices_from_csv(
                         "action": "skip",
                         "name": name,
                         "host": host,
-                        "message": "未找到匹配的 default_template_name",
+                        "message": translate(locale, "device_import.row.template_not_found"),
                     }
                 )
                 continue
             try:
                 default_template_id = _validate_template(session, int(template_id), platform=platform)
             except ServiceError as exc:
-                msg = "备份模板无效"
+                msg = translate(locale, "device_import.row.template_invalid")
                 if exc.code == "DEVICE_TEMPLATE_PLATFORM_MISMATCH":
-                    msg = "备份模板与设备类型不匹配"
+                    msg = translate(locale, "device_import.row.template_platform_mismatch")
                 skipped += 1
                 report.append(
                     {
@@ -1028,13 +1030,13 @@ def import_devices_from_csv(
             duplicated_host = session.exec(select(Device).where(Device.host == host, Device.port == int(port_raw))).first()
             if duplicated_name or duplicated_host:
                 skipped += 1
-                duplicate_message = "重复：设备名称或管理地址(IP+端口)已存在"
+                duplicate_message = translate(locale, "device_import.row.duplicate_name_or_host")
                 if duplicated_name and duplicated_host:
-                    duplicate_message = "重复：设备名称和管理地址(IP+端口)已存在"
+                    duplicate_message = translate(locale, "device_import.row.duplicate_name_and_host")
                 elif duplicated_name:
-                    duplicate_message = "重复：设备名称已存在"
+                    duplicate_message = translate(locale, "device_import.row.duplicate_name")
                 elif duplicated_host:
-                    duplicate_message = "重复：管理地址(IP+端口)已存在"
+                    duplicate_message = translate(locale, "device_import.row.duplicate_host")
                 report.append(
                     {
                         "row": str(idx),
@@ -1081,7 +1083,7 @@ def import_devices_from_csv(
                     "action": "update",
                     "name": name,
                     "host": host,
-                    "message": "已更新",
+                    "message": translate(locale, "device_import.row.updated"),
                 }
             )
             continue
@@ -1116,7 +1118,7 @@ def import_devices_from_csv(
                 "action": "create",
                 "name": name,
                 "host": host,
-                "message": "已创建",
+                "message": translate(locale, "device_import.row.created"),
             }
         )
 

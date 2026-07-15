@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from app.db import session_scope
+from app.i18n import translate
 from app.models import BackupRecord, BackupScheduleRun, Device, TaskEvent
 from app.services import task_event_bus_service, task_runtime_config_service, task_state_service
 
@@ -150,6 +151,7 @@ def get_task_health_snapshot(
     *,
     now: datetime | None = None,
     window_hours: int = 24,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     flush_task_event_buffer(logger=_MODULE_LOGGER, force=True)
 
@@ -328,7 +330,7 @@ def get_task_health_snapshot(
     ).all()
     device_success_trends = [
         {
-            "device_name": device_name or "未知设备",
+            "device_name": device_name or translate(locale, "task.health.unknown_device"),
             "device_host": device_host or "-",
             "total": int(total or 0),
             "success_count": int(success_count or 0),
@@ -358,7 +360,7 @@ def get_task_health_snapshot(
         "top_failure_types": top_failure_types,
         "platform_success_trends": platform_success_trends,
         "device_success_trends": device_success_trends,
-        "degraded_components": task_runtime_config_service.get_task_runtime_degradation_status(),
+        "degraded_components": task_runtime_config_service.get_task_runtime_degradation_status(locale),
     }
 
 
