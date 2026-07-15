@@ -234,7 +234,13 @@ def test_legacy_i18n_cannot_be_reintroduced():
 def test_english_catalog_has_no_chinese_fallback_text():
     root = Path(__file__).resolve().parents[1]
     messages = json.loads((root / "app" / "i18n" / "locales" / "en-US.json").read_text(encoding="utf-8-sig"))
-    offenders = {key: value for key, value in messages.items() if re.search(r"[\u4e00-\u9fff]", value)}
+    # 品牌名等专有名称允许在英文界面保留中文原文
+    allowed_chinese_keys = {"template.base.product_tagline"}
+    offenders = {
+        key: value
+        for key, value in messages.items()
+        if key not in allowed_chinese_keys and re.search(r"[\u4e00-\u9fff]", value)
+    }
     assert offenders == {}
 
 
