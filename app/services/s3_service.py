@@ -9,6 +9,7 @@ from sqlmodel import Session
 from datetime import datetime
 from app.core.settings import settings
 from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
+from app.i18n import translate
 from app.services.crypto import decrypt_secret
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,14 @@ def upload_backup_to_s3(session: Session, device_name: str, host: str, config_te
         logger.error(f"Failed to upload backup to S3: {str(e)}")
         return False
 
-def test_s3_connection(endpoint: str, access_key: str, secret_key: str, bucket: str, region: str) -> tuple[bool, str]:
+def test_s3_connection(
+    endpoint: str,
+    access_key: str,
+    secret_key: str,
+    bucket: str,
+    region: str,
+    locale: str | None = None,
+) -> tuple[bool, str]:
     """
     测试 S3 连接
     """
@@ -133,17 +141,21 @@ def test_s3_connection(endpoint: str, access_key: str, secret_key: str, bucket: 
         except:
             pass
             
-        return True, "S3 连接成功，写入权限验证通过。"
+        return True, translate(locale, "message.storage.s3.connection_success")
     except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code')
             if error_code == '403' or error_code == 'Forbidden':
-                return False, "S3 连接失败 (403 Forbidden): 权限不足。请检查：1. SecretId/SecretKey 是否正确；2. 存储桶名称是否包含 APPID 后缀；3. 子账号是否有该存储桶的访问权限 (cos:PutObject)。"
+                return False, translate(locale, "error.storage.s3.forbidden")
             elif error_code == '404' or error_code == 'NoSuchBucket':
-                return False, "S3 连接失败 (404 Not Found): 存储桶不存在。请检查存储桶名称和 Region 是否匹配。"
+                return False, translate(locale, "error.storage.s3.bucket_not_found")
             elif error_code == 'InvalidAccessKeyId':
-                return False, "S3 连接失败 (InvalidAccessKeyId): Access Key ID 格式错误。请检查 SecretId 是否包含 'AKID' 前缀且无空格。"
+                return False, translate(locale, "error.storage.s3.invalid_access_key")
             elif error_code == 'SignatureDoesNotMatch':
-                return False, "S3 连接失败 (SignatureDoesNotMatch): 签名不匹配。请检查：1. SecretKey 是否填写正确；2. Region (地域) 是否与存储桶实际地域一致；3. 系统时间是否准确。"
-            return False, f"S3 连接失败 ({error_code}): {str(e)}"
+                return False, translate(locale, "error.storage.s3.signature_mismatch")
+            return False, translate(
+                locale,
+                "error.storage.s3.client_error",
+                {"error_code": error_code or "Unknown", "error": str(e)},
+            )
     except Exception as e:
-        return False, f"S3 连接失败: {str(e)}"
+        return False, translate(locale, "error.storage.s3.connection_failed", {"error": str(e)})

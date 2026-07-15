@@ -10,12 +10,22 @@ from sqlmodel import Session
 from app import crud
 from app.core.settings import settings
 from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
+from app.i18n import translate
 from app.services.crypto import decrypt_secret
 
 logger = logging.getLogger(__name__)
 
 
 SUPPORTED_FTP_ENCODINGS = {"utf-8", "gbk", "latin-1"}
+
+
+def _connection_error_detail(locale: str | None, exc: Exception) -> str:
+    error_code = getattr(exc, "winerror", None) or getattr(exc, "errno", None)
+    if isinstance(exc, ConnectionRefusedError) or error_code == 10061:
+        return translate(locale, "error.storage.ftp.detail.connection_refused")
+    if isinstance(exc, TimeoutError) or error_code == 10060:
+        return translate(locale, "error.storage.ftp.detail.connection_timed_out")
+    return str(exc)
 
 
 def _safe_device_name(name: str) -> str:
@@ -161,10 +171,11 @@ def test_ftp_connection(
     passive: str,
     timeout: str,
     encoding: str,
+    locale: str | None = None,
 ) -> tuple[bool, str]:
     ftp_host = (host or "").strip()
     if not ftp_host:
-        return False, "FTP 主机不能为空"
+        return False, translate(locale, "error.storage.ftp.host_required")
     ftp_port = _parse_int(port, 21, 1, 65535)
     ftp_timeout = _parse_int(timeout, 15, 1, 300)
     ftp_username = (username or "").strip() or "anonymous"
@@ -179,8 +190,16 @@ def test_ftp_connection(
         if base_clean:
             segments = [s for s in base_clean.split("/") if s]
             _ensure_dir(ftp, segments)
-        return True, f"FTP 连接成功，当前路径编码: {ftp_encoding}"
+        return True, translate(
+            locale,
+            "message.storage.ftp.connection_success",
+            {"encoding": ftp_encoding},
+        )
     except Exception as exc:
-        return False, f"FTP 连接失败（路径编码: {ftp_encoding}）: {exc}"
+        return False, translate(
+            locale,
+            "error.storage.ftp.connection_failed",
+            {"encoding": ftp_encoding, "error": _connection_error_detail(locale, exc)},
+        )
     finally:
         _close_ftp(ftp)

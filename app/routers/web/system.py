@@ -317,7 +317,8 @@ def api_test_s3(
         access_key=s3_access_key.strip(),
         secret_key=s3_secret_key.strip(),
         bucket=s3_bucket.strip(),
-        region=s3_region.strip()
+        region=s3_region.strip(),
+        locale=request.state.locale,
     )
     
     return {"success": success, "message": message}
@@ -350,6 +351,7 @@ def api_test_ftp(
         passive=ftp_passive.strip(),
         timeout=ftp_timeout.strip(),
         encoding=ftp_encoding.strip(),
+        locale=request.state.locale,
     )
 
     return {"success": success, "message": message}

@@ -31,7 +31,7 @@ from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
 from app.models import BackupRecord, BackupSchedule, BackupScheduleRun, Device, TaskEvent
 from app.routers.web_context import _layout_context, templates
-from app.services import alert_service, schedule_service, task_realtime_service, task_state_service
+from app.services import alert_service, ftp_service, s3_service, schedule_service, task_realtime_service, task_state_service
 from app.services.backup_error_service import localize_backup_error_message
 
 
@@ -59,6 +59,48 @@ def test_catalog_translation_params_and_fallback():
         assert translate("zh-CN", key) != key
     assert translate("en-US", "missing", {"name": "Alice"}, "Hello {name}") == "Hello Alice"
     assert translate("en-US", "missing") == "missing"
+
+
+def test_storage_connection_messages_follow_request_locale(monkeypatch):
+    class FakeS3Client:
+        def put_object(self, **kwargs):
+            return None
+
+        def delete_object(self, **kwargs):
+            return None
+
+    monkeypatch.setattr(s3_service.boto3, "client", lambda *args, **kwargs: FakeS3Client())
+    success, message = s3_service.test_s3_connection(
+        endpoint="https://s3.example.test",
+        access_key="access-key",
+        secret_key="secret-key",
+        bucket="backup-bucket",
+        region="test-region",
+        locale="en-US",
+    )
+    assert success is True
+    assert message == "S3 connection succeeded and write access was verified."
+
+    def refuse_connection(*args, **kwargs):
+        raise ConnectionRefusedError(10061, "由于目标计算机积极拒绝，无法连接。")
+
+    monkeypatch.setattr(ftp_service, "_ftp_connect", refuse_connection)
+    success, message = ftp_service.test_ftp_connection(
+        host="192.0.2.1",
+        port="21",
+        username="admin",
+        password="secret",
+        base_dir="",
+        passive="1",
+        timeout="15",
+        encoding="utf-8",
+        locale="en-US",
+    )
+    assert success is False
+    assert message == (
+        "FTP connection failed (path encoding: utf-8): "
+        "The target host refused the connection."
+    )
 
 
 def test_locale_normalization_and_validation():
