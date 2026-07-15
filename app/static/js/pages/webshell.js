@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+      const tr = (text) => text;
       const initialRootContainer = document.getElementById('terminal-container');
       const reconnectBtn = document.getElementById('btn-reconnect');
       const exportBtn = document.getElementById('btn-export-log');
@@ -43,6 +44,26 @@ document.addEventListener('DOMContentLoaded', function() {
       const initialCredentialUsername = webshellConfig.initialCredentialUsername == null ? null : webshellConfig.initialCredentialUsername;
       const csrfToken = webshellConfig.csrfToken || '';
       const inactivityLimitMs = 5 * 60 * 1000;
+
+      function localizeSocketMessage(payload) {
+          const params = payload && payload.message_params ? payload.message_params : {};
+          switch (payload && payload.message_key) {
+              case 'webshell.status.connecting':
+                  return NB.t('webshell.status.connecting', params);
+              case 'webshell.status.legacy_compatibility':
+                  return NB.t('webshell.status.legacy_compatibility', params);
+              case 'webshell.status.connected':
+                  return NB.t('webshell.status.connected', params);
+              case 'webshell.error.invalid_init':
+                  return NB.t('webshell.error.invalid_init', params);
+              case 'webshell.error.credentials_missing':
+                  return NB.t('webshell.error.credentials_missing', params);
+              case 'webshell.error.connection_failed':
+                  return NB.t('webshell.error.connection_failed', params);
+              default:
+                  return payload && payload.message ? String(payload.message) : '';
+          }
+      }
 
       let currentTheme = 'Default';
       let pasteModal = null;
@@ -90,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
               cfg.username = manualUsernameInput.value.trim();
               cfg.password = manualPasswordInput.value;
               if (!cfg.username) {
-                  alert('请输入用户名');
+                  alert(tr(NB.t("template.login.enter_username")));
                   manualUsernameInput.focus();
                   return;
               }
@@ -200,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const splitVBtn = document.createElement('button');
               splitVBtn.className = 'pane-btn';
-              splitVBtn.title = '左右分栏';
+              splitVBtn.title = tr(NB.t("template.webshell.side_by_side"));
               splitVBtn.innerHTML = '<i class="bi bi-layout-split"></i>';
               splitVBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -209,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const splitHBtn = document.createElement('button');
               splitHBtn.className = 'pane-btn';
-              splitHBtn.title = '上下分栏';
+              splitHBtn.title = tr(NB.t("template.webshell.stacked"));
               splitHBtn.innerHTML = '<i class="bi bi-hdd-stack"></i>';
               splitHBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -218,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               const closeBtn = document.createElement('button');
               closeBtn.className = 'pane-btn btn-close-pane';
-              closeBtn.title = '关闭此分栏';
+              closeBtn.title = tr(NB.t("js.webshell.close_this_pane"));
               closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
               closeBtn.onclick = (e) => {
                   e.stopPropagation();
@@ -306,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (this.titleElement) {
                   // Get index from sessions set order
                   const index = Array.from(this.tab.sessions).indexOf(this) + 1;
-                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span>${this.tab.device.name}<span class="opacity-50 ms-2">${this.tab.device.host}</span>`;
+                  this.titleElement.innerHTML = `<span class="opacity-50 me-2">(${index})</span><span data-i18n-preserve>${escapeHtml(this.tab.device.name || '')}</span><span class="opacity-50 ms-2" data-i18n-preserve>${escapeHtml(this.tab.device.host || '')}</span>`;
               }
           }
 
@@ -357,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
               }
 
               this.terminal.clear();
-              this.writeLine('正在连接...');
+              this.writeLine(tr(NB.t("js.webshell.connecting")));
 
               if (refreshToken) {
                   await refreshWebshellToken(this.tab);
@@ -385,13 +406,13 @@ document.addEventListener('DOMContentLoaded', function() {
                       if (payload.type === 'output') {
                           this.terminal.write(payload.data || '');
                       } else if (payload.type === 'status') {
-                          let msg = payload.message || '';
-                          if (msg.includes('连接成功') && this.connectionStartTime > 0) {
+                          let msg = localizeSocketMessage(payload);
+                          if (payload.message_key === 'webshell.status.connected' && this.connectionStartTime > 0) {
                               const duration = Date.now() - this.connectionStartTime;
-                              msg += ` (耗时: ${formatDuration(duration)})`;
+                              msg += NB.t("js.webshell.duration_value0", {value0: formatDuration(duration)});
                               this.connectionStartTime = 0;
                           }
-                          this.writeLine(`\r\n[系统] ${msg}`);
+                          this.writeLine(NB.t("js.webshell.status_line", {value0: NB.t("js.webshell.system"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
@@ -404,8 +425,8 @@ document.addEventListener('DOMContentLoaded', function() {
                               loginModal.show();
                           }
                       } else if (payload.type === 'error') {
-                          const msg = payload.message || '';
-                          this.writeLine(`\r\n[错误] ${msg}`);
+                          const msg = localizeSocketMessage(payload);
+                          this.writeLine(NB.t("js.webshell.status_line", {value0: NB.t("js.webshell.error"), value1: msg}));
                           if (
                               loginModal &&
                               (this.tab.loginConfig?.loginType || 'auto') === 'auto' &&
@@ -430,17 +451,17 @@ document.addEventListener('DOMContentLoaded', function() {
                           if (ok) {
                               this.connect({ refreshToken: false, resetAuthRetry: false });
                           } else {
-                              this.writeLine('\r\n连接已关闭');
+                              this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_closed")));
                           }
                       });
                       return;
                   }
-                  this.writeLine('\r\n连接已关闭');
+                  this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_closed")));
                   this.clearInactivityTimer();
               };
 
               this.socket.onerror = () => {
-                  this.writeLine('\r\n连接异常');
+                  this.writeLine('\r\n' + tr(NB.t("js.webshell.connection_error")));
                   this.clearInactivityTimer();
               };
           }
@@ -483,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function() {
           handleInactivity() {
               if (this.autoDisconnected) return;
               this.autoDisconnected = true;
-              this.writeLine('\r\n[系统] 由于 5 分钟无活动，连接已自动断开');
+              this.writeLine('\r\n[' + tr(NB.t("js.webshell.system")) + '] ' + tr(NB.t("js.webshell.disconnected_after_5_minutes_of_inactivity")));
               if (this.socket && this.socket.readyState === 1) {
                   this.socket.close();
               }
@@ -573,7 +594,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (this.tab.sessions.size === 0) {
                   const btn = document.createElement('button');
                   btn.className = 'btn btn-primary';
-                  btn.textContent = '开启新会话';
+                  btn.textContent = tr(NB.t("js.webshell.open_new_session"));
                   btn.onclick = () => createSession(this.tab);
                   
                   const wrapper = document.createElement('div');
@@ -663,22 +684,23 @@ document.addEventListener('DOMContentLoaded', function() {
           if (topbarDeviceNameEl) {
               topbarDeviceNameEl.title = tab.device.name || '';
               const iconHtml = '<i class="bi bi-terminal me-2"></i>';
-              topbarDeviceNameEl.innerHTML = `${iconHtml}${escapeHtml(tab.device.name || '')}`;
+              topbarDeviceNameEl.innerHTML = `${iconHtml}<span data-i18n-preserve>${escapeHtml(tab.device.name || '')}</span>`;
           }
           if (topbarDeviceHostEl) {
               const hostText = `${tab.device.host || ''}${tab.device.port ? ':' + tab.device.port : ''}`;
               topbarDeviceHostEl.title = hostText;
-              topbarDeviceHostEl.textContent = hostText;
+              topbarDeviceHostEl.innerHTML = `<span data-i18n-preserve>${escapeHtml(hostText)}</span>`;
           }
           if (topbarDevicePlatformEl) {
               topbarDevicePlatformEl.title = tab.device.platform || '';
-              topbarDevicePlatformEl.textContent = tab.device.platform || '';
+              topbarDevicePlatformEl.innerHTML = `<span data-i18n-preserve>${escapeHtml(tab.device.platform || '')}</span>`;
           }
           if (topbarLoginBadgeEl) {
               topbarLoginBadgeEl.textContent = (tab.device.loginMethod || 'ssh').toUpperCase();
           }
           if (topbarUsernameSeparator && topbarUsernameContainer && topbarUsername) {
               if (tab.username) {
+                  topbarUsername.setAttribute('data-i18n-preserve', '');
                   topbarUsername.textContent = tab.username;
                   topbarUsernameSeparator.style.display = 'inline';
                   topbarUsernameContainer.style.display = 'inline';
@@ -688,8 +710,14 @@ document.addEventListener('DOMContentLoaded', function() {
                   topbarUsernameContainer.style.display = 'none';
               }
           }
-          if (loginDeviceNameEl) loginDeviceNameEl.textContent = tab.device.name || '';
-          if (loginDeviceHostEl) loginDeviceHostEl.textContent = tab.device.host || '';
+          if (loginDeviceNameEl) {
+              loginDeviceNameEl.setAttribute('data-i18n-preserve', '');
+              loginDeviceNameEl.textContent = tab.device.name || '';
+          }
+          if (loginDeviceHostEl) {
+              loginDeviceHostEl.setAttribute('data-i18n-preserve', '');
+              loginDeviceHostEl.textContent = tab.device.host || '';
+          }
       }
 
       function setSidebarActiveDevice(deviceId) {
@@ -804,7 +832,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const el = document.createElement('div');
           el.className = 'webshell-tab';
           el.dataset.deviceId = String(tab.device.id);
-          el.innerHTML = `<span class="webshell-tab-title">${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="关闭"><i class="bi bi-x"></i></span>`;
+          el.innerHTML = `<span class="webshell-tab-title" data-i18n-preserve>${escapeHtml(tab.device.name || tab.device.host || String(tab.device.id))}</span><span class="webshell-tab-close" title="${escapeHtml(tr(NB.t("template.base.close")))}"><i class="bi bi-x"></i></span>`;
           el.addEventListener('click', () => activateTab(tab));
           const closeEl = el.querySelector('.webshell-tab-close');
           if (closeEl) {

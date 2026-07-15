@@ -199,7 +199,7 @@ def device_webshell_open(
         )
     except device_service.ServiceError as exc:
         if exc.status_code == 404:
-            return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+            return RedirectResponse(url="/devices?err=error.device.not_found", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "OPEN_WEBSHELL", "device", device_id, f"Name: {device.name}")
     token = create_webshell_token(user_id=int(user.id), device_id=int(device_id), ttl_seconds=60)
@@ -267,17 +267,21 @@ async def device_webshell(websocket: WebSocket, device_id: int):
         except Exception:
             pass
 
-    async def send_status(message: str):
-        await websocket.send_text(json.dumps({"type": "status", "message": message}))
+    async def send_status(message_key: str, params: dict | None = None):
+        await websocket.send_text(
+            json.dumps({"type": "status", "message_key": message_key, "message_params": params or {}})
+        )
 
-    async def send_error(message: str):
-        await websocket.send_text(json.dumps({"type": "error", "message": message}))
+    async def send_error(message_key: str, params: dict | None = None):
+        await websocket.send_text(
+            json.dumps({"type": "error", "message_key": message_key, "message_params": params or {}})
+        )
 
     try:
         init_msg_raw = await websocket.receive_text()
         init_payload = json.loads(init_msg_raw)
         if init_payload.get("type") != "init":
-            await send_error("无效的初始化请求")
+            await send_error("webshell.error.invalid_init")
             await websocket.close()
             return
         
@@ -296,7 +300,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
 
     username = context.get("username")
     if not username:
-        await send_error("未配置凭据")
+        await send_error("webshell.error.credentials_missing")
         await websocket.close()
         return
 
@@ -307,7 +311,10 @@ async def device_webshell(websocket: WebSocket, device_id: int):
     conn = None
 
     try:
-        await send_status(f"连接 {context.get('host')}:{context.get('port')}...")
+        await send_status(
+            "webshell.status.connecting",
+            {"target": f"{context.get('host')}:{context.get('port')}"},
+        )
         if login_method == "telnet":
             reader, writer = await telnetlib3.open_connection(
                 host=context.get("host"),
@@ -322,7 +329,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 password=context.get("password") or None,
             )
             if legacy_mode:
-                await send_status("已启用旧算法兼容模式")
+                await send_status("webshell.status.legacy_compatibility")
             process = await conn.create_process(
                 term_type="xterm",
                 term_size=(120, 30),
@@ -331,7 +338,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
             )
             reader = process.stdout
             writer = process.stdin
-        await send_status("连接成功")
+        await send_status("webshell.status.connected")
 
         started_at = datetime.utcnow()
         start_ts = time.time()
@@ -383,7 +390,7 @@ async def device_webshell(websocket: WebSocket, device_id: int):
                 pass
 
     except Exception as exc:
-        await send_error(f"连接失败: {str(exc)}")
+        await send_error("webshell.error.connection_failed", {"error": str(exc)})
         await websocket.close()
         return
 
@@ -588,15 +595,15 @@ def bulk_backup(
     if not result.requested_ids:
         return RedirectResponse(url="/devices", status_code=303)
     if not result.jobs:
-        return RedirectResponse(url="/devices?err=未找到有效设备", status_code=303)
+        return RedirectResponse(url="/devices?err=error.device.none_valid", status_code=303)
     if not result.enqueued and result.enqueue_error_message:
         return RedirectResponse(url=f"/devices?{urlencode({'err': result.enqueue_error_message})}", status_code=303)
     if result.enqueue_status == "none":
-        return RedirectResponse(url="/devices?err=Celery 未启用或不可用", status_code=303)
+        return RedirectResponse(url="/devices?err=task.command.queue_unavailable", status_code=303)
     if result.enqueue_status == "partial":
         started = len(result.enqueued_record_ids)
         return RedirectResponse(
-            url=f"/devices?msg=已启动 {started} 个备份任务，部分任务入队失败",
+            url=f"/devices?{urlencode({'msg': 'message.backups_started_partial', 'count': started})}",
             status_code=303,
         )
     if result.enqueue_warning_message:
@@ -616,7 +623,7 @@ def bulk_delete_devices(request: Request, session: Session = Depends(get_session
         deleted = device_service.bulk_delete_devices(session, device_ids=ids, allowed_group_ids=allowed_ids)
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_BULK_DELETE_ACTIVE_BACKUPS":
-            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="存在执行中的备份任务，无法删除设备"), status_code=303)
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.active_backups_delete"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     for item in deleted:
         _log_action(
@@ -627,7 +634,7 @@ def bulk_delete_devices(request: Request, session: Session = Depends(get_session
             item["device_id"],
             f"Name: {item['name']} (Bulk)",
         )
-    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="message.device_deleted"), status_code=303)
 
 
 @router.post("/devices/bulk_update", summary="批量更新设备", description="批量更新多个设备的基本属性或分组")
@@ -641,7 +648,7 @@ def bulk_update_devices(
     _require_permission(request, "devices.update")
     ids = [int(x) for x in (device_ids or "").split(",") if x.strip().isdigit()]
     if not ids:
-        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="未选择设备"), status_code=303)
+        return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.none_selected"), status_code=303)
     try:
         result = device_service.bulk_update_devices(
             session,
@@ -661,7 +668,8 @@ def bulk_update_devices(
         bulk_reachability_task.delay(device_ids=updated_ids, offset_minutes=0)
 
     return RedirectResponse(
-        url=_get_redirect_url(request, "/devices", msg=f"成功更新 {result['count']} 台设备"),
+        url=_get_redirect_url(request, "/devices", msg="message.devices_updated")
+        + f"&count={result['count']}",
         status_code=303,
     )
 
@@ -790,7 +798,7 @@ async def import_devices_csv(
     else:
         _require_permission(request, "devices.create")
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        return RedirectResponse(url="/devices?err=请上传CSV文件", status_code=303)
+        return RedirectResponse(url="/devices?err=device_import.error.csv_required", status_code=303)
     content = await file.read()
     text = None
     for enc in ("utf-8-sig", "gbk", "utf-8"):
@@ -807,10 +815,11 @@ async def import_devices_csv(
             csv_text=text,
             mode=mode,
             match_by=match_by,
+            locale=request.state.locale,
         )
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_IMPORT_INVALID_COLUMNS":
-            return RedirectResponse(url="/devices?err=CSV缺少必要列", status_code=303)
+            return RedirectResponse(url="/devices?err=device_import.error.invalid_columns", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     for entry in result.log_entries:
@@ -889,7 +898,7 @@ def create_device(
     _log_action(request, session, "CREATE_DEVICE", "device", device.id, f"Name: {name}, Host: {host}")
 
     bulk_reachability_task.delay(device_ids=[new_device_id], offset_minutes=0)
-    return RedirectResponse(url="/devices?msg=设备已创建", status_code=303)
+    return RedirectResponse(url="/devices?msg=message.device_created", status_code=303)
 
 
 @router.post("/devices/{device_id}/delete", summary="删除设备", description="删除指定的网络设备")
@@ -901,12 +910,12 @@ def delete_device(request: Request, device_id: int, session: Session = Depends(g
         name = device_service.delete_device(session, device_id=device_id, allowed_group_ids=allowed_ids)
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_NOT_FOUND":
-            return RedirectResponse(url="/devices?err=设备不存在", status_code=303)
+            return RedirectResponse(url="/devices?err=error.device.not_found", status_code=303)
         if exc.code == "DEVICE_DELETE_ACTIVE_BACKUPS":
-            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="设备存在执行中的备份任务，无法删除"), status_code=303)
+            return RedirectResponse(url=_get_redirect_url(request, "/devices", err="error.device.active_backups_delete"), status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_DEVICE", "device", device_id, f"Name: {name}")
-    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="设备已删除"), status_code=303)
+    return RedirectResponse(url=_get_redirect_url(request, "/devices", msg="message.device_deleted"), status_code=303)
 
 
 @router.get("/devices/{device_id}", summary="设备详情页面", description="查看指定设备的详细信息及历史备份记录")
@@ -929,6 +938,7 @@ def device_detail(request: Request, device_id: int, session: Session = Depends(g
             include_limit_param=list_query.include_limit_param,
             include_backups=can_backup_history_view,
             allowed_group_ids=allowed_ids,
+            locale=request.state.locale,
         )
     except device_service.ServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
@@ -994,7 +1004,7 @@ def update_device(
     _log_action(request, session, "UPDATE_DEVICE", "device", device_id, f"Name: {name}, Host: {host}")
     
     bulk_reachability_task.delay(device_ids=[device_id], offset_minutes=0)
-    return RedirectResponse(url=f"/devices/{device_id}?msg=修改已保存", status_code=303)
+    return RedirectResponse(url=f"/devices/{device_id}?msg=message.device_updated", status_code=303)
 
 
 @router.post("/devices/{device_id}/backup", summary="手动触发备份", description="立即触发指定设备的配置备份任务")
@@ -1019,12 +1029,10 @@ def trigger_backup(request: Request, device_id: int, session: Session = Depends(
                 url=f"/devices/{device_id}?{urlencode({'err': result.enqueue_error_message})}",
                 status_code=303,
             )
-        return RedirectResponse(url=f"/devices/{device_id}?err=Celery 未启用或不可用", status_code=303)
+        return RedirectResponse(url=f"/devices/{device_id}?err=task.command.queue_unavailable", status_code=303)
     if result.enqueue_warning_message:
         return RedirectResponse(
             url=f"/devices/{device_id}?{urlencode({'msg': result.enqueue_warning_message})}",
             status_code=303,
         )
-    return RedirectResponse(url=f"/devices/{device_id}?msg=备份任务已启动", status_code=303)
-
-
+    return RedirectResponse(url=f"/devices/{device_id}?msg=message.backup_started", status_code=303)

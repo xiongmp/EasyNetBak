@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
-{% set page_title = "API Key 管理" %}
-{% set page_subtitle = "查看和管理用于外部接入的 API Keys" %}
+{% from "macros.html" import render_pagination with context %}
+{% set page_title = _('template.api_keys.api_key_manage') %}
+{% set page_subtitle = _('page.api_keys.subtitle') %}
 
 {% block content %}
 <div class="card shadow-sm border-0">
   <div class="card-body p-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h5 class="mb-0 text-secondary"><i class="bi bi-key me-2"></i>API Key 列表</h5>
+      <h5 class="mb-0 text-secondary"><i class="bi bi-key me-2"></i>API Key {{ _('template.api_keys.list') }}</h5>
       <div class="d-flex gap-2">
-        <a href="/docs" target="_blank" class="btn btn-outline-info btn-sm" title="查看 FastAPI 接口文档">
-          <i class="bi bi-journal-code me-1"></i>API 文档
+        <a href="/docs" target="_blank" class="btn btn-outline-info btn-sm" title="{{ _('template.api_keys.view') }} FastAPI {{ _('template.api_keys.api_documentation') }}">
+          <i class="bi bi-journal-code me-1"></i>API {{ _('template.api_keys.documentation') }}
         </a>
         {% if has_permission('api_keys.create') %}
         <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createApiKeyModal">
-          <i class="bi bi-plus-lg me-1"></i>新建 API Key
+          <i class="bi bi-plus-lg me-1"></i>{{ _('template.api_keys.create') }} API Key
         </button>
         {% endif %}
       </div>
@@ -24,61 +24,61 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-4">名称</th>
-            <th>前缀</th>
-            <th>状态</th>
-            <th>过期时间</th>
-            <th>最后使用</th>
-            <th>创建时间</th>
-            <th class="text-end pe-4">操作</th>
+            <th class="ps-4">{{ _('template.api_keys.name') }}</th>
+            <th>{{ _('template.api_keys.prefix') }}</th>
+            <th>{{ _('login.csv.status') }}</th>
+            <th>{{ _('template.api_keys.expires_at') }}</th>
+            <th>{{ _('template.api_keys.last_used') }}</th>
+            <th>{{ _('template.api_keys.created_at') }}</th>
+            <th class="text-end pe-4">{{ _('audit.csv.action') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for key in api_keys %}
           <tr>
-            <td class="ps-4">{{ key.name }}</td>
-            <td><code>{{ key.prefix }}***</code></td>
+            <td class="ps-4" data-i18n-preserve>{{ key.name }}</td>
+            <td><code data-i18n-preserve>{{ key.prefix }}***</code></td>
             <td>
               {% if key.is_active %}
-                <span class="badge bg-success-subtle text-success">正常</span>
+                <span class="badge bg-success-subtle text-success">{{ _('template.api_keys.active') }}</span>
               {% else %}
-                <span class="badge bg-danger-subtle text-danger">已吊销</span>
+                <span class="badge bg-danger-subtle text-danger">{{ _('template.api_keys.revoked') }}</span>
               {% endif %}
             </td>
-            <td>{{ key.expires_at | dt_local if key.expires_at else '永久' }}</td>
-            <td>{{ key.last_used_at | dt_local if key.last_used_at else '未使用' }}</td>
+            <td>{{ key.expires_at | dt_local if key.expires_at else _('template.api_keys.permanent') }}</td>
+            <td>{{ key.last_used_at | dt_local if key.last_used_at else _('template.api_keys.never_used') }}</td>
             <td>{{ key.created_at | dt_local }}</td>
             <td class="text-end pe-4">
               {% if has_permission('api_keys.delete') %}
               {% if key.is_active %}
               <form action="/api-keys/{{ key.id }}/revoke" method="post" class="d-inline" id="revokeForm-{{ key.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <button type="button" class="btn btn-sm btn-outline-warning" title="吊销" onclick="showRevokeModal('{{ key.id }}', '{{ key.name }}')">
-                  <i class="bi bi-slash-circle"></i> 吊销
+                <button type="button" class="btn btn-sm btn-outline-warning" title="{{ _('template.api_keys.revoke') }}" onclick="showRevokeModal('{{ key.id }}', '{{ key.name }}')">
+                  <i class="bi bi-slash-circle"></i> {{ _('template.api_keys.revoke') }}
                 </button>
               </form>
               {% endif %}
               <form action="/api-keys/{{ key.id }}/delete" method="post" class="d-inline" id="deleteForm-{{ key.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <button type="button" class="btn btn-sm btn-outline-danger" title="删除" onclick="showDeleteModal('{{ key.id }}', '{{ key.name }}')">
+                <button type="button" class="btn btn-sm btn-outline-danger" title="{{ _('template.api_keys.delete') }}" onclick="showDeleteModal('{{ key.id }}', '{{ key.name }}')">
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
               {% else %}
-              <span class="text-muted small">无权限</span>
+              <span class="text-muted small">{{ _('template.api_keys.permission_denied') }}</span>
               {% endif %}
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-center py-4 text-muted">暂无 API Key，请点击右上角新建</td>
+            <td colspan="7" class="text-center py-4 text-muted">{{ _('template.api_keys.none') }} API Key，{{ _('template.api_keys.use_the_button_in_the_upper_right_to') }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
 
-    {{ render_pagination(pagination, pagination_base, "个 API Key") }}
+    {{ render_pagination(pagination, pagination_base, _('template.api_keys.items_api_key')) }}
   </div>
 </div>
 
@@ -88,31 +88,31 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-bottom-0 pb-0">
-        <h5 class="modal-title fw-bold"><i class="bi bi-key-fill text-primary me-2"></i>新建 API Key</h5>
+        <h5 class="modal-title fw-bold"><i class="bi bi-key-fill text-primary me-2"></i>{{ _('template.api_keys.create') }} API Key</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form action="/api-keys" method="post">
         <div class="modal-body pt-4">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
           <div class="mb-4">
-            <label class="form-label fw-medium text-secondary">名称 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control form-control-lg fs-6" name="name" required placeholder="例如：测试APIKey" />
-            <div class="form-text">给这个 API Key 起一个易于识别的名字</div>
+            <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.name') }} <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-lg fs-6" name="name" required placeholder="{{ _('template.api_keys.for_example_test') }}APIKey" />
+            <div class="form-text">{{ _('template.api_keys.name_help') }}</div>
           </div>
           <div class="mb-2">
-            <label class="form-label fw-medium text-secondary">过期时间</label>
+            <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.expires_at') }}</label>
             <select class="form-select form-select-lg fs-6" name="expires_in_days">
-              <option value="0">永久有效</option>
-              <option value="30" selected>30天</option>
-              <option value="90">90天</option>
-              <option value="365">1年</option>
+              <option value="0">{{ _('template.api_keys.never_expires') }}</option>
+              <option value="30" selected>30{{ _('template.api_keys.days') }}</option>
+              <option value="90">90{{ _('template.api_keys.days') }}</option>
+              <option value="365">1{{ _('template.api_keys.years') }}</option>
             </select>
-            <div class="form-text">建议定期轮换 API Key 以保证安全</div>
+            <div class="form-text">{{ _('template.api_keys.rotation_help') }}</div>
           </div>
         </div>
         <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary px-4">生成 API Key</button>
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+          <button type="submit" class="btn btn-primary px-4">{{ _('template.api_keys.generate') }} API Key</button>
         </div>
       </form>
     </div>
@@ -125,16 +125,16 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-bottom-0 pb-0">
-        <h5 class="modal-title fw-bold text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>确认吊销</h5>
+        <h5 class="modal-title fw-bold text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ _('template.api_keys.confirm_revocation') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">确定要吊销 API Key <strong id="revokeKeyName" class="text-dark"></strong> 吗？</p>
-        <p class="text-muted small mb-0">吊销后该 Key 将立即失效，无法再用于任何 API 访问，但记录会保留。</p>
+        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_revoke') }} API Key <strong id="revokeKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.confirmation_question_suffix') }}？</p>
+        <p class="text-muted small mb-0">{{ _('template.api_keys.revocation_warning_prefix') }} Key {{ _('template.api_keys.revocation_warning_suffix') }} API {{ _('template.api_keys.access') }}。</p>
       </div>
       <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-warning text-white px-4" id="confirmRevokeBtn">确认吊销</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+        <button type="button" class="btn btn-warning text-white px-4" id="confirmRevokeBtn">{{ _('template.api_keys.confirm_revocation') }}</button>
       </div>
     </div>
   </div>
@@ -145,18 +145,18 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-bottom-0 pb-0">
-        <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-octagon-fill me-2"></i>彻底删除</h5>
+        <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-octagon-fill me-2"></i>{{ _('template.api_keys.delete_permanently') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-4">
-        <p class="mb-1 fs-6">确定要彻底删除 API Key <strong id="deleteKeyName" class="text-dark"></strong> 吗？</p>
+        <p class="mb-1 fs-6">{{ _('template.api_keys.confirm_delete_permanently') }} API Key <strong id="deleteKeyName" class="text-dark" data-i18n-preserve></strong> {{ _('template.api_keys.confirmation_question_suffix') }}？</p>
         <div class="alert alert-danger border-danger-subtle py-2 px-3 mt-3 mb-0 small">
-          <i class="bi bi-shield-exclamation me-1"></i>此操作不可恢复！如果您只是想暂时停用，建议使用<strong>吊销</strong>功能。
+          <i class="bi bi-shield-exclamation me-1"></i>{{ _('template.api_keys.this_action_cannot_be_undone_if_you_only') }}<strong>{{ _('template.api_keys.revoke') }}</strong>{{ _('template.api_keys.feature') }}。
         </div>
       </div>
       <div class="modal-footer border-top-0 pt-3 pb-4 px-4">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-danger px-4" id="confirmDeleteBtn">彻底删除</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+        <button type="button" class="btn btn-danger px-4" id="confirmDeleteBtn">{{ _('template.api_keys.delete_permanently') }}</button>
       </div>
     </div>
   </div>
@@ -199,29 +199,29 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow-lg">
       <div class="modal-header bg-success text-white border-bottom-0">
-        <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i>API Key 已生成</h5>
+        <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i>API Key {{ _('template.api_keys.generated') }}</h5>
       </div>
       <div class="modal-body p-4">
         <div class="alert alert-warning border-warning-subtle d-flex align-items-start mb-4">
           <i class="bi bi-exclamation-triangle-fill fs-5 text-warning me-3 mt-1"></i>
           <div>
-            <h6 class="alert-heading fw-bold mb-1">请立即复制并妥善保存</h6>
-            <p class="mb-0 small text-dark">出于安全考虑，离开此页面后您将<strong>无法再次查看</strong>该 Key 的完整内容。</p>
+            <h6 class="alert-heading fw-bold mb-1">{{ _('template.api_keys.copy_and_store_it_securely_now') }}</h6>
+            <p class="mb-0 small text-dark">{{ _('template.api_keys.for_security_after_you_leave_this_page_you') }}<strong>{{ _('template.api_keys.not_be_able_to_view_it_again') }}</strong>{{ _('template.api_keys.secret_notice_connector') }} Key {{ _('template.api_keys.secret_full_contents') }}。</p>
           </div>
         </div>
         <div class="mb-2">
-          <label class="form-label fw-medium text-secondary">您的 API Key</label>
+          <label class="form-label fw-medium text-secondary">{{ _('template.api_keys.generated_api_key_label') }} API Key</label>
           <div class="input-group input-group-lg api-key-wrapper">
             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
             <input type="text" class="form-control font-monospace fs-5 border-start-0 border-end-0 text-center bg-light" id="newApiKey" value="{{ new_key }}" readonly />
             <button class="btn btn-primary px-4 shadow-sm" type="button" onclick="copyApiKey(this)">
-              <i class="bi bi-clipboard me-1"></i> 复制
+              <i class="bi bi-clipboard me-1"></i> {{ _('template.api_keys.copy') }}
             </button>
           </div>
         </div>
       </div>
       <div class="modal-footer border-top-0 pb-4 px-4 justify-content-center">
-        <a href="/api-keys" class="btn btn-success px-5 rounded-pill shadow-sm">我已妥善保存，关闭窗口</a>
+        <a href="/api-keys" class="btn btn-success px-5 rounded-pill shadow-sm">{{ _('template.api_keys.i_have_saved_it_securely_close') }}</a>
       </div>
     </div>
   </div>
@@ -239,7 +239,7 @@ async function copyApiKey(buttonEl) {
             await navigator.clipboard.writeText(apiKeyValue);
             copied = true;
         } catch (err) {
-            console.warn('Clipboard API 复制失败，尝试降级方案:', err);
+            console.warn('Clipboard API {{ _('template.api_keys.copy_failed') }}:', err);
         }
     }
 
@@ -252,12 +252,12 @@ async function copyApiKey(buttonEl) {
     }
 
     if (!copied) {
-        alert('复制失败，请手动选中后 Ctrl+C 复制。');
+        alert('{{ _('template.api_keys.copy_failed_in') }} Ctrl+C {{ _('template.api_keys.copy') }}。');
         return;
     }
 
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2 me-1"></i> 已复制';
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i> {{ _('template.api_keys.copied') }}';
     btn.classList.remove('btn-primary');
     btn.classList.add('btn-success');
     setTimeout(() => {

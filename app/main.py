@@ -27,6 +27,9 @@ from app.schemas.api.common import public_api_error_response
 from app.services.auth import decode_session_token
 from app.core.logger import get_request_id, setup_logging, set_request_id
 from app.services import identity_service, request_context_service, task_realtime_service
+from app.i18n import get_current_locale, locale_capabilities, translate, validate_catalogs
+from app.i18n.middleware import i18n_http_middleware, localize_response, resolve_request_locale
+from app.i18n.openapi import build_openapi_schema
 
 
 from contextlib import asynccontextmanager
@@ -38,6 +41,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    validate_catalogs()
     init_db()
     with session_scope() as session:
         identity_service.ensure_default_roles(session)
@@ -76,19 +80,20 @@ async def lifespan(app: FastAPI):
         await task_realtime_service.task_realtime_hub.shutdown()
 
 app = FastAPI(
-    title=settings.app_name,
+    title="openapi.title",
     description="Network Backup 系统 API 接口文档，包含设备管理、分组管理、凭据管理等功能。",
     version=settings.app_version.lstrip("vV"),
     openapi_tags=[
-        {"name": "设备管理"},
-        {"name": "分组管理"},
-        {"name": "凭据管理"},
-        {"name": "备份管理"},
-        {"name": "其它"},
+        {"name": "openapi.tag.devices"},
+        {"name": "openapi.tag.groups"},
+        {"name": "openapi.tag.credentials"},
+        {"name": "openapi.tag.backups"},
+        {"name": "openapi.tag.other"},
     ],
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
+    openapi_url=None,
 )
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
@@ -143,15 +148,29 @@ def _api_error_json(
     *,
     status_code: int,
     code: str,
-    message: str,
+    message: str = "",
+    message_key: str | None = None,
+    params: dict | None = None,
     details: dict | None = None,
+    locale: str | None = None,
 ) -> JSONResponse:
     request_id = get_request_id() or set_request_id()
+    response_locale = locale or get_current_locale()
+    localized_message = translate(
+        response_locale,
+        message_key or f"error.{code}",
+        params,
+        fallback=message or code,
+    )
+    if not locale_capabilities(response_locale).uses_han and any(
+        "\u4e00" <= char <= "\u9fff" for char in localized_message
+    ):
+        localized_message = code.replace("_", " ").strip().capitalize()
     response = JSONResponse(
         status_code=status_code,
         content=public_api_error_response(
             code=code,
-            message=message,
+            message=localized_message,
             request_id=request_id,
             details=details,
         ),
@@ -167,6 +186,8 @@ def api_error_exception_handler(request: Request, exc: ApiError):
             status_code=exc.status_code,
             code=exc.code,
             message=exc.detail,
+            message_key=exc.message_key,
+            params=exc.params,
         )
     return JSONResponse(
         status_code=exc.status_code,
@@ -214,11 +235,17 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(web_router)
 
 
+@app.get("/openapi.json", include_in_schema=False)
+async def localized_openapi(request: Request):
+    return JSONResponse(build_openapi_schema(app, request.state.locale))
+
+
 @app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
+async def custom_swagger_ui_html(request: Request):
+    locale = request.state.locale
     return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=f"{app.title} - Swagger UI",
+        openapi_url=f"/openapi.json?lang={locale}",
+        title=translate(locale, "openapi.docs.title"),
         swagger_js_url="/static/vendor/swagger-ui/swagger-ui-bundle.js",
         swagger_css_url="/static/vendor/swagger-ui/swagger-ui.css",
         swagger_favicon_url="/static/img/favicon.svg",
@@ -231,6 +258,9 @@ async def _request_id_middleware(request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+app.middleware("http")(i18n_http_middleware)
 
 
 @app.middleware("http")
@@ -280,28 +310,40 @@ async def _auth_middleware(request, call_next):
         request_context_service.apply_request_context(request, request_context)
 
     user = request.state.user
+    locale, persist_locale_cookie = resolve_request_locale(request, user=user)
+    request.state.locale = locale
+    request.state.persist_locale_cookie = persist_locale_cookie
+
+    def localized_response(response):
+        return localize_response(
+            request,
+            response,
+            locale,
+            persist_cookie=persist_locale_cookie,
+        )
 
     if skip_auth or allow_anonymous:
         return await call_next(request)
 
     if user is None:
         if _is_json_api_request(request):
-            return _api_error_json(
+            return localized_response(_api_error_json(
                 status_code=401,
                 code="UNAUTHORIZED",
                 message="Unauthorized",
-            )
+                locale=locale,
+            ))
         nxt = quote(str(request.url.path) + (("?" + request.url.query) if request.url.query else ""))
         response = RedirectResponse(url=f"/login?next={nxt}", status_code=303)
         if request.cookies.get(settings.auth_cookie_name):
             response.delete_cookie(settings.auth_cookie_name, path="/")
-        return response
+        return localized_response(response)
 
     # 强制修改密码逻辑：如果密码已过期且当前不在修改密码页面，则强制跳转
     if user.password_expired and path != "/change-password":
-        return RedirectResponse(url="/change-password", status_code=303)
+        return localized_response(RedirectResponse(url="/change-password", status_code=303))
 
     if user.mfa_enabled and not user.mfa_secret and path not in {"/mfa-setup", "/logout", "/change-password"}:
-        return RedirectResponse(url="/mfa-setup", status_code=303)
+        return localized_response(RedirectResponse(url="/mfa-setup", status_code=303))
 
     return await call_next(request)

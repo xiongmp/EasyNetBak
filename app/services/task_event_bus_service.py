@@ -177,11 +177,11 @@ async def pump_task_events(
                 except Exception:
                     pass
                 try:
-                    await pubsub.close()
+                    await pubsub.aclose()
                 except Exception:
                     pass
             if client is not None:
                 try:
-                    await client.close()
+                    await client.aclose()
                 except Exception:
                     pass

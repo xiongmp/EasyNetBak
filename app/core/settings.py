@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     secret_key: str = Field("dev-secret-key-change-me", alias="SECRET_KEY")
     # 默认时区偏移量
     timezone_offset: str = Field("+08:00", alias="TIMEZONE_OFFSET")
+    default_locale: str = Field("zh-CN", alias="DEFAULT_LOCALE")
+    supported_locales: str = Field("zh-CN,en-US", alias="SUPPORTED_LOCALES")
+    i18n_strict: bool = Field(False, alias="I18N_STRICT")
     
     # 认证 Cookie 名称
     auth_cookie_name: str = Field("nb_session", alias="AUTH_COOKIE_NAME")

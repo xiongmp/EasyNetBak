@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
-{% set page_title = "自定义模板" %}
-{% set page_subtitle = "为不同设备类型配置备份命令，便于统一执行和管理" %}
+{% from "macros.html" import render_pagination with context %}
+{% set page_title = _('template.templates.customtemplate') %}
+{% set page_subtitle = _('page.templates.subtitle') %}
 {% set can_template_create = has_permission('templates.create') %}
 {% set can_template_update = has_permission('templates.update') %}
 {% set can_template_delete = has_permission('templates.delete') %}
@@ -11,7 +11,7 @@
   <div class="card mb-3 border">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center">
-        <div class="fw-bold text-secondary small">内置默认模板</div>
+        <div class="fw-bold text-secondary small">{{ _('template.templates.built_in_default_templates') }}</div>
         <button
           class="btn btn-outline-secondary btn-sm px-3"
           type="button"
@@ -20,7 +20,7 @@
           aria-expanded="false"
           aria-controls="default-platforms-collapse"
         >
-          展开查看
+          {{ _('template.templates.view') }}
         </button>
       </div>
       <div class="collapse mt-3" id="default-platforms-collapse">
@@ -28,8 +28,8 @@
           <table class="table table-sm align-middle mb-0">
             <thead class="bg-body-tertiary" style="position: sticky; top: 0; z-index: 1;">
               <tr>
-                <th style="width: 200px;">设备类型</th>
-                <th>默认备份命令</th>
+                <th style="width: 200px;">{{ _('template.device_detail.device_type') }}</th>
+                <th>{{ _('template.templates.default_backup_commands') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -52,7 +52,7 @@
                     {% if cmd %}
                       <code class="text-primary bg-primary-subtle px-1 rounded-1">{{ cmd }}</code>
                     {% else %}
-                      <span class="opacity-50">未预置命令</span>
+                      <span class="opacity-50">{{ _('template.templates.no_preset_commands') }}</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -70,25 +70,25 @@
         <div class="modal-content">
           <form method="post" action="/templates">
             <div class="modal-header">
-              <h5 class="modal-title" id="templateModalLabel">自定义模板命令</h5>
+              <h5 class="modal-title" id="templateModalLabel">{{ _('template.templates.custom_template_commands') }}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
               <input type="hidden" name="template_id" value="0" />
               <div class="row">
                 <div class="col-md-12 mb-3">
-                  <label class="form-label small text-secondary mb-1">模板名称</label>
-                  <input name="name" class="form-control form-control-sm" placeholder="例如：核心交换机备份" required />
+                  <label class="form-label small text-secondary mb-1">{{ _('template.templates.template_name') }}</label>
+                  <input name="name" class="form-control form-control-sm" placeholder="{{ _('template.templates.for_example_core_switch_backup') }}" required />
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label small text-secondary mb-1">登录方式</label>
+                  <label class="form-label small text-secondary mb-1">{{ _('template.device_detail.login_method') }}</label>
                   <select name="login_method" class="form-select form-select-sm" id="template-login-method" required>
                     <option value="ssh">SSH</option>
                     <option value="telnet">Telnet</option>
                   </select>
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label small text-secondary mb-1">设备类型 (Platform)</label>
+                  <label class="form-label small text-secondary mb-1">{{ _('template.device_detail.device_type') }} (Platform)</label>
                   <select name="platform" class="form-select form-select-sm" id="template-platform" required>
                     {% for p in ssh_platforms %}
                       <option value="{{ p.id }}" data-kind="ssh">{{ p.label }} ({{ p.id }})</option>
@@ -99,16 +99,16 @@
                   </select>
                 </div>
                 <div class="col-md-12 mb-3">
-                  <label class="form-label small text-secondary mb-1">备份命令</label>
-                  <textarea name="commands" class="form-control form-control-sm" rows="10" placeholder="支持多条命令，每行输入一个命令；若留空则使用厂商默认命令"></textarea>
-                  <div class="form-text small mt-2">示例：Cisco 使用 <code>show running-config</code>；华为/H3C 使用 <code>display current-configuration</code></div>
-                  <div class="form-text small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>不支持交互式命令（只支持查看命令）</div>
+                  <label class="form-label small text-secondary mb-1">{{ _('template.templates.backup_commands') }}</label>
+                  <textarea name="commands" class="form-control form-control-sm" rows="10" placeholder="{{ _('template.templates.supports_multiple_commands_one_per_line_leave_blank') }}"></textarea>
+                  <div class="form-text small mt-2">{{ _('template.settings.example') }}：Cisco {{ _('template.device_detail.use') }} <code>show running-config</code>；{{ _('template.templates.huawei') }}/H3C {{ _('template.device_detail.use') }} <code>display current-configuration</code></div>
+                  <div class="form-text small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>{{ _('template.templates.show_commands_only_warning') }}）</div>
                 </div>
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">取消</button>
-              <button type="submit" class="btn btn-sm btn-primary px-3">保存</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+              <button type="submit" class="btn btn-sm btn-primary px-3">{{ _('button.save') }}</button>
             </div>
           </form>
         </div>
@@ -119,10 +119,10 @@
   <div class="card border">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="small text-secondary fw-medium">自定义模板列表</div>
+        <div class="small text-secondary fw-medium">{{ _('template.templates.custom_template_list') }}</div>
         {% if can_template_create %}
           <button class="btn btn-sm btn-primary px-3" data-bs-toggle="modal" data-bs-target="#templateModal" onclick="resetTemplateModal()">
-            <i class="bi bi-plus-lg me-1"></i>新增模板
+            <i class="bi bi-plus-lg me-1"></i>{{ _('template.templates.add_template') }}
           </button>
         {% endif %}
       </div>
@@ -131,18 +131,18 @@
           <thead class="bg-body-tertiary">
             <tr>
               <th style="width: 60px;">ID</th>
-              <th style="width: 200px;">模板名称</th>
-              <th style="width: 160px;">设备类型</th>
-              <th>执行命令</th>
-              <th style="width: 140px;" class="text-start">操作</th>
+              <th style="width: 200px;">{{ _('template.templates.template_name') }}</th>
+              <th style="width: 160px;">{{ _('template.device_detail.device_type') }}</th>
+              <th>{{ _('template.templates.commands') }}</th>
+              <th style="width: 140px;" class="text-start">{{ _('audit.csv.action') }}</th>
             </tr>
           </thead>
           <tbody>
             {% for t in items %}
               <tr>
                 <td class="text-secondary small text-start">{{ t.id }}</td>
-                <td class="fw-medium text-start">{{ t.name }}</td>
-                <td class="text-start"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2">{{ t.platform }}</span></td>
+                <td class="fw-medium text-start" data-i18n-preserve>{{ t.name }}</td>
+                <td class="text-start"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2" data-i18n-preserve>{{ t.platform }}</span></td>
                 <td class="text-secondary small text-start">
                   {% if t.commands %}
                     {% for cmd in t.commands.split('\n') %}
@@ -153,7 +153,7 @@
                       {% endif %}
                     {% endfor %}
                   {% else %}
-                    <span class="opacity-50">使用系统默认</span>
+                    <span class="opacity-50">{{ _('template.templates.usesystemdefault') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-start text-nowrap">
@@ -166,32 +166,32 @@
                           data-platform="{{ t.platform }}"
                           data-commands="{{ t.commands | forceescape }}"
                         >
-                          <i class="bi bi-pencil me-1"></i>编辑
+                          <i class="bi bi-pencil me-1"></i>{{ _('template.credentials.edit') }}
                         </button>
                       {% endif %}
                       {% if can_template_delete %}
                         <form method="post" action="/templates/{{ t.id }}/delete" class="m-0 text-nowrap">
-                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此模板吗？">
-                            <i class="bi bi-trash me-1"></i>删除
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.template" data-confirm-msg="{{ _('template.templates.confirm_delete_template') }}？">
+                            <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                           </button>
                         </form>
                       {% endif %}
                     </div>
                   {% else %}
-                    <span class="text-secondary small opacity-50 text-nowrap">无权限</span>
+                    <span class="text-secondary small opacity-50 text-nowrap">{{ _('template.api_keys.permission_denied') }}</span>
                   {% endif %}
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="5" class="text-center text-secondary py-4">暂无自定义模板记录</td>
+                <td colspan="5" class="text-center text-secondary py-4">{{ _('template.templates.no_custom_templates') }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      {{ render_pagination(pagination, pagination_base, "个模板") }}
+      {{ render_pagination(pagination, pagination_base, _('template.templates.templates')) }}
     </div>
   </div>
 
@@ -232,7 +232,7 @@
           document.querySelector('#templateModal textarea[name="commands"]').value = '';
           loginSelect.value = 'ssh';
           loginSelect.dispatchEvent(new Event('change'));
-          document.querySelector('#templateModal .modal-title').textContent = '新增自定义模板';
+          document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.add_custom_template') }}');
         };
 
         document.querySelectorAll('.btn-edit-template').forEach(btn => {
@@ -254,7 +254,7 @@
             loginSelect.dispatchEvent(new Event('change'));
             platformSelect.value = platform;
             
-            document.querySelector('#templateModal .modal-title').textContent = '编辑自定义模板';
+            document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.edit_custom_template') }}');
             const modal = new bootstrap.Modal(document.getElementById('templateModal'));
             modal.show();
           });
@@ -274,7 +274,7 @@
         {% endif %}
         loginSelect.dispatchEvent(new Event('change'));
         platformSelect.value = '{{ current.platform }}';
-        document.querySelector('#templateModal .modal-title').textContent = '编辑自定义模板';
+        document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.edit_custom_template') }}');
         const modal = new bootstrap.Modal(document.getElementById('templateModal'));
         modal.show();
         {% endif %}

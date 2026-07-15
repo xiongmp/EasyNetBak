@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session
 
 from app.db import get_session
+from app.i18n import translate
 from app.routers.support import _current_user, _log_action, _require_any_permission, _require_permission, get_user_allowed_group_ids
 from app.routers.web_context import _layout_context, templates
 from app.schemas.inputs import ConfigSearchListQueryInput
@@ -28,8 +29,8 @@ def diff_rules_page(request: Request, session: Session = Depends(get_session)):
         name="diff_rules.html",
         context={
             **_layout_context(request=request, active="diff_rules"),
-            "page_title": "Diff 忽略规则",
-            "page_subtitle": "配置在对比配置差异时需要忽略的行 (支持正则表达式)",
+            "page_title": translate(request.state.locale, "nav.diff_rules"),
+            "page_subtitle": translate(request.state.locale, "page.diff_rules.subtitle"),
             **payload,
             "msg": msg,
             "err": err,
@@ -43,14 +44,14 @@ def update_diff_rules(request: Request, rules_json: str = Form(""), session: Ses
     try:
         payload = json.loads(rules_json or "[]")
     except Exception:
-        return RedirectResponse(url="/diff-rules?err=规则解析失败", status_code=303)
+        return RedirectResponse(url="/diff-rules?err=error.diff_rules.parse", status_code=303)
     normalized, required_permissions = backup_service.get_diff_rules_required_permissions(session, payload)
     for code in sorted(required_permissions):
         _require_permission(request, code)
     normalized = backup_service.save_diff_rules(session, normalized)
     change_types = ",".join(sorted(required_permissions)) or "none"
     _log_action(request, session, "UPDATE_DIFF_RULES", "settings", None, f"Rules: {len(normalized)}; perms={change_types}")
-    return RedirectResponse(url="/diff-rules?msg=已保存", status_code=303)
+    return RedirectResponse(url="/diff-rules?msg=message.saved", status_code=303)
 
 
 @router.get("/backups", summary="备份历史页面", description="查看全局设备备份记录")
@@ -88,8 +89,8 @@ def config_search_page(
         name="config_search.html",
         context={
             **_layout_context(request=request, active="config_search"),
-            "page_title": "配置搜索",
-            "page_subtitle": "在备份配置中搜索关键词",
+            "page_title": translate(request.state.locale, "nav.config_search"),
+            "page_subtitle": translate(request.state.locale, "page.config_search.subtitle"),
             **payload,
         },
     )

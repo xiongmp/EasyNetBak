@@ -15,13 +15,15 @@ from app.services import pagination_service
 _API_KEY_INTEGRITY_RULES = (
     IntegrityRule(
         tokens=("api_key.prefix", "apikey.prefix", "prefix"),
-        message="API Key 前缀冲突，请重试生成",
+        message="API key prefix conflict; generate a new key.",
         code="API_KEY_PREFIX_CONFLICT",
+        message_key="error.api_key.prefix_conflict",
     ),
     IntegrityRule(
         tokens=("api_key.key_hash", "apikey.key_hash", "key_hash"),
-        message="API Key 哈希冲突，请重试生成",
+        message="API key hash conflict; generate a new key.",
         code="API_KEY_HASH_CONFLICT",
+        message_key="error.api_key.hash_conflict",
     ),
 )
 
@@ -55,8 +57,9 @@ def create_api_key(
             session,
             exc,
             rules=_API_KEY_INTEGRITY_RULES,
-            fallback_message="API Key 创建失败，请重试",
+            fallback_message="API key creation failed; try again.",
             fallback_code="API_KEY_CREATE_CONFLICT",
+            fallback_message_key="error.api_key.create_conflict",
         )
 
     return created, plaintext_key

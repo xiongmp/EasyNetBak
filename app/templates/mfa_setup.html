@@ -94,14 +94,14 @@
         </div>
 
         <div class="text-center mb-4">
-          <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">绑定验证器</h1>
-          <p class="text-secondary mb-0">扫描二维码并输入验证码完成 MFA 绑定</p>
+          <h1 class="fw-bold mb-2 text-dark" style="font-size: 1.75rem;">{{ _('template.mfa_setup.bind_authenticator') }}</h1>
+          <p class="text-secondary mb-0">{{ _('template.mfa_setup.enterverification_code') }} MFA {{ _('template.mfa_setup.setup') }}</p>
         </div>
 
         {% if err %}
           <div class="alert alert-danger border-0 d-flex align-items-center rounded-pill py-2 px-3 mb-4" role="alert" style="background-color: rgba(239, 68, 68, 0.1); color: #ef4444;">
             <i class="bi bi-exclamation-circle-fill me-2"></i>
-            <div class="small fw-medium">{{ err }}</div>
+            <div class="small fw-medium">{{ _(err, fallback=err) }}</div>
           </div>
         {% endif %}
 
@@ -115,33 +115,33 @@
           </div>
 
           <div class="mb-3">
-             <label class="form-label small fw-bold text-secondary ms-1 mb-1">密钥 (点击复制)</label>
+             <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_setup.key') }} ({{ _('template.mfa_setup.copy') }})</label>
              <input type="text" class="form-control form-control-pill text-center font-monospace bg-light" value="{{ mfa_secret }}" readonly onclick="this.select()" style="cursor: pointer;">
           </div>
           
           <div class="mb-4">
-            <label class="form-label small fw-bold text-secondary ms-1 mb-1">验证码</label>
-            <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="输入 6 位验证码" required>
+            <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_setup.verification_code') }}</label>
+            <input name="mfa_code" class="form-control form-control-pill" autocomplete="one-time-code" inputmode="numeric" placeholder="{{ _('template.mfa_setup.enter') }} 6 {{ _('template.mfa_setup.digit_code') }}" required>
           </div>
 
           <div class="mb-4">
              <div class="alert alert-light border-0 d-flex align-items-start p-3 rounded-3 bg-light">
                <i class="bi bi-info-circle-fill text-primary me-2 mt-1"></i>
                <div class="small text-secondary lh-sm">
-                 支持离线部署，无需外网。若验证码频繁失败，请检查服务器时间是否已同步。
+                 {{ _('template.mfa_setup.offline_verification_code_failed_servertime') }}。
                </div>
              </div>
           </div>
           
           <button class="btn btn-dark w-100 btn-pill btn-login-new py-3" type="submit">
-            完成绑定
+            {{ _('template.mfa_setup.finish_setup') }}
           </button>
         </form>
       </div>
 
       <!-- Footer Content -->
       <div class="position-absolute bottom-0 start-50 translate-middle-x pb-4 text-muted small">
-        <p class="mb-0">© 2026 网络设备备份系统</p>
+        <p class="mb-0">© 2026 {{ _('template.base.network_device_backup_system') }}</p>
       </div>
     </div>
   </div>

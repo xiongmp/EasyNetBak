@@ -17,6 +17,8 @@ from app.db import session_scope
 from app.core.time import format_local_datetime
 from app.models import TaskEvent
 from app.services import backup_service, task_event_bus_service, task_state_service
+from app.i18n import has_key, translate
+from app.i18n.validators import normalize_locale
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ class TaskRealtimeSubscription:
     track_id: str
     allowed_group_ids: tuple[int, ...] | None
     tz_offset_minutes: int
+    locale: str = "zh-CN"
 
     @property
     def scope_key(self) -> str:
@@ -35,7 +38,7 @@ class TaskRealtimeSubscription:
             groups_key = "*"
         else:
             groups_key = ",".join(str(x) for x in self.allowed_group_ids)
-        return f"{self.kind}:{self.track_id}:tz:{self.tz_offset_minutes}:groups:{groups_key}"
+        return f"{self.kind}:{self.track_id}:tz:{self.tz_offset_minutes}:locale:{self.locale}:groups:{groups_key}"
 
     @property
     def track_key(self) -> str:
@@ -62,6 +65,7 @@ def build_subscription(
     backup_id: UUID | str | None = None,
     allowed_group_ids: list[int] | tuple[int, ...] | None,
     tz_offset_minutes: int,
+    locale: str = "zh-CN",
 ) -> TaskRealtimeSubscription:
     if bool(run_id) == bool(backup_id):
         raise ValueError("subscribe requires exactly one of run_id or backup_id")
@@ -71,12 +75,14 @@ def build_subscription(
             track_id=str(UUID(str(run_id))),
             allowed_group_ids=_normalize_allowed_group_ids(allowed_group_ids),
             tz_offset_minutes=int(tz_offset_minutes or 0),
+            locale=normalize_locale(locale),
         )
     return TaskRealtimeSubscription(
         kind="backup",
         track_id=str(UUID(str(backup_id))),
         allowed_group_ids=_normalize_allowed_group_ids(allowed_group_ids),
         tz_offset_minutes=int(tz_offset_minutes or 0),
+        locale=normalize_locale(locale),
     )
 
 
@@ -159,7 +165,7 @@ def _load_subscription_snapshot(subscription: TaskRealtimeSubscription) -> dict[
         }
 
 
-def _task_event_message(event: TaskEvent, details: dict[str, Any]) -> tuple[str, str]:
+def _task_event_message_legacy(event: TaskEvent, details: dict[str, Any]) -> tuple[str, str]:
     event_name = str(event.event or "").strip()
     error = str(details.get("error") or "").strip()
     storage_type = str(event.storage_type or details.get("storage_type") or "").strip()
@@ -479,19 +485,162 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any]) -> tuple[str,
     return ("info", error or event_name or "任务事件")
 
 
-def _serialize_task_event(event: TaskEvent, *, offset_minutes: int) -> dict[str, Any]:
+def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: str = "zh-CN") -> tuple[str, str]:
+    tone, fallback = _task_event_message_legacy(event, details)
+    event_name = str(event.event or "").strip()
+    key = f"task.event.{event_name}"
+    normalized = normalize_locale(locale)
+    if has_key(key, normalized):
+        def event_text(message_key: str, params: dict[str, Any] | None = None) -> str:
+            return translate(normalized, f"task.param.{message_key}", params)
+
+        params = dict(details)
+        host = str(details.get("host") or "").strip()
+        port = str(details.get("port") or "").strip()
+        target = host or event_text("device")
+        if port:
+            target = f"{target}:{port}"
+        login_method = str(details.get("login_method") or "").strip()
+        command = str(details.get("command") or "-").strip() or "-"
+        command_index = int(details.get("command_index") or 0)
+        command_count = int(details.get("command_count") or 0)
+        if command_index and command_count:
+            command = f"[{command_index}/{command_count}] {command}"
+        elif command_index:
+            command = f"[{command_index}] {command}"
+        read_timeout = int(details.get("read_timeout") or 0)
+        content_bytes = int(details.get("content_bytes") or details.get("output_bytes") or 0)
+        if content_bytes >= 1024 * 1024:
+            content_size = f"{content_bytes / (1024 * 1024):.2f} MB"
+        elif content_bytes >= 1024:
+            content_size = f"{content_bytes / 1024:.1f} KB"
+        else:
+            content_size = f"{content_bytes} B"
+        duration_seconds = details.get("duration_seconds")
+        line_count = int(details.get("line_count") or 0)
+        storage_label = str(event.storage_type or details.get("storage_type") or "").strip() or event_text("remote_storage")
+        storage_target = storage_label
+        storage_options = ""
+        if storage_label.upper() == "FTP":
+            ftp_host = str(details.get("host") or "").strip()
+            ftp_port = str(details.get("port") or "").strip()
+            storage_target = f"FTP: {ftp_host}:{ftp_port}" if ftp_host and ftp_port else f"FTP: {ftp_host or 'FTP'}"
+            base_dir = str(details.get("base_dir") or "").strip().strip("/")
+            passive = str(details.get("passive") or "").strip()
+            storage_options = event_text("directory_option", {"value": f"/{base_dir}"}) if base_dir else ""
+            storage_options += event_text("passive_option", {"value": passive}) if passive else ""
+        elif storage_label.upper() == "S3":
+            bucket = str(details.get("bucket") or "").strip()
+            prefix = str(details.get("prefix") or "").strip().strip("/")
+            endpoint = str(details.get("endpoint") or "").strip()
+            storage_target = f"S3: {bucket or 'S3'}"
+            storage_options = event_text("prefix_option", {"value": prefix}) if prefix else ""
+            storage_options += event_text("endpoint_option", {"value": endpoint}) if endpoint else ""
+        upload_ok = bool(event.success if event.success is not None else details.get("success"))
+        effective_error = str(details.get("error") or event.failure_type or details.get("failure_type") or "").strip()
+        retries_done = int(details.get("retries_done") or event.retries_done or 0)
+        max_retries = int(details.get("max_retries") or event.max_retries or 0)
+        planned_count = int(details.get("planned_count") or details.get("total_devices") or 0)
+        schedule_id = int(details.get("schedule_id") or 0)
+        trigger = str(details.get("trigger") or "").strip()
+        job_count = int(details.get("job_count") or 0)
+        enqueued_count = int(details.get("enqueued_count") or 0)
+        terminated_records = int(details.get("terminated_records") or 0)
+        running_records = int(details.get("running_records") or 0)
+        skipped_records = int(details.get("skipped_records") or 0)
+        retried_records = int(details.get("retried_records") or 0)
+        backup_count = int(details.get("backup_count") or 0)
+        success_count = int(details.get("success_count") or 0)
+        fail_count = int(details.get("fail_count") or 0)
+        duration_text = str(details.get("duration_text") or "").strip()
+        if not duration_text and duration_seconds is not None:
+            duration_text = str(duration_seconds)
+        params.update(
+            {
+                "target": target,
+                "login_method_suffix": f" ({login_method})" if login_method else "",
+                "device_type": str(details.get("device_type") or "-").strip() or "-",
+                "conn_timeout": str(details.get("conn_timeout") or "-").strip() or "-",
+                "command": command,
+                "read_timeout_suffix": (
+                    event_text("read_timeout_suffix", {"value": read_timeout}) if read_timeout else ""
+                ),
+                "content_size": content_size,
+                "duration_suffix": (
+                    event_text("duration_suffix", {"value": duration_seconds})
+                    if duration_seconds is not None else ""
+                ),
+                "line_count": line_count,
+                "collection_summary": (
+                    event_text("line_count_suffix", {"value": line_count}) if line_count
+                    else event_text("size_suffix", {"value": content_size}) if content_bytes
+                    else ""
+                ),
+                "storage_label": storage_label,
+                "storage_target": storage_target,
+                "storage_options": storage_options,
+                "content_size_suffix": (
+                    event_text("content_size_suffix", {"value": content_size}) if content_bytes else ""
+                ),
+                "upload_result": event_text("upload_succeeded" if upload_ok else "upload_failed"),
+                "upload_failure_hint": (
+                    event_text("upload_failure_hint") if not upload_ok else ""
+                ),
+                "error": effective_error or event_text("unknown_error"),
+                "retry_position": f"{retries_done + 1}/{max_retries or retries_done + 1}",
+                "planned_count": planned_count,
+                "schedule_suffix": (
+                    event_text("schedule_suffix", {"value": schedule_id}) if schedule_id else ""
+                ),
+                "trigger_suffix": (
+                    event_text("trigger_suffix", {"value": trigger}) if trigger else ""
+                ),
+                "job_count": job_count,
+                "enqueued_count": enqueued_count,
+                "failed_count": int(details.get("failed_count") or job_count or 0),
+                "reason_suffix": (
+                    f": {str(details.get('reason') or effective_error).strip()}"
+                    if str(details.get("reason") or effective_error).strip()
+                    else ""
+                ),
+                "terminated_records": terminated_records,
+                "running_records": running_records,
+                "skipped_records": skipped_records,
+                "retried_records": retried_records,
+                "backup_count_suffix": (
+                    event_text("backup_count_suffix", {"value": backup_count}) if backup_count else ""
+                ),
+                "success_count": success_count,
+                "fail_count": fail_count,
+                "total_duration_suffix": (
+                    event_text("total_duration_suffix", {"value": duration_text}) if duration_text else ""
+                ),
+            }
+        )
+        return tone, translate(normalized, key, params, fallback=fallback)
+    return tone, translate(
+        normalized,
+        "task.event.unknown",
+        {"event": event_name or "-", "error": str(details.get("error") or "").strip()},
+        fallback=fallback,
+    )
+
+
+def _serialize_task_event(event: TaskEvent, *, offset_minutes: int, locale: str = "zh-CN") -> dict[str, Any]:
     try:
         details = json.loads(event.details or "{}")
         if not isinstance(details, dict):
             details = {}
     except Exception:
         details = {}
-    tone, message = _task_event_message(event, details)
+    tone, message = _task_event_message(event, details, locale=locale)
     return {
         "id": int(event.id or 0),
         "event": str(event.event or ""),
         "tone": tone,
         "message": message,
+        "message_key": f"task.event.{str(event.event or '').strip()}",
+        "message_params": details,
         "created_at": format_local_datetime(event.created_at, offset_minutes=offset_minutes),
         "task_id": str(event.task_id or ""),
         "record_id": str(event.record_id or ""),
@@ -523,7 +672,7 @@ def _parse_event_created_at(value: Any) -> datetime | None:
         return None
 
 
-def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: int) -> dict[str, Any]:
+def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: int, locale: str = "zh-CN") -> dict[str, Any]:
     details_raw = payload.get("details")
     details = details_raw if isinstance(details_raw, dict) else {}
     task_event = TaskEvent(
@@ -542,7 +691,7 @@ def _serialize_broadcast_task_event(payload: dict[str, Any], *, offset_minutes: 
         created_at=_parse_event_created_at(payload.get("created_at")),
         details=json.dumps(details, ensure_ascii=False) if details else None,
     )
-    serialized = _serialize_task_event(task_event, offset_minutes=offset_minutes)
+    serialized = _serialize_task_event(task_event, offset_minutes=offset_minutes, locale=locale)
     if not serialized.get("id"):
         serialized["id"] = int(payload.get("event_id") or 0)
     return serialized
@@ -608,7 +757,10 @@ def _load_log_payload(
         else:
             rows = list(session.exec(stmt.order_by(TaskEvent.id.desc()).limit(limit)))
             rows.reverse()
-        serialized_items = [_serialize_task_event(row, offset_minutes=offset_minutes) for row in rows]
+        serialized_items = [
+            _serialize_task_event(row, offset_minutes=offset_minutes, locale=subscription.locale)
+            for row in rows
+        ]
         if subscription.kind == "backup":
             items = [item for item in serialized_items if not _should_hide_device_log_event(item)]
         else:
@@ -812,7 +964,7 @@ class TaskRealtimeHub:
                 {
                     "type": "task_error",
                     "track": {"kind": subscription.kind, "id": subscription.track_id},
-                    "message": "任务状态同步失败",
+                    "message": translate(subscription.locale, "task.ws.status_sync_failed"),
                 },
             )
             return
@@ -843,7 +995,11 @@ class TaskRealtimeHub:
         if not targets:
             return
         for connection_id, subscription in targets:
-            item = _serialize_broadcast_task_event(payload, offset_minutes=subscription.tz_offset_minutes)
+            item = _serialize_broadcast_task_event(
+                payload,
+                offset_minutes=subscription.tz_offset_minutes,
+                locale=subscription.locale,
+            )
             if subscription.kind == "backup" and _should_hide_device_log_event(item):
                 continue
             next_after_id = int(item.get("id") or event_id or 0)
@@ -906,7 +1062,7 @@ class TaskRealtimeHub:
                         {
                             "type": "task_error",
                             "track": {"kind": subscription.kind, "id": subscription.track_id},
-                            "message": "任务状态同步失败",
+                            "message": translate(subscription.locale, "task.ws.status_sync_failed"),
                         },
                     )
                     await asyncio.sleep(2.0)
@@ -950,7 +1106,7 @@ class TaskRealtimeHub:
                         {
                             "type": "task_error",
                             "track": {"kind": subscription.kind, "id": subscription.track_id},
-                            "message": "任务日志同步失败",
+                            "message": translate(subscription.locale, "task.ws.log_sync_failed"),
                         },
                     )
                     await asyncio.sleep(2.0)

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_schedule_run_status %}
-{% set page_title = "定时任务统计" %}
+{% from "macros.html" import render_schedule_run_status with context %}
+{% set page_title = _('template.schedule_stats.schedule_statistics') %}
 {% set page_subtitle = schedule.name if schedule else "" %}
 {% set html_class = "page-schedule-stats-html" %}
 
@@ -9,40 +9,40 @@
     <!-- 顶部综合信息栏 -->
     <div class="top-section">
       <div class="action-group">
-        <a class="btn btn-outline-secondary btn-sm border-0" href="/schedules" title="返回列表">
+        <a class="btn btn-outline-secondary btn-sm border-0" href="/schedules" title="{{ _('template.device_detail.back_to_list') }}">
           <i class="bi bi-arrow-left fs-5"></i>
         </a>
         {% if has_permission('schedules.update') and has_permission('devices.backup') and schedule %}
           <button class="btn btn-primary btn-sm px-3 js-schedule-run" type="button" data-schedule-id="{{ schedule.id }}">
-            <i class="bi bi-play-fill me-1"></i>手动执行
+            <i class="bi bi-play-fill me-1"></i>{{ _('template.schedule_stats.run_now') }}
           </button>
         {% endif %}
       </div>
 
       {% if schedule %}
         <div class="info-item info-item-min-w-140">
-          <div class="info-label">任务名称</div>
+          <div class="info-label">{{ _('template.schedule_stats.task_name') }}</div>
           <div class="info-value text-truncate" title="{{ schedule.name }}">{{ schedule.name }}</div>
         </div>
 
         <div class="v-divider"></div>
 
         <div class="info-item">
-          <div class="info-label">状态 & 平台</div>
+          <div class="info-label">{{ _('login.csv.status') }} & {{ _('template.backups.platform') }}</div>
           <div class="d-flex gap-2">
             {% if schedule.enabled %}
               <div class="status-pill status-online">
                 <span class="status-dot"></span>
-                <span>已启用</span>
+                <span>{{ _('template.notifications.enabled') }}</span>
               </div>
             {% else %}
               <div class="status-pill status-offline">
                 <span class="status-dot"></span>
-                <span>已禁用</span>
+                <span>{{ _('template.notifications.disabled') }}</span>
               </div>
             {% endif %}
             <div class="backup-status backup-status-info">
-              <i class="bi bi-cpu"></i>{{ schedule.platform or "通用" }}
+              <i class="bi bi-cpu"></i>{{ schedule.platform or _('template.schedule_stats.general') }}
             </div>
           </div>
         </div>
@@ -50,7 +50,7 @@
         <div class="v-divider"></div>
 
         <div class="info-item">
-          <div class="info-label">执行周期 (Cron)</div>
+          <div class="info-label">{{ _('template.schedule_stats.execution_schedule') }} (Cron)</div>
           <div class="d-flex align-items-center gap-2">
             <code class="bg-light text-dark px-2 py-0 rounded border text-xs">{{ schedule.crontab }}</code>
             <span id="cron-meaning" class="text-xs text-primary fw-medium" data-cron="{{ schedule.crontab }}"></span>
@@ -60,32 +60,32 @@
         <div class="v-divider"></div>
 
         <div class="info-item info-item-max-w-400 flex-grow-1">
-          <div class="info-label">目标范围</div>
+          <div class="info-label">{{ _('template.schedule_stats.target_scope') }}</div>
           {% set title_parts = [] %}
           {% if not schedule.targets or schedule.targets == 'all' %}
-            {% set resolved_title = '所有设备' %}
-            {% set _ = title_parts.append('所有设备') %}
+            {% set resolved_title = _('template.schedule_stats.all_devices') %}
+            {% set append_result = title_parts.append(_('template.schedule_stats.all_devices')) %}
           {% else %}
             {% for token in schedule.targets.split() %}
               {% if token.startswith('device:') %}
                 {% set did = token[7:]|int %}
-                {% set _ = title_parts.append(device_map.get(did, token)) %}
+                {% set append_result = title_parts.append(device_map.get(did, token)) %}
               {% elif token.startswith('group:') %}
                 {% set gid = token[6:]|int %}
-                {% set _ = title_parts.append('分组:' ~ group_map.get(gid, token)) %}
+                {% set append_result = title_parts.append(_('template.schedule_stats.group_label') ~ group_map.get(gid, token)) %}
               {% elif token.startswith('platform:') %}
-                {% set _ = title_parts.append('平台:' ~ token[9:]) %}
+                {% set append_result = title_parts.append(_('template.schedule_stats.platform') ~ token[9:]) %}
               {% elif token.isdigit() %}
                 {% set did = token|int %}
-                {% set _ = title_parts.append(device_map.get(did, token)) %}
+                {% set append_result = title_parts.append(device_map.get(did, token)) %}
               {% else %}
-                {% set _ = title_parts.append(token) %}
+                {% set append_result = title_parts.append(token) %}
               {% endif %}
             {% endfor %}
             {% set resolved_title = title_parts|join(', ') %}
           {% endif %}
           <div class="info-value text-truncate cursor-pointer"
-               title="点击查看完整列表"
+               title="{{ _('template.schedule_stats.click_to_view_the_full_list') }}"
                data-bs-toggle="modal"
                data-bs-target="#targetDevicesModal">
             <i class="bi bi-info-circle me-1 text-primary"></i>{{ resolved_title }}
@@ -99,8 +99,8 @@
       <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg modal-content-rounded-16">
           <div class="modal-header bg-light py-3">
-            <h6 class="modal-title fw-bold">目标范围详情</h6>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            <h6 class="modal-title fw-bold">{{ _('template.schedule_stats.target_scopedetails') }}</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
           </div>
           <div class="modal-body p-4">
             <div class="d-flex flex-wrap gap-2">
@@ -121,10 +121,10 @@
         <!-- 成功率趋势 -->
         <div class="card card-stat card-stat-trend">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>成功率趋势（最近30次）</h6>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-graph-up me-2 text-primary"></i>{{ _('template.schedule_stats.success_rate_trend_recent') }}30{{ _('template.schedule_stats.runs') }}）</h6>
             {% if trend %}
               {% set last = trend|last %}
-              <div class="text-primary fw-bold">{{ (last.rate * 100)|round(0) }}% <span class="text-secondary text-xs fw-normal ms-1">最新</span></div>
+              <div class="text-primary fw-bold">{{ (last.rate * 100)|round(0) }}% <span class="text-secondary text-xs fw-normal ms-1">{{ _('template.schedule_stats.latest') }}</span></div>
             {% endif %}
           </div>
           <div class="card-body">
@@ -137,16 +137,16 @@
         <!-- Top 失败设备 -->
         <div class="card card-stat card-stat-failed">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-exclamation-circle me-2 text-danger"></i>Top 失败设备</h6>
-            <div class="backup-status backup-status-failed backup-status-xs">异常关注</div>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-exclamation-circle me-2 text-danger"></i>Top {{ _('template.schedule_stats.failed_devices') }}</h6>
+            <div class="backup-status backup-status-failed backup-status-xs">{{ _('template.schedule_stats.needs_attention') }}</div>
           </div>
           <div class="card-body p-0">
             <div class="table-scroll">
               <table class="table table-hover align-middle mb-0">
                 <thead>
                   <tr>
-                    <th class="text-secondary">设备名称 / IP</th>
-                    <th class="text-secondary text-end">失败次数</th>
+                    <th class="text-secondary">{{ _('email.field.device_name') }} / IP</th>
+                    <th class="text-secondary text-end">{{ _('template.schedule_stats.failures') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,7 +163,7 @@
                   {% else %}
                     <tr>
                       <td colspan="2" class="text-center text-secondary py-4 text-xs">
-                        <i class="bi bi-check-circle text-success me-2"></i>运行良好，暂无失败设备
+                        <i class="bi bi-check-circle text-success me-2"></i>{{ _('template.schedule_stats.running_well_no_failed_devices') }}
                       </td>
                     </tr>
                   {% endfor %}
@@ -176,23 +176,23 @@
         <!-- 分组汇总 -->
         <div class="card card-stat card-stat-summary">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-layers me-2 text-secondary"></i>分组数据汇总</h6>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-layers me-2 text-secondary"></i>{{ _('template.schedule_stats.group_summary') }}</h6>
           </div>
           <div class="card-body p-0">
             <div class="table-scroll">
               <table class="table table-hover align-middle mb-0">
                 <thead>
                   <tr>
-                    <th class="text-secondary">分组</th>
-                    <th class="text-secondary text-center">成功率</th>
-                    <th class="text-secondary text-end">总设备</th>
+                    <th class="text-secondary">{{ _('audit.resource.group') }}</th>
+                    <th class="text-secondary text-center">{{ _('template.dashboard.success_rate') }}</th>
+                    <th class="text-secondary text-end">{{ _('template.schedule_stats.total_devices') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for g in group_summary %}
                     {% set rate = g.rate or 0 %}
                     <tr>
-                      <td class="fw-bold" style="font-size: 0.75rem;">{{ g.group }}</td>
+                      <td class="fw-bold" style="font-size: 0.75rem;" data-i18n-preserve>{{ g.group }}</td>
                       <td>
                         <div class="d-flex align-items-center gap-2">
                           <div class="progress flex-grow-1 progress-sm-custom">
@@ -209,7 +209,7 @@
                     </tr>
                   {% else %}
                     <tr>
-                      <td colspan="3" class="text-center text-secondary py-4 text-xs">暂无分组汇总数据</td>
+                      <td colspan="3" class="text-center text-secondary py-4 text-xs">{{ _('template.schedule_stats.no_group_summary_data') }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -223,9 +223,9 @@
       <div class="stats-grid-bottom">
         <div class="card card-stat">
           <div class="card-header">
-            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-clock-history me-2 text-primary"></i>历史运行记录</h6>
+            <h6 class="fw-bold mb-0 smaller"><i class="bi bi-clock-history me-2 text-primary"></i>{{ _('template.schedule_stats.run_history') }}</h6>
             <div class="d-flex gap-2">
-               <span class="badge bg-light text-secondary border fw-normal text-xs">最近 30 条</span>
+               <span class="badge bg-light text-secondary border fw-normal text-xs">{{ _('template.schedule_stats.recent') }} 30 {{ _('template.schedule_stats.items_label') }}</span>
             </div>
           </div>
           <div class="card-body p-0">
@@ -233,14 +233,14 @@
             <table class="table table-hover align-middle mb-0">
               <thead>
                 <tr>
-                  <th class="text-secondary text-nowrap" style="width: 160px;">执行时间</th>
-                  <th class="text-secondary text-nowrap" style="width: 160px;">完成时间</th>
-                  <th class="text-secondary text-nowrap" style="width: 100px;">触发方式</th>
-                  <th class="text-secondary text-nowrap" style="width: 100px;">耗时</th>
-                  <th class="text-secondary text-nowrap text-center" style="width: 160px;">结果 (成功/失败/总计)</th>
-                  <th class="text-secondary text-nowrap" style="width: 120px;">当前状态</th>
-                  <th class="text-secondary text-nowrap" style="width: 120px;">操作</th>
-                  <th class="text-secondary">错误摘要</th>
+                  <th class="text-secondary text-nowrap" style="width: 160px;">{{ _('template.schedule_stats.run_time') }}</th>
+                  <th class="text-secondary text-nowrap" style="width: 160px;">{{ _('template.schedule_stats.finished_at') }}</th>
+                  <th class="text-secondary text-nowrap" style="width: 100px;">{{ _('template.schedule_stats.trigger') }}</th>
+                  <th class="text-secondary text-nowrap" style="width: 100px;">{{ _('email.field.duration') }}</th>
+                  <th class="text-secondary text-nowrap text-center" style="width: 160px;">{{ _('template.schedule_stats.result') }} ({{ _('template.schedule_stats.succeeded_failed_total') }})</th>
+                  <th class="text-secondary text-nowrap" style="width: 120px;">{{ _('template.schedule_stats.current_status') }}</th>
+                  <th class="text-secondary text-nowrap" style="width: 120px;">{{ _('audit.csv.action') }}</th>
+                  <th class="text-secondary">{{ _('template.schedule_stats.error_summary') }}</th>
                 </tr>
               </thead>
               <tbody id="schedule-runs-tbody">
@@ -270,11 +270,11 @@
                             {{ (seconds // 60) }}m {{ (seconds % 60) }}s
                           {% endif %}
                         {% elif not r.finished_at and r.status == 'running' %}
-                          <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>{{ run_status_labels.get(r.id|string, '运行中') }}</span>
+                          <span class="text-primary"><i class="bi bi-hourglass-split me-1 spin"></i>{{ run_status_labels.get(r.id|string, _('status.backup.running')) }}</span>
                         {% elif not r.finished_at and r.status == 'finalizing' %}
-                          <span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>{{ run_status_labels.get(r.id|string, '收尾中') }}</span>
+                          <span class="text-primary"><i class="bi bi-hourglass-bottom me-1 spin"></i>{{ run_status_labels.get(r.id|string, _('status.schedule_run.finalizing')) }}</span>
                         {% elif not r.finished_at and r.status == 'cancelling' %}
-                          <span class="text-warning"><i class="bi bi-slash-circle me-1"></i>{{ run_status_labels.get(r.id|string, '终止中') }}</span>
+                          <span class="text-warning"><i class="bi bi-slash-circle me-1"></i>{{ run_status_labels.get(r.id|string, _('status.schedule_run.cancelling')) }}</span>
                         {% elif not r.finished_at %}
                           <span class="text-secondary"><i class="bi bi-hourglass-split me-1"></i>{{ run_status_labels.get(r.id|string, r.status) }}</span>
                         {% else %}
@@ -301,14 +301,15 @@
                           type="button"
                           data-run-id="{{ r.id }}"
                         >
-                          终止未运行任务
+                          {{ _('template.schedule_stats.cancel_pending_tasks') }}
                         </button>
                       {% else %}
                         <span class="text-secondary opacity-50 text-xs">—</span>
                       {% endif %}
                     </td>
-                    <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ (r.error_message or '')|e }}">
-                      {{ run_error_summaries.get(r.id|string, r.error_message or "") }}
+                    {% set localized_error_summary = run_error_summaries.get(r.id|string, r.error_message or "") %}
+                    <td class="text-truncate text-secondary text-xs error-summary-cell" title="{{ localized_error_summary|e }}" data-i18n-preserve>
+                      {{ localized_error_summary }}
                     </td>
                   </tr>
                   {% else %}
@@ -316,7 +317,7 @@
                       <td colspan="8" class="text-center text-secondary py-5">
                         <div class="my-3">
                           <i class="bi bi-inbox fs-1 opacity-25"></i>
-                          <p class="mt-2 text-xs">暂无运行记录</p>
+                          <p class="mt-2 text-xs">{{ _('template.schedule_stats.no_run_records') }}</p>
                         </div>
                       </td>
                     </tr>
@@ -338,7 +339,7 @@
         hasActiveRuns: {{ (runs | selectattr('status', 'in', ['planned', 'dispatching', 'running', 'finalizing', 'cancelling']) | list | length > 0) | tojson }}
       });
     </script>
-    <script src="/static/js/pages/schedule-stats-runs.js"></script>
+    <script src="/static/js/pages/schedule-stats-runs.js?v={{ app_version }}-i18n-prepaint-1"></script>
   {% endif %}
 
   <script>
@@ -347,7 +348,7 @@
     });
   </script>
   <script src="/static/js/echarts.min.js"></script>
-  <script src="/static/js/pages/schedule-stats-chart.js"></script>
+  <script src="/static/js/pages/schedule-stats-chart.js?v={{ app_version }}-i18n-prepaint-1"></script>
   {% block scripts %}
     <script src="/static/js/cronstrue-i18n.min.js"></script>
     <script src="/static/js/pages/schedule-stats-cron.js"></script>

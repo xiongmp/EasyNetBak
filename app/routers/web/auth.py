@@ -22,6 +22,9 @@ from app.routers.support import _current_user, _log_action, _require_any_permiss
 from app.routers.web_context import _layout_context, templates
 from app.schemas.inputs import EditableListQueryInput
 from app.services import identity_service
+from app.i18n import translate
+from app.i18n.middleware import set_locale_cookie
+from app.i18n.validators import validate_locale
 from app.services.auth import (
     build_mfa_uri,
     create_session_token,
@@ -172,9 +175,9 @@ def login_submit(
             ip_address=ip_address,
             user_agent=user_agent,
             status="fail",
-            fail_reason="Invalid credentials",
+            fail_reason="invalid_credentials",
         )
-        return RedirectResponse(url="/login?err=账号或密码错误", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.invalid_credentials", status_code=303)
 
     if user.mfa_enabled:
         if not user.mfa_secret:
@@ -292,9 +295,9 @@ def mfa_setup_submit(
     sig = (mfa_sig or "").strip()
     code = (mfa_code or "").strip()
     if not secret or not sig or not hmac.compare_digest(_sign_mfa_secret(secret), sig):
-        return RedirectResponse(url="/mfa-setup?err=MFA配置已过期，请重新加载", status_code=303)
+        return RedirectResponse(url="/mfa-setup?err=auth.error.mfa_setup_expired", status_code=303)
     if not verify_mfa(secret, code):
-        return RedirectResponse(url="/mfa-setup?err=验证码错误，请重试", status_code=303)
+        return RedirectResponse(url="/mfa-setup?err=auth.error.invalid_verification_code", status_code=303)
 
     crud.update_user(session, int(user.id), mfa_enabled=True, mfa_secret=secret)
     _log_action(request, session, "ENABLE_MFA", "user", user.id, f"User {user.username} configured MFA")
@@ -306,7 +309,7 @@ def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends(), ses
     token = request.cookies.get(_PENDING_2FA_COOKIE, "")
     payload = _decode_pending_token(token)
     if not payload:
-        return RedirectResponse(url="/login?err=请先登录", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.login_required", status_code=303)
     allow_recovery = False
     user = crud.get_user(session, int(payload.get("uid", 0)))
     if (
@@ -346,22 +349,22 @@ def mfa_verify_submit(
     token = request.cookies.get(_PENDING_2FA_COOKIE, "")
     payload = _decode_pending_token(token)
     if not payload:
-        return RedirectResponse(url="/login?err=登录已过期", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.login_expired", status_code=303)
     user_id = int(payload.get("uid", 0))
     user = crud.get_user(session, user_id)
     if not user or not user.mfa_enabled:
-        return RedirectResponse(url="/login?err=账号状态异常", status_code=303)
+        return RedirectResponse(url="/login?err=auth.error.account_unavailable", status_code=303)
     if (recovery_code or "").strip():
         if not crud.is_admin_role_code(getattr(user, "role", "")):
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         if not user.recovery_codes_enabled:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         codes = user.recovery_codes or []
         if not codes:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         normalized = normalize_recovery_code(recovery_code)
         if not normalized:
-            return RedirectResponse(url="/mfa-verify?err=恢复码不可用", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.recovery_code_unavailable", status_code=303)
         hashed = hash_recovery_code(normalized)
         if not any(hmac.compare_digest(hashed, item) for item in codes):
             crud.create_login_log(
@@ -370,9 +373,9 @@ def mfa_verify_submit(
                 ip_address=get_remote_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 status="fail",
-                fail_reason="Invalid recovery code",
+                fail_reason="invalid_recovery_code",
             )
-            return RedirectResponse(url="/mfa-verify?err=恢复码错误或已失效", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.invalid_recovery_code", status_code=303)
         remaining = [item for item in codes if not hmac.compare_digest(hashed, item)]
         crud.update_user(session, int(user_id), recovery_codes=remaining)
         _log_action(request, session, "USE_RECOVERY_CODE", "user", user_id, f"Username: {user.username}")
@@ -385,9 +388,9 @@ def mfa_verify_submit(
                 ip_address=get_remote_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 status="fail",
-                fail_reason="Invalid MFA",
+                fail_reason="invalid_mfa",
             )
-            return RedirectResponse(url="/mfa-verify?err=MFA验证码错误", status_code=303)
+            return RedirectResponse(url="/mfa-verify?err=auth.error.invalid_mfa_code", status_code=303)
     crud.create_login_log(
         session,
         username=user.username,
@@ -446,10 +449,10 @@ def change_password_submit(
         return RedirectResponse(url="/login", status_code=303)
     
     if new_password != confirm_password:
-        return RedirectResponse(url="/change-password?err=两次输入的密码不一致", status_code=303)
+        return RedirectResponse(url="/change-password?err=error.profile.password_mismatch", status_code=303)
     
     if len(new_password) < 5:
-        return RedirectResponse(url="/change-password?err=密码长度至少为5位", status_code=303)
+        return RedirectResponse(url="/change-password?err=error.profile.password_too_short", status_code=303)
 
     # 更新用户密码并重置过期标志
     crud.update_user(session, user.id, password=new_password)
@@ -475,8 +478,8 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         name="profile.html",
         context={
             **_layout_context(request=request, active="profile"),
-            "page_title": "个人设置",
-            "page_subtitle": "管理您的个人信息和安全选项",
+            "page_title": translate(request.state.locale, "page.profile.title"),
+            "page_subtitle": translate(request.state.locale, "page.profile.subtitle"),
             "user": user,
             "msg": request.query_params.get("msg") or "",
             "err": request.query_params.get("err") or "",
@@ -484,6 +487,27 @@ def profile_page(request: Request, csrf_protect: CsrfProtect = Depends()):
         },
     )
     csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
+
+
+@router.post("/profile/locale", summary="Update profile language")
+def profile_update_locale(
+    request: Request,
+    session: Session = Depends(get_session),
+    csrf_protect: CsrfProtect = Depends(),
+    locale: str = Form(...),
+):
+    csrf_protect.validate_csrf(request)
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        normalized = validate_locale(locale)
+    except ValueError:
+        return RedirectResponse(url="/profile?err=error.profile.unsupported_language", status_code=303)
+    crud.update_user(session, user.id, locale=normalized)
+    response = RedirectResponse(url="/profile?msg=language.saved", status_code=303)
+    set_locale_cookie(response, normalized)
     return response
 
 
@@ -502,21 +526,21 @@ def profile_change_password(
         return RedirectResponse(url="/login", status_code=303)
     
     if new_password != confirm_password:
-        return RedirectResponse(url="/profile?err=两次输入的密码不一致", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.password_mismatch", status_code=303)
     
     if len(new_password) < 5:
-        return RedirectResponse(url="/profile?err=密码长度至少为5位", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.password_too_short", status_code=303)
 
     # 验证旧密码
     db_user = crud.authenticate_user(session, username=user.username, password=old_password)
     if not db_user:
-        return RedirectResponse(url="/profile?err=当前密码错误", status_code=303)
+        return RedirectResponse(url="/profile?err=error.profile.current_password_incorrect", status_code=303)
 
     # 更新密码
     crud.update_user(session, user.id, password=new_password)
     _log_action(request, session, "CHANGE_PASSWORD", "user", user.id, f"User {user.username} changed password via profile")
 
-    return RedirectResponse(url="/profile?msg=密码已修改", status_code=303)
+    return RedirectResponse(url="/profile?msg=message.password_changed", status_code=303)
 
 
 @router.get("/logout", summary="退出登录", description="注销当前用户并清除 Session")
@@ -600,7 +624,7 @@ def upsert_user(
             recovery_codes=result.recovery_codes,
             edit_id=int(user_id or (result.user.id if result.user else 0)),
         )
-    return RedirectResponse(url="/users?msg=已保存", status_code=303)
+    return RedirectResponse(url="/users?msg=message.saved", status_code=303)
 
 
 @router.post("/users/{user_id}/delete", summary="删除用户", description="删除指定用户（admin不可删除）", tags=["系统设置 (System)"])
@@ -612,7 +636,7 @@ def delete_user(request: Request, user_id: int, csrf_protect: CsrfProtect = Depe
     except identity_service.ServiceError as exc:
         return RedirectResponse(url=f"/users?err={exc.message}", status_code=303)
     _log_action(request, session, "DELETE_USER", "user", user_id, f"Username: {username}")
-    return RedirectResponse(url="/users?msg=已删除", status_code=303)
+    return RedirectResponse(url="/users?msg=message.deleted", status_code=303)
 
 
 @router.get("/roles", summary="角色管理页面", description="查看系统中所有角色的列表", tags=["系统设置 (System)"])
@@ -665,7 +689,7 @@ def upsert_role(
     log_action = "UPDATE_ROLE" if action == "update" else "CREATE_ROLE"
     log_target_id = role_id if action == "update" else role_obj.id
     _log_action(request, session, log_action, "role", log_target_id, f"Name: {role_obj.name}, Code: {role_obj.code}")
-    return RedirectResponse(url="/roles?msg=已保存", status_code=303)
+    return RedirectResponse(url="/roles?msg=message.saved", status_code=303)
 
 
 @router.post("/roles/{role_id}/delete", summary="删除角色", description="删除指定角色（系统内置角色不可删除）", tags=["系统设置 (System)"])
@@ -677,4 +701,4 @@ def delete_role(request: Request, role_id: int, csrf_protect: CsrfProtect = Depe
     except identity_service.ServiceError as exc:
         return RedirectResponse(url=f"/roles?err={exc.message}", status_code=303)
     _log_action(request, session, "DELETE_ROLE", "role", role_id, f"Name: {role.name}, Code: {role.code}")
-    return RedirectResponse(url="/roles?msg=已删除", status_code=303)
+    return RedirectResponse(url="/roles?msg=message.deleted", status_code=303)

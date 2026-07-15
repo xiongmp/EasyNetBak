@@ -1,33 +1,33 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
-{% set page_title = "配置搜索" %}
-{% set page_subtitle = "在备份配置中搜索关键词" %}
+{% from "macros.html" import render_pagination with context %}
+{% set page_title = _('nav.config_search') %}
+{% set page_subtitle = _('page.config_search.subtitle') %}
 
 {% block content %}
 <div class="card border mb-4 shadow-sm sticky-top search-card">
     <div class="card-body p-4">
         <form method="get" action="/config-search" class="row g-3 align-items-end" id="search-form">
             <div class="col-md-6">
-                <label for="q" class="form-label fw-bold small text-secondary">搜索关键词</label>
+                <label for="q" class="form-label fw-bold small text-secondary">{{ _('template.config_search.search_term') }}</label>
                 <div class="input-group">
                     <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
-                    <input type="text" class="form-control border-start-0 border-end-0 ps-0 filter-control-sm" id="q" name="q" value="{{ q }}" placeholder="输入配置关键词，如 'interface', 'vlan', 'ip address'..." required>
+                    <input type="text" class="form-control border-start-0 border-end-0 ps-0 filter-control-sm" id="q" name="q" value="{{ q }}" placeholder="{{ _('template.config_search.enter_a_configuration_term_if') }} 'interface', 'vlan', 'ip address'..." required>
                     <button class="btn btn-outline-secondary border-start-0 text-secondary filter-control-sm {% if not q %}d-none{% endif %}" type="button" id="clear-search">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
             </div>
             <div class="col-md-3">
-                <label for="scope" class="form-label fw-bold small text-secondary">搜索范围</label>
+                <label for="scope" class="form-label fw-bold small text-secondary">{{ _('template.config_search.search_scope') }}</label>
                 <select class="form-select filter-control-sm" id="scope" name="scope">
-                    <option value="latest" {% if scope == 'latest' %}selected{% endif %}>仅搜索最新配置</option>
-                    <option value="all" {% if scope == 'all' %}selected{% endif %}>搜索所有历史配置</option>
+                    <option value="latest" {% if scope == 'latest' %}selected{% endif %}>{{ _('template.config_search.latest_configurations_only') }}</option>
+                    <option value="all" {% if scope == 'all' %}selected{% endif %}>{{ _('template.config_search.all_historical_configurations') }}</option>
                 </select>
             </div>
             <div class="col-md-3">
                 <button type="submit" class="btn btn-primary w-100 filter-control-sm" id="search-btn">
                     <span class="search-btn-content">
-                        <i class="bi bi-search me-1"></i>搜索
+                        <i class="bi bi-search me-1"></i>{{ _('template.config_search.search') }}
                     </span>
                     <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
@@ -40,20 +40,20 @@
 <div class="mb-3 d-flex justify-content-between align-items-center">
     <div class="d-flex align-items-center gap-2">
         <span class="badge bg-body text-body border fw-normal py-2 px-3 shadow-sm">
-            找到 <span class="fw-bold text-primary">{{ total }}</span> 个匹配结果
+            {{ _('template.config_search.found') }} <span class="fw-bold text-primary">{{ total }}</span> {{ _('template.config_search.matching_results') }}
         </span>
         {% if q %}
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal py-2 px-3">
-            关键词: <span class="fw-bold">{{ q }}</span>
+            {{ _('template.config_search.keyword') }}: <span class="fw-bold" data-i18n-preserve>{{ q }}</span>
         </span>
         {% endif %}
     </div>
     <div class="d-flex gap-2">
         <button class="btn btn-sm btn-outline-secondary border px-3" id="expand-all">
-            <i class="bi bi-arrows-expand me-1"></i>全部展开
+            <i class="bi bi-arrows-expand me-1"></i>{{ _('template.config_search.expand_all') }}
         </button>
         <button class="btn btn-sm btn-outline-secondary border px-3" id="collapse-all">
-            <i class="bi bi-arrows-collapse me-1"></i>全部折叠
+            <i class="bi bi-arrows-collapse me-1"></i>{{ _('template.config_search.collapse_all') }}
         </button>
     </div>
 </div>
@@ -66,12 +66,12 @@
         <div class="device-header d-flex justify-content-between align-items-center py-2 px-3 {% if not loop.first %}collapsed{% endif %}" role="button" data-bs-toggle="collapse" data-bs-target="#device-{{ device_id }}">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-hdd-network text-primary"></i>
-                <span class="fw-bold">{{ device.name }}</span>
-                <span class="text-secondary small">({{ device.host }})</span>
-                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 ms-2 fw-normal">{{ device.platform }}</span>
+                <span class="fw-bold" data-i18n-preserve>{{ device.name }}</span>
+                <span class="text-secondary small" data-i18n-preserve>({{ device.host }})</span>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 ms-2 fw-normal" data-i18n-preserve>{{ device.platform }}</span>
             </div>
             <div class="d-flex align-items-center gap-3">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 fw-normal">{{ device_records|length }} 个匹配</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 fw-normal">{{ device_records|length }} {{ _('template.config_search.itemsmatched') }}</span>
                 <i class="bi bi-chevron-down text-secondary collapse-arrow"></i>
             </div>
         </div>
@@ -81,20 +81,20 @@
                 <div class="snippet-item mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="text-secondary small">
-                            <i class="bi bi-clock me-1"></i>备份时间: {{ record.started_at|dt_local }}
+                            <i class="bi bi-clock me-1"></i>{{ _('email.field.backup_time') }}: {{ record.started_at|dt_local }}
                         </div>
                         <button class="btn btn-sm btn-outline-primary view-config-btn py-0" 
                                 data-backup-id="{{ record.id }}" 
                                 data-device-name="{{ device.name }}"
                                 data-time="{{ record.started_at|dt_local }}">
-                            查看完整配置
+                            {{ _('template.config_search.view_full_configuration') }}
                         </button>
                     </div>
                     <div class="config-snippet-wrapper position-relative">
                         <div class="config-snippet bg-dark text-light p-3 rounded shadow-sm small font-monospace">
                             <pre class="mb-0"><code>{{ record.config_text }}</code></pre>
                         </div>
-                        <button class="btn btn-sm btn-dark position-absolute top-0 end-0 m-2 copy-snippet-btn" title="复制片段">
+                        <button class="btn btn-sm btn-dark position-absolute top-0 end-0 m-2 copy-snippet-btn" title="{{ _('template.config_search.copy_snippet') }}">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -107,13 +107,13 @@
     {% else %}
     <div class="text-center py-5 bg-body rounded border shadow-sm">
         <i class="bi bi-search text-secondary opacity-25 display-4 d-block mb-3"></i>
-        <div class="text-secondary">未找到匹配的结果</div>
+        <div class="text-secondary">{{ _('template.config_search.no_matching_results') }}</div>
     </div>
     {% endfor %}
 </div>
 
 {% if pagination.total_pages > 1 %}
-{{ render_pagination(pagination, pagination_base, "个匹配结果") }}
+{{ render_pagination(pagination, pagination_base, _('template.config_search.matching_results')) }}
 {% endif %}
 
 {% else %}
@@ -123,26 +123,26 @@
             <i class="bi bi-search text-secondary opacity-50 display-4"></i>
         </div>
     </div>
-    <h5 class="text-body fw-bold">开始配置搜索</h5>
-    <p class="text-secondary mx-auto search-empty-description">输入关键词搜索所有设备的备份配置内容。您可以搜索特定的命令、描述或任何配置片段。</p>
+    <h5 class="text-body fw-bold">{{ _('template.config_search.start_configuration_search') }}</h5>
+    <p class="text-secondary mx-auto search-empty-description">{{ _('template.config_search.enter_a_keyword_to_search_backup_configuration_content') }}。</p>
     <div class="mt-4 d-flex justify-content-center gap-4">
         <div class="text-center">
             <div class="h4 mb-1"><i class="bi bi-lightning-charge text-warning"></i></div>
-            <div class="small text-secondary">快速检索</div>
+            <div class="small text-secondary">{{ _('template.config_search.quick_search') }}</div>
         </div>
         <div class="text-center">
             <div class="h4 mb-1"><i class="bi bi-clock-history text-info"></i></div>
-            <div class="small text-secondary">历史追踪</div>
+            <div class="small text-secondary">{{ _('template.config_search.history') }}</div>
         </div>
         <div class="text-center">
             <div class="h4 mb-1"><i class="bi bi-device-ssd text-success"></i></div>
-            <div class="small text-secondary">全量覆盖</div>
+            <div class="small text-secondary">{{ _('template.config_search.full_coverage') }}</div>
         </div>
     </div>
 </div>
 {% endif %}
 
-<div id="back-to-top" class="back-to-top-container d-none shadow-sm" title="返回顶部">
+<div id="back-to-top" class="back-to-top-container d-none shadow-sm" title="{{ _('template.config_search.back_to_top') }}">
     <div class="back-to-top-icon">
         <i class="bi bi-chevron-double-up"></i>
     </div>
@@ -151,6 +151,16 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    function escapeText(text) {
+        const span = document.createElement('span');
+        span.textContent = text == null ? '' : String(text);
+        return span.innerHTML;
+    }
+
+    function tr(text) { return text; }
+
+    function trHtml(html) { return html; }
+
     // Search form enhancements
     const searchForm = document.getElementById('search-form');
     const searchBtn = document.getElementById('search-btn');
@@ -267,8 +277,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('backup-view-modal');
             const modal = new bootstrap.Modal(modalEl);
             
-            document.getElementById('backup-view-title').textContent = '配置查看 - ' + deviceName;
-            document.getElementById('backup-view-meta').textContent = '备份时间: ' + timeStr;
+            document.getElementById('backup-view-title').innerHTML = tr('{{ _('template.config_search.view_configuration') }}') + ' - <span data-i18n-preserve>' + escapeText(deviceName) + '</span>';
+            document.getElementById('backup-view-meta').textContent = tr('{{ _('email.field.backup_time') }}: ') + timeStr;
             
             const renderEl = document.getElementById('backup-view-render');
             const loadingEl = document.getElementById('backup-view-loading');
@@ -297,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
                      dialog.classList.remove('modal-fullscreen');
                      dialog.classList.add('modal-xl');
                      icon.className = 'bi bi-arrows-fullscreen';
-                     this.setAttribute('aria-label', '全屏');
+                     this.setAttribute('aria-label', tr('{{ _('template.base.enter_full_screen') }}'));
                      if (pre) {
                          pre.classList.remove('config-view-pre-full');
                          pre.classList.add('config-view-pre-normal');
@@ -306,7 +316,7 @@ document.addEventListener('DOMContentLoaded', function() {
                      dialog.classList.add('modal-fullscreen');
                      dialog.classList.remove('modal-xl');
                      icon.className = 'bi bi-fullscreen-exit';
-                     this.setAttribute('aria-label', '退出全屏');
+                     this.setAttribute('aria-label', tr('{{ _('template.config_search.exit_full_screen') }}'));
                      if (pre) {
                          pre.classList.remove('config-view-pre-normal');
                          pre.classList.add('config-view-pre-full');
@@ -332,9 +342,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     } catch (e) {
                         detail = '';
                     }
-                    if (resp.status === 403) throw new Error('当前账号无权限查看备份内容');
-                    if (resp.status === 404) throw new Error(detail || '备份记录不存在');
-                    throw new Error(detail || '备份内容加载失败');
+                    if (resp.status === 403) throw new Error(tr('{{ _('template.config_search.this_account_cannot_view_backup_content') }}'));
+                    if (resp.status === 404) throw new Error(detail || tr('{{ _('template.config_search.backup_record_not_found') }}'));
+                    throw new Error(detail || tr('{{ _('template.config_search.failed_to_load_backup_content') }}'));
                 }
                 const data = await resp.json();
                 
@@ -363,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     downloadBtn.href = `/api/backups/${backupId}/download`;
                     downloadBtn.classList.remove('d-none');
                 } else {
-                    errorEl.textContent = '未找到配置内容';
+                    errorEl.textContent = tr('{{ _('template.config_search.no_configuration_content') }}');
                     errorEl.classList.remove('d-none');
                 }
             } catch (err) {

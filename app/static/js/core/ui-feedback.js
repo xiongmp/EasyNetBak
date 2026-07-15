@@ -1,6 +1,10 @@
 window.NB = window.NB || {};
 
 (function () {
+  function normalizeConfirmText(value) {
+    return value == null ? '' : String(value);
+  }
+
   window.NB.confirm = function(options) {
     const { title, message, onConfirm, confirmBtnText, confirmBtnClass } = options || {};
     const modalEl = document.getElementById('deleteConfirmModal');
@@ -17,10 +21,10 @@ window.NB = window.NB || {};
     const confirmBtn = document.getElementById('deleteConfirmBtn');
     const confirmText = document.getElementById('deleteConfirmText');
 
-    if (titleEl) titleEl.textContent = title || '确认操作';
-    if (confirmText) confirmText.textContent = message || '确定要执行此操作吗？';
+    if (titleEl) titleEl.textContent = normalizeConfirmText(title || NB.t("js.ui_feedback.confirm_action"));
+    if (confirmText) confirmText.textContent = normalizeConfirmText(message || NB.t("js.ui_feedback.perform_this_action"));
     if (confirmBtn) {
-        confirmBtn.textContent = confirmBtnText || '确定';
+        confirmBtn.textContent = normalizeConfirmText(confirmBtnText || NB.t("js.ui_feedback.confirm"));
         confirmBtn.className = 'btn btn-sm px-4 ' + (confirmBtnClass || 'btn-primary');
     }
 
@@ -37,10 +41,10 @@ window.NB = window.NB || {};
 
   window.NB.confirmDelete = function(message, onConfirm) {
     window.NB.confirm({
-      title: '确认删除',
-      message: message || '确定要删除吗？此操作不可恢复。',
+      title: NB.t('dialog.delete.title'),
+      message: message || NB.t('dialog.delete.default_message'),
       onConfirm: onConfirm,
-      confirmBtnText: '确认删除',
+      confirmBtnText: NB.t('dialog.delete.confirm'),
       confirmBtnClass: 'btn-danger'
     });
   };
@@ -52,7 +56,7 @@ window.NB = window.NB || {};
     const messageEl = document.getElementById('nb-toast-message');
     const iconEl = document.getElementById('nb-toast-icon');
 
-    if (messageEl) messageEl.textContent = message;
+    if (messageEl) messageEl.textContent = String(message == null ? '' : message);
     if (!iconEl) return;
 
     toastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_backup_record_status %}
+{% from "macros.html" import render_backup_record_status with context %}
 
 {% block content %}
 <div class="dashboard-layout d-flex flex-column h-100">
   <div class="dashboard-header flex-shrink-0 mb-2">
     <div class="dashboard-title-group d-flex align-items-baseline">
-      <h4 class="mb-0">运行统计概览</h4>
+      <h4 class="mb-0">{{ _('template.dashboard.run_statistics') }}</h4>
       <div class="stats-info ms-3 d-flex align-items-center">
-        <span class="me-3"><i class="bi bi-calendar-check me-1"></i>统计周期：{{ dashboard_window.label }}</span>
+        <span class="me-3"><i class="bi bi-calendar-check me-1"></i>{{ _('template.dashboard.period') }}：{{ dashboard_window.label }}</span>
 
       </div>
     </div>
@@ -16,7 +16,7 @@
       <a
         href="/dashboard?window={{ option.key }}"
         class="nav-link {% if dashboard_window.key == option.key %}active{% endif %}"
-        title="切换为{{ option.label }}"
+        title="{{ _('template.dashboard.switch_to') }}{{ option.label }}"
       >
         {{ option.label }}
       </a>
@@ -33,7 +33,7 @@
               <i class="bi bi-hdd-network fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备总数</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ _('template.dashboard.total_devices') }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.total_devices }}</h5>
             </div>
           </div>
@@ -48,7 +48,7 @@
               <i class="bi bi-hdd-network-fill fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备离线数</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ _('template.dashboard.offline_devices') }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.offline_devices }}</h5>
             </div>
           </div>
@@ -63,7 +63,7 @@
               <i class="bi bi-diagram-3 fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">设备分组</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ _('nav.groups') }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.total_groups }}</h5>
             </div>
           </div>
@@ -78,7 +78,7 @@
               <i class="bi bi-cloud-arrow-up fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}备份任务</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }} {{ _('template.base.backup_tasks') }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.backup_window_total }}</h5>
             </div>
           </div>
@@ -93,7 +93,7 @@
               <i class="bi bi-check2-circle fs-5"></i>
             </div>
             <div class="flex-grow-1 ms-3">
-              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }}成功率</h6>
+              <h6 class="card-subtitle mb-0 text-muted small text-uppercase tracking-wider" style="font-size: 0.7rem;">{{ dashboard_window.label }} {{ _('template.dashboard.success_rate') }}</h6>
               <h5 class="card-title mb-0 fw-bold fs-5">{{ summary.success_rate }}%</h5>
             </div>
           </div>
@@ -108,19 +108,19 @@
         <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
           <ul class="nav nav-tabs card-header-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active py-1" id="health-overview-tab" data-bs-toggle="tab" data-bs-target="#health-overview-pane" type="button" role="tab" aria-controls="health-overview-pane" aria-selected="true">备份耗时</button>
+              <button class="nav-link active py-1" id="health-overview-tab" data-bs-toggle="tab" data-bs-target="#health-overview-pane" type="button" role="tab" aria-controls="health-overview-pane" aria-selected="true">{{ _('template.dashboard.backup_duration') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link py-1" id="health-details-tab" data-bs-toggle="tab" data-bs-target="#health-details-pane" type="button" role="tab" aria-controls="health-details-pane" aria-selected="false">上传统计</button>
+              <button class="nav-link py-1" id="health-details-tab" data-bs-toggle="tab" data-bs-target="#health-details-pane" type="button" role="tab" aria-controls="health-details-pane" aria-selected="false">{{ _('template.dashboard.upload_statistics') }}</button>
             </li>
           </ul>
         </div>
         <div class="card-body px-3 pb-2 pt-2 d-flex flex-column min-height-0">
           {% if task_health.degraded_components %}
           <div class="alert alert-warning py-1 px-2 small mb-2 flex-shrink-0" role="alert">
-            <div class="fw-semibold mb-1">任务链路存在降级</div>
+            <div class="fw-semibold mb-1">{{ _('template.dashboard.task_pipeline_is_degraded') }}</div>
             {% for item in task_health.degraded_components %}
-            <div>{{ item.component }}: {{ item.message }}</div>
+            <div>{{ item.component }}: {{ _(item.message, fallback=item.message) }}</div>
             {% endfor %}
           </div>
           {% endif %}
@@ -130,23 +130,23 @@
               <div class="d-flex align-items-center justify-content-center mb-2">
                 <i class="bi bi-clock-history text-muted opacity-25" style="font-size: 2rem;"></i>
               </div>
-              <div class="text-center text-muted small mb-2" style="font-size: 0.75rem;">{{ dashboard_window.label }}耗时分布</div>
+              <div class="text-center text-muted small mb-2" style="font-size: 0.75rem;">{{ dashboard_window.label }} {{ _('template.dashboard.duration_distribution') }}</div>
               <div class="row g-2">
                 <div class="col-4">
                   <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
-                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">平均</div>
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">{{ _('template.dashboard.average') }}</div>
                     <div class="fs-6 fw-bold text-primary">{{ task_health.avg_duration_seconds }}s</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
-                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">最小</div>
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">{{ _('template.dashboard.minimum') }}</div>
                     <div class="fs-6 fw-bold text-success">{{ task_health.min_duration_seconds }}s</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="rounded-3 bg-body-tertiary p-2 text-center hover-lift transition-all">
-                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">最大</div>
+                    <div class="text-muted small mb-1" style="font-size: 0.65rem;">{{ _('template.dashboard.maximum') }}</div>
                     <div class="fs-6 fw-bold text-danger">{{ task_health.max_duration_seconds }}s</div>
                   </div>
                 </div>
@@ -156,7 +156,7 @@
             <!-- 详细统计 Tab -->
             <div class="tab-pane fade custom-scroll" id="health-details-pane" role="tabpanel" aria-labelledby="health-details-tab" tabindex="0" style="overflow-y: auto; overflow-x: hidden;">
               <div class="mb-2 p-2 rounded-3 bg-body-tertiary border-start border-4 border-info d-flex align-items-center justify-content-between flex-shrink-0">
-                <div class="text-muted small" style="font-size: 0.75rem;">{{ dashboard_window.label }}成功率</div>
+                <div class="text-muted small" style="font-size: 0.75rem;">{{ dashboard_window.label }} {{ _('template.dashboard.success_rate') }}</div>
                 <div class="d-flex align-items-baseline">
                   <div class="fw-bold me-2 {% if task_health.upload_success_rate >= 90 %}text-success{% elif task_health.upload_success_rate >= 60 %}text-warning{% else %}text-danger{% endif %}" style="font-size: 0.85rem;">
                     {{ task_health.upload_success_rate }}%
@@ -169,9 +169,9 @@
                 <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.7rem; table-layout: fixed;">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th class="ps-1 py-1" style="width: 35%;">存储类型</th>
-                      <th class="text-center py-1" style="width: 35%;">成功/尝试</th>
-                      <th class="text-end pe-1 py-1" style="width: 30%;">率</th>
+                      <th class="ps-1 py-1" style="width: 35%;">{{ _('template.dashboard.storage_type') }}</th>
+                      <th class="text-center py-1" style="width: 35%;">{{ _('template.dashboard.succeeded_attempted') }}</th>
+                      <th class="text-end pe-1 py-1" style="width: 30%;">{{ _('template.dashboard.rate') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -188,7 +188,7 @@
                     {% else %}
                     <tr>
                       <td colspan="3" class="text-center text-muted py-2">
-                        <div style="font-size: 0.7rem;">无上传事件</div>
+                        <div style="font-size: 0.7rem;">{{ _('template.dashboard.no_upload_events') }}</div>
                       </td>
                     </tr>
                     {% endfor %}
@@ -205,10 +205,10 @@
         <div class="card-header bg-transparent border-0 pt-2 px-3 flex-shrink-0">
           <ul class="nav nav-tabs card-header-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active py-1" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">备份趋势 ({{ dashboard_window.label }}，{{ trend_stats.granularity_label }})</button>
+              <button class="nav-link active py-1" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab" aria-controls="trend-pane" aria-selected="true">{{ _('template.dashboard.backup_trend') }} ({{ dashboard_window.label }})</button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link py-1" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">配置变更频率 ({{ change_heatmap.range_label }})</button>
+              <button class="nav-link py-1" id="change-heatmap-tab" data-bs-toggle="tab" data-bs-target="#change-heatmap-pane" type="button" role="tab" aria-controls="change-heatmap-pane" aria-selected="false">{{ _('template.dashboard.configuration_change_frequency') }} ({{ _(change_heatmap.range_label, fallback=change_heatmap.range_label) }})</button>
             </li>
           </ul>
         </div>
@@ -218,7 +218,7 @@
               <div id="backup-trend-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
                 <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
                   <div class="spinner-border text-primary spinner-border-sm" role="status">
-                    <span class="visually-hidden">加载中...</span>
+                    <span class="visually-hidden">{{ _('template.backups.loading') }}...</span>
                   </div>
                 </div>
               </div>
@@ -227,7 +227,7 @@
               <div id="change-heatmap-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
                 <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
                   <div class="spinner-border text-primary spinner-border-sm" role="status">
-                    <span class="visually-hidden">加载中...</span>
+                    <span class="visually-hidden">{{ _('template.backups.loading') }}...</span>
                   </div>
                 </div>
               </div>
@@ -239,13 +239,13 @@
     <div class="col-md-3 d-flex flex-column">
       <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
         <div class="card-header bg-transparent border-0 pt-2 px-3 pb-1 flex-shrink-0">
-          <h6 class="card-title mb-0 fw-bold">设备平台分布</h6>
+          <h6 class="card-title mb-0 fw-bold">{{ _('template.dashboard.device_platform_distribution') }}</h6>
         </div>
         <div class="card-body px-3 pb-2 pt-1 d-flex flex-column min-height-0">
           <div id="platform-pie-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
             <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
               <div class="spinner-border text-primary spinner-border-sm" role="status">
-                <span class="visually-hidden">加载中...</span>
+                <span class="visually-hidden">{{ _('template.backups.loading') }}...</span>
               </div>
             </div>
           </div>
@@ -258,11 +258,11 @@
     <div class="col-md-6 d-flex flex-column">
       <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
         <div class="card-header bg-transparent border-0 pt-2 px-3 pb-2 flex-shrink-0 d-flex justify-content-between align-items-center">
-          <h6 class="card-title mb-0 fw-bold">最近备份活动<span class="text-muted small" style="font-size: 0.7rem;">（所有设备最近一次备份记录）</span></h6>
+          <h6 class="card-title mb-0 fw-bold">{{ _('template.dashboard.recent_backup_activity') }}<span class="text-muted small" style="font-size: 0.7rem;">（{{ _('template.dashboard.latest_backup_record_for_all_devices') }}）</span></h6>
           <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-primary py-1 px-3" style="font-size: 0.8rem;" data-filter="all">全部</button>
-            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="success">成功</button>
-            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="failed">失败</button>
+            <button type="button" class="btn btn-primary py-1 px-3" style="font-size: 0.8rem;" data-filter="all">{{ _('template.audit_logs.all') }}</button>
+            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="success">{{ _('status.backup.succeeded') }}</button>
+            <button type="button" class="btn btn-outline-secondary py-1 px-3" style="font-size: 0.8rem;" data-filter="failed">{{ _('status.backup.failed') }}</button>
           </div>
         </div>
         <div class="card-body p-0 flex-grow-1 min-height-0 d-flex flex-column">
@@ -270,10 +270,10 @@
             <table class="table table-hover align-middle mb-0 table-sm" id="backup-activity-table">
               <thead class="bg-body-tertiary sticky-top">
                 <tr>
-                  <th class="ps-3 py-1" style="font-size: 0.75rem;">设备</th>
-                  <th class="py-1" style="font-size: 0.75rem;">开始时间</th>
-                  <th class="text-center py-1" style="font-size: 0.75rem;">状态</th>
-                  <th class="pe-3 py-1 text-end" style="font-size: 0.75rem;">操作</th>
+                  <th class="ps-3 py-1" style="font-size: 0.75rem;">{{ _('audit.resource.device') }}</th>
+                  <th class="py-1" style="font-size: 0.75rem;">{{ _('template.dashboard.start_time') }}</th>
+                  <th class="text-center py-1" style="font-size: 0.75rem;">{{ _('login.csv.status') }}</th>
+                  <th class="pe-3 py-1 text-end" style="font-size: 0.75rem;">{{ _('audit.csv.action') }}</th>
                 </tr>
               </thead>
               <tbody id="backup-table-body">
@@ -286,7 +286,7 @@
                         <i class="bi bi-router text-primary" style="font-size: 0.75rem;"></i>
                       </div>
                       <div>
-                        <div class="fw-semibold" style="font-size: 0.75rem;">{{ (device_map.get(record.device_id) or {}).name | default('未知设备', true) }}</div>
+                        <div class="fw-semibold" style="font-size: 0.75rem;">{{ (device_map.get(record.device_id) or {}).name | default(_('template.dashboard.unknowndevice'), true) }}</div>
                         <div class="text-muted" style="font-size: 0.7rem;">{{ (device_map.get(record.device_id) or {}).host | default('-', true) }}</div>
                       </div>
                     </div>
@@ -298,10 +298,10 @@
                   <td class="pe-3 py-1 text-end">
                       {% if record.finished_at %}
                       <div class="btn-group btn-group-sm">
-                          <a href="#" class="btn btn-sm btn-outline-secondary border nb-backup-link py-0 px-1" data-backup-id="{{ record.id }}" title="查看详情">
+                          <a href="#" class="btn btn-sm btn-outline-secondary border nb-backup-link py-0 px-1" data-backup-id="{{ record.id }}" title="{{ _('template.dashboard.viewdetails') }}">
                             <i class="bi bi-file-text" style="font-size: 0.75rem;"></i>
                           </a>
-                          <a href="/backups/{{ record.id }}/download" class="btn btn-sm btn-outline-secondary border py-0 px-1" title="下载">
+                          <a href="/backups/{{ record.id }}/download" class="btn btn-sm btn-outline-secondary border py-0 px-1" title="{{ _('template.base.download') }}">
                             <i class="bi bi-download" style="font-size: 0.75rem;"></i>
                           </a>
                       </div>
@@ -314,7 +314,7 @@
                   <td colspan="4" class="text-center py-4">
                     <div class="text-muted">
                       <i class="bi bi-inbox fs-3 mb-1 d-block"></i>
-                      <p class="mb-0" style="font-size: 0.75rem;">暂无备份记录</p>
+                      <p class="mb-0" style="font-size: 0.75rem;">{{ _('template.backups.no_backup_records') }}</p>
                     </div>
                   </td>
                 </tr>
@@ -325,7 +325,7 @@
         </div>
         <div class="card-footer bg-transparent border-0 py-1 d-flex justify-content-end align-items-center flex-shrink-0">
           <a href="/backups" class="btn btn-sm btn-link text-decoration-none py-0 small" style="font-size: 0.7rem;">
-            查看全部 <i class="bi bi-arrow-right"></i>
+            {{ _('template.dashboard.viewall') }} <i class="bi bi-arrow-right"></i>
           </a>
         </div>
       </div>
@@ -333,13 +333,13 @@
     <div class="col-md-6 d-flex flex-column">
       <div class="card border-0 shadow-sm flex-grow-1 min-height-0 d-flex flex-column">
         <div class="card-header bg-transparent border-0 pt-2 px-3 pb-1 flex-shrink-0">
-          <h6 class="card-title mb-0 fw-bold">分组备份健康度 ({{ dashboard_window.label }})</h6>
+          <h6 class="card-title mb-0 fw-bold">{{ _('template.dashboard.group_backup_health') }} ({{ dashboard_window.label }})</h6>
         </div>
         <div class="card-body px-3 pb-2 pt-1 d-flex flex-column min-height-0">
           <div id="group-health-chart" class="flex-grow-1 min-height-0 w-100" style="min-height: 0;">
             <div class="chart-loading text-center d-flex align-items-center justify-content-center h-100 w-100">
               <div class="spinner-border text-primary spinner-border-sm" role="status">
-                <span class="visually-hidden">加载中...</span>
+                <span class="visually-hidden">{{ _('template.backups.loading') }}...</span>
               </div>
             </div>
           </div>

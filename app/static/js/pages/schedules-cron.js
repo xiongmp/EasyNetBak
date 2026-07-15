@@ -1,4 +1,5 @@
 (function () {
+      const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
       // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
       // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
       function normalizeApschedulerCronForCronstrue(expr) {
@@ -57,25 +58,22 @@
         try {
           const normalizedCron = normalizeApschedulerCronForCronstrue(val);
           let meaning = cronstrue.toString(normalizedCron, {
-            locale: "zh_CN",
+            locale: localeCapabilities.cron_locale || "en",
             use24HourTimeFormat: true 
           });
           
-          // 优化中文表达，使其更符合习惯
-          // 例如："在02:00, 仅星期六" -> "每周六 02:00"
-          //      "在02:00" -> "每天 02:00"
-          if (meaning.startsWith("在")) {
+          if (localeCapabilities.uses_han && meaning.startsWith(NB.t("js.schedule_stats_cron.at"))) {
             const timeMatch = meaning.match(/^在\s?(\d{2}:\d{2})/);
             if (timeMatch) {
               const timeStr = timeMatch[1];
               let rest = meaning.replace(timeMatch[0], "").replace(/^[,\s，]+/, "");
               
               if (!rest) {
-                meaning = "每天 " + timeStr;
-              } else if (rest.startsWith("仅星期")) {
-                meaning = rest.replace("仅星期", "每周") + " " + timeStr;
-              } else if (rest.includes("每月的第")) {
-                meaning = rest.replace(/在每月的第\s?(\d+)\s?天/, "每月$1号") + " " + timeStr;
+                meaning = NB.t("js.schedule_stats_cron.daily") + timeStr;
+              } else if (rest.startsWith(NB.t("js.schedule_stats_cron.only_on"))) {
+                meaning = rest.replace(NB.t("js.schedule_stats_cron.only_on"), NB.t("js.schedule_stats_cron.weekly")) + " " + timeStr;
+              } else if (rest.includes(NB.t("js.schedule_stats_cron.day"))) {
+                meaning = rest.replace(/在每月的第\s?(\d+)\s?天/, NB.t("js.schedule_stats_cron.day_1_of_every_month")) + " " + timeStr;
               } else {
                 // 其他复杂情况，至少把时间挪到后面，去掉开头的“在”
                 meaning = rest + " " + timeStr;
@@ -87,7 +85,7 @@
           targetEl.classList.remove("text-danger");
           targetEl.classList.add("text-primary");
         } catch (e) {
-          targetEl.textContent = "无效的 Cron 表达式";
+          targetEl.textContent = NB.t("js.schedule_stats_cron.invalid_cron_expression");
           targetEl.classList.remove("text-primary");
           targetEl.classList.add("text-danger");
         }

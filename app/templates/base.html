@@ -1,14 +1,24 @@
 <!doctype html>
-<html lang="zh-CN" class="{{ html_class }}">
+<html lang="{{ locale|default('zh-CN') }}" dir="{{ locale_capabilities.direction|default('ltr') }}" class="{{ html_class }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}{{ app_name }}{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
-    <link href="/static/css/app.css" rel="stylesheet" />
+    <link href="/static/css/app.css?v={{ app_version }}-toast-layer-1" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
     {% block head %}{% endblock %}
+    <script>
+      window.NB_LOCALE = {{ locale|default('zh-CN')|tojson }};
+      window.NB_LOCALE_CAPABILITIES = {{ locale_capabilities|default({})|tojson }};
+      window.NB_MESSAGES = {{ js_messages|default({})|tojson }};
+      window.NB_FLASH = {
+        message: {{ flash_message|default('')|tojson }},
+        error: {{ flash_error|default('')|tojson }}
+      };
+    </script>
+    <script src="/static/js/core/i18n.js?v={{ app_version }}-i18n-confirm-3"></script>
     <script>
       // 初始化暗黑模式
       (function() {
@@ -34,18 +44,18 @@
             <img src="/static/img/logo_abstract.svg" alt="Logo" class="brand-logo-img" style="width: 32px; height: 32px; margin-right: 12px;">
             <div class="brand-info">
               <div class="brand-title">{{ app_name }}</div>
-              <div class="brand-subtitle">网络设备备份系统</div>
+              <div class="brand-subtitle">{{ _('template.base.network_device_backup_system') }}</div>
             </div>
           </div>
           <nav class="nav flex-column mt-2">
             {% set can_dashboard = has_permission('dashboard.view') %}
             {% if can_dashboard %}
-              <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="/dashboard" data-title="仪表盘">
-                <i class="bi bi-speedometer2"></i><span class="nav-text">仪表盘</span>
+              <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="/dashboard" data-title="{{ _('nav.dashboard') }}">
+                <i class="bi bi-speedometer2"></i><span class="nav-text">{{ _('nav.dashboard') }}</span>
               </a>
             {% endif %}
 
-            <!-- 资源管理 -->
+            <!-- {{ _('nav.resources') }} -->
             {% set can_devices = has_permission('devices.view') or has_permission('devices.create') or has_permission('devices.update') or has_permission('devices.delete') %}
             {% set can_groups = has_permission('groups.view') or has_permission('groups.create') or has_permission('groups.update') or has_permission('groups.delete') %}
             {% set can_credentials = has_permission('credentials.view') or has_permission('credentials.create') or has_permission('credentials.update') or has_permission('credentials.delete') %}
@@ -54,28 +64,28 @@
             {% set res_visible = can_devices or can_groups or can_credentials or can_templates %}
             {% if res_visible %}
               <div class="sidebar-group">
-                <div class="sidebar-group-label {% if res_active %}active{% endif %} {% if not res_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-resources" data-title="资源管理">
-                  <span><i class="bi bi-box"></i><span class="nav-text">资源管理</span></span>
+                <div class="sidebar-group-label {% if res_active %}active{% endif %} {% if not res_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-resources" data-title="{{ _('nav.resources') }}">
+                  <span><i class="bi bi-box"></i><span class="nav-text">{{ _('nav.resources') }}</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if res_active %}show{% endif %}" id="group-resources">
                   {% if can_devices %}
-                    <a class="nav-link {% if active == 'devices' %}active{% endif %}" href="/devices" data-title="设备管理"><i class="bi bi-hdd-network"></i><span class="nav-text">设备管理</span></a>
+                    <a class="nav-link {% if active == 'devices' %}active{% endif %}" href="/devices" data-title="{{ _('nav.devices') }}"><i class="bi bi-hdd-network"></i><span class="nav-text">{{ _('nav.devices') }}</span></a>
                   {% endif %}
                   {% if can_groups %}
-                    <a class="nav-link {% if active == 'groups' %}active{% endif %}" href="/groups" data-title="设备分组"><i class="bi bi-diagram-3"></i><span class="nav-text">设备分组</span></a>
+                    <a class="nav-link {% if active == 'groups' %}active{% endif %}" href="/groups" data-title="{{ _('nav.groups') }}"><i class="bi bi-diagram-3"></i><span class="nav-text">{{ _('nav.groups') }}</span></a>
                   {% endif %}
                   {% if can_credentials %}
-                    <a class="nav-link {% if active == 'credentials' %}active{% endif %}" href="/credentials" data-title="凭据管理"><i class="bi bi-key"></i><span class="nav-text">凭据管理</span></a>
+                    <a class="nav-link {% if active == 'credentials' %}active{% endif %}" href="/credentials" data-title="{{ _('nav.credentials') }}"><i class="bi bi-key"></i><span class="nav-text">{{ _('nav.credentials') }}</span></a>
                   {% endif %}
                   {% if can_templates %}
-                    <a class="nav-link {% if active == 'templates' %}active{% endif %}" href="/templates" data-title="备份命令模板"><i class="bi bi-terminal"></i><span class="nav-text">备份命令模板</span></a>
+                    <a class="nav-link {% if active == 'templates' %}active{% endif %}" href="/templates" data-title="{{ _('nav.templates') }}"><i class="bi bi-terminal"></i><span class="nav-text">{{ _('nav.templates') }}</span></a>
                   {% endif %}
                 </div>
               </div>
             {% endif %}
 
-            <!-- 备份管理 -->
+            <!-- {{ _('nav.backups') }} -->
             {% set can_backups = has_permission('backups.view') %}
             {% set can_config_search = has_permission('config_search.view') %}
             {% set can_diff_rules = has_permission('diff_rules.view') or has_permission('diff_rules.update') or has_permission('diff_rules.delete') %}
@@ -84,28 +94,28 @@
             {% set backup_visible = can_backups or can_config_search or can_diff_rules or can_schedules %}
             {% if backup_visible %}
               <div class="sidebar-group">
-                <div class="sidebar-group-label {% if backup_active %}active{% endif %} {% if not backup_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-backups" data-title="备份管理">
-                  <span><i class="bi bi-cloud-arrow-up"></i><span class="nav-text">备份管理</span></span>
+                <div class="sidebar-group-label {% if backup_active %}active{% endif %} {% if not backup_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-backups" data-title="{{ _('nav.backups') }}">
+                  <span><i class="bi bi-cloud-arrow-up"></i><span class="nav-text">{{ _('nav.backups') }}</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if backup_active %}show{% endif %}" id="group-backups">
                   {% if can_backups %}
-                    <a class="nav-link {% if active == 'backups' %}active{% endif %}" href="/backups" data-title="备份历史"><i class="bi bi-archive"></i><span class="nav-text">备份历史</span></a>
+                    <a class="nav-link {% if active == 'backups' %}active{% endif %}" href="/backups" data-title="{{ _('template.backups.backup_history') }}"><i class="bi bi-archive"></i><span class="nav-text">{{ _('template.backups.backup_history') }}</span></a>
                   {% endif %}
                   {% if can_diff_rules %}
-                    <a class="nav-link {% if active == 'diff_rules' %}active{% endif %}" href="/diff-rules" data-title="Diff 忽略规则"><i class="bi bi-filter"></i><span class="nav-text">Diff 忽略规则</span></a>
+                    <a class="nav-link {% if active == 'diff_rules' %}active{% endif %}" href="/diff-rules" data-title="Diff {{ _('template.backups.ignore_rules') }}"><i class="bi bi-filter"></i><span class="nav-text">Diff {{ _('template.backups.ignore_rules') }}</span></a>
                   {% endif %}
                   {% if can_config_search %}
-                    <a class="nav-link {% if active == 'config_search' %}active{% endif %}" href="/config-search" data-title="配置搜索"><i class="bi bi-search"></i><span class="nav-text">配置搜索</span></a>
+                    <a class="nav-link {% if active == 'config_search' %}active{% endif %}" href="/config-search" data-title="{{ _('nav.config_search') }}"><i class="bi bi-search"></i><span class="nav-text">{{ _('nav.config_search') }}</span></a>
                   {% endif %}
                   {% if can_schedules %}
-                    <a class="nav-link {% if active == 'schedules' %}active{% endif %}" href="/schedules" data-title="定时任务"><i class="bi bi-clock"></i><span class="nav-text">定时任务</span></a>
+                    <a class="nav-link {% if active == 'schedules' %}active{% endif %}" href="/schedules" data-title="{{ _('nav.schedules') }}"><i class="bi bi-clock"></i><span class="nav-text">{{ _('nav.schedules') }}</span></a>
                   {% endif %}
                 </div>
               </div>
             {% endif %}
 
-            <!-- 日志管理 -->
+            <!-- {{ _('nav.logs') }} -->
             {% set can_audit_logs = has_permission('audit_logs.view') %}
             {% set can_webshell_records = has_permission('webshell_records.view') %}
             {% set can_login_logs = has_permission('login_logs.view') %}
@@ -113,25 +123,25 @@
             {% set logs_visible = can_audit_logs or can_webshell_records or can_login_logs %}
             {% if logs_visible %}
               <div class="sidebar-group">
-                <div class="sidebar-group-label {% if logs_active %}active{% endif %} {% if not logs_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-logs" data-title="日志管理">
-                  <span><i class="bi bi-journal-text"></i><span class="nav-text">日志管理</span></span>
+                <div class="sidebar-group-label {% if logs_active %}active{% endif %} {% if not logs_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-logs" data-title="{{ _('nav.logs') }}">
+                  <span><i class="bi bi-journal-text"></i><span class="nav-text">{{ _('nav.logs') }}</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if logs_active %}show{% endif %}" id="group-logs">
                   {% if can_audit_logs %}
-                    <a class="nav-link {% if active == 'audit_logs' %}active{% endif %}" href="/audit-logs" data-title="操作日志"><i class="bi bi-shield-check"></i><span class="nav-text">操作日志</span></a>
+                    <a class="nav-link {% if active == 'audit_logs' %}active{% endif %}" href="/audit-logs" data-title="{{ _('nav.audit_logs') }}"><i class="bi bi-shield-check"></i><span class="nav-text">{{ _('nav.audit_logs') }}</span></a>
                   {% endif %}
                   {% if can_login_logs %}
-                    <a class="nav-link {% if active == 'login_logs' %}active{% endif %}" href="/login-logs" data-title="登录日志"><i class="bi bi-door-open"></i><span class="nav-text">登录日志</span></a>
+                    <a class="nav-link {% if active == 'login_logs' %}active{% endif %}" href="/login-logs" data-title="{{ _('nav.login_logs') }}"><i class="bi bi-door-open"></i><span class="nav-text">{{ _('nav.login_logs') }}</span></a>
                   {% endif %}
                   {% if can_audit_logs and can_webshell_records %}
-                    <a class="nav-link {% if active == 'webshell_records' %}active{% endif %}" href="/webshell-records" data-title="Webshell 回放"><i class="bi bi-play-circle"></i><span class="nav-text">Webshell 回放</span></a>
+                    <a class="nav-link {% if active == 'webshell_records' %}active{% endif %}" href="/webshell-records" data-title="Webshell {{ _('template.base.playback') }}"><i class="bi bi-play-circle"></i><span class="nav-text">Webshell {{ _('template.base.playback') }}</span></a>
                   {% endif %}
                 </div>
               </div>
             {% endif %}
 
-            <!-- 系统管理 -->
+            <!-- {{ _('nav.system') }} -->
             {% set can_settings = has_permission('settings.view') or has_permission('settings.update') %}
             {% set can_storage = has_permission('storage_settings.view') or has_permission('storage_settings.update') %}
             {% set can_notifications = has_permission('notifications.view') or has_permission('notifications.update') %}
@@ -140,19 +150,19 @@
             {% set system_visible = can_settings or can_storage or can_notifications or can_api_keys %}
             {% if system_visible %}
               <div class="sidebar-group">
-                <div class="sidebar-group-label {% if not system_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-system" data-title="系统管理">
-                  <span><i class="bi bi-cpu"></i><span class="nav-text">系统管理</span></span>
+                <div class="sidebar-group-label {% if not system_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-system" data-title="{{ _('nav.system') }}">
+                  <span><i class="bi bi-cpu"></i><span class="nav-text">{{ _('nav.system') }}</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if system_active %}show{% endif %}" id="group-system">
                   {% if can_settings %}
-                    <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="系统设置"><i class="bi bi-gear"></i><span class="nav-text">系统设置</span></a>
+                    <a class="nav-link {% if active == 'settings' %}active{% endif %}" href="/settings" data-title="{{ _('nav.settings') }}"><i class="bi bi-gear"></i><span class="nav-text">{{ _('nav.settings') }}</span></a>
                   {% endif %}
                   {% if can_storage %}
-                    <a class="nav-link {% if active == 'storage_settings' %}active{% endif %}" href="/storage-settings" data-title="存储设置"><i class="bi bi-hdd"></i><span class="nav-text">存储设置</span></a>
+                    <a class="nav-link {% if active == 'storage_settings' %}active{% endif %}" href="/storage-settings" data-title="{{ _('nav.storage_settings') }}"><i class="bi bi-hdd"></i><span class="nav-text">{{ _('nav.storage_settings') }}</span></a>
                   {% endif %}
                   {% if can_notifications %}
-                    <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="通知设置"><i class="bi bi-bell"></i><span class="nav-text">通知设置</span></a>
+                    <a class="nav-link {% if active == 'notifications' %}active{% endif %}" href="/notifications" data-title="{{ _('nav.notifications') }}"><i class="bi bi-bell"></i><span class="nav-text">{{ _('nav.notifications') }}</span></a>
                   {% endif %}
                   {% if can_api_keys %}
                     <a class="nav-link {% if active == 'api_keys' %}active{% endif %}" href="/api-keys" data-title="API Key"><i class="bi bi-key"></i><span class="nav-text">API Key</span></a>
@@ -161,23 +171,23 @@
               </div>
             {% endif %}
 
-            <!-- 用户与授权 -->
+            <!-- {{ _('nav.access') }} -->
             {% set can_users = has_permission('users.view') or has_permission('users.create') or has_permission('users.update') or has_permission('users.delete') %}
             {% set can_roles = has_permission('roles.view') or has_permission('roles.create') or has_permission('roles.update') or has_permission('roles.delete') %}
             {% set access_active = active in ['users', 'roles'] %}
             {% set access_visible = can_users or can_roles %}
             {% if access_visible %}
               <div class="sidebar-group">
-                <div class="sidebar-group-label {% if not access_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-access" data-title="用户与授权">
-                  <span><i class="bi bi-people"></i><span class="nav-text">用户与授权</span></span>
+                <div class="sidebar-group-label {% if not access_active %}collapsed{% endif %}" data-bs-toggle="collapse" data-bs-target="#group-access" data-title="{{ _('nav.access') }}">
+                  <span><i class="bi bi-people"></i><span class="nav-text">{{ _('nav.access') }}</span></span>
                   <i class="bi bi-chevron-right sidebar-group-arrow"></i>
                 </div>
                 <div class="collapse {% if access_active %}show{% endif %}" id="group-access">
                   {% if can_users %}
-                    <a class="nav-link {% if active == 'users' %}active{% endif %}" href="/users" data-title="用户管理"><i class="bi bi-person-lines-fill"></i><span class="nav-text">用户管理</span></a>
+                    <a class="nav-link {% if active == 'users' %}active{% endif %}" href="/users" data-title="{{ _('nav.users') }}"><i class="bi bi-person-lines-fill"></i><span class="nav-text">{{ _('nav.users') }}</span></a>
                   {% endif %}
                   {% if can_roles %}
-                    <a class="nav-link {% if active == 'roles' %}active{% endif %}" href="/roles" data-title="角色管理"><i class="bi bi-person-badge"></i><span class="nav-text">角色管理</span></a>
+                    <a class="nav-link {% if active == 'roles' %}active{% endif %}" href="/roles" data-title="{{ _('nav.roles') }}"><i class="bi bi-person-badge"></i><span class="nav-text">{{ _('nav.roles') }}</span></a>
                   {% endif %}
                 </div>
               </div>
@@ -195,62 +205,44 @@
           <!-- Top Header -->
           <header class="content-header">
             <div class="header-left">
-              <button class="sidebar-toggle" id="sidebarToggle" title="折叠菜单">
+              <button class="sidebar-toggle" id="sidebarToggle" title="{{ _('template.base.collapse_menu') }}">
                 <i class="bi bi-list"></i>
               </button>
 
               <nav class="breadcrumb-container d-none d-md-flex">
                 <div class="breadcrumb-item">
                   <a href="/dashboard" class="breadcrumb-link">
-                    <i class="bi bi-house breadcrumb-icon"></i>首页
+                    <i class="bi bi-house breadcrumb-icon"></i>{{ _("nav.home") }}
                   </a>
                 </div>
                 {% if active == 'dashboard' %}
                   <div class="breadcrumb-item">
-                    <span class="breadcrumb-link active">仪表盘</span>
+                    <span class="breadcrumb-link active">{{ _("nav.dashboard") }}</span>
                   </div>
                 {% else %}
                   {% if active in ['devices', 'groups', 'credentials', 'templates'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">资源管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.resources") }}</span></div>
                   {% elif active in ['backups', 'diff_rules', 'config_search', 'schedules'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">备份管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.backups") }}</span></div>
                   {% elif active in ['audit_logs', 'login_logs', 'webshell_records'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">日志管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.logs") }}</span></div>
                   {% elif active in ['settings', 'notifications', 'storage_settings', 'api_keys'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">系统管理</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.system") }}</span></div>
                   {% elif active in ['users', 'roles'] %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">用户与授权</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.access") }}</span></div>
                   {% elif active == 'profile' %}
-                    <div class="breadcrumb-item"><span class="breadcrumb-link">用户中心</span></div>
+                    <div class="breadcrumb-item"><span class="breadcrumb-link">{{ _("nav.profile_section") }}</span></div>
                   {% endif %}
 
                   <div class="breadcrumb-item">
                     <span class="breadcrumb-link active">
-                      {% if active == 'devices' %}设备管理
-                      {% elif active == 'groups' %}设备分组
-                      {% elif active == 'credentials' %}凭据管理
-                      {% elif active == 'templates' %}备份命令模板
-                      {% elif active == 'backups' %}备份历史
-                      {% elif active == 'diff_rules' %}Diff 忽略规则
-                      {% elif active == 'config_search' %}配置搜索
-                      {% elif active == 'schedules' %}定时任务
-                      {% elif active == 'audit_logs' %}操作日志
-                      {% elif active == 'login_logs' %}登录日志
-                      {% elif active == 'webshell_records' %}Webshell 回放
-                      {% elif active == 'settings' %}系统设置
-                      {% elif active == 'storage_settings' %}存储设置
-                      {% elif active == 'api_keys' %}API Key
-                      {% elif active == 'notifications' %}通知设置
-                      {% elif active == 'users' %}用户管理
-                      {% elif active == 'roles' %}角色管理
-                      {% elif active == 'profile' %}个人设置
-                      {% endif %}
+                      {{ _("nav." + active) }}
                     </span>
                   </div>
                 {% endif %}
                 {% if page_subtitle %}
                   <div class="breadcrumb-subtitle d-none d-lg-flex text-secondary">
-                    {{ page_subtitle }}
+                    {{ _(page_subtitle_key) if page_subtitle_key else page_subtitle }}
                   </div>
                 {% endif %}
               </nav>
@@ -258,7 +250,7 @@
 
             <div class="header-actions">
               <div class="position-relative">
-                <button class="action-icon-btn" id="nb-job-trigger" title="备份任务">
+                <button class="action-icon-btn" id="nb-job-trigger" title="{{ _('template.base.backup_tasks') }}">
                   <i class="bi bi-database-up"></i>
                   <span id="nb-job-badge" class="position-absolute top-0 start-100 translate-middle d-none">
                     <span class="nb-ping-bg"></span>
@@ -272,11 +264,11 @@
                   <div class="d-flex align-items-center gap-2">
                     <span class="nb-job-title offcanvas-title text-body" id="nb-job-title">
                       <i class="bi bi-database-up text-primary"></i>
-                      备份任务
+                      {{ _('template.base.backup_tasks') }}
                     </span>
                     <div id="nb-job-header-meta" class="d-flex align-items-center gap-2 ms-2"></div>
                   </div>
-                  <button type="button" class="btn-close" id="nb-job-close" aria-label="关闭"></button>
+                  <button type="button" class="btn-close" id="nb-job-close" aria-label="{{ _('template.base.close') }}"></button>
                 </div>
                 <div class="offcanvas-body nb-job-body d-flex flex-column gap-3 overflow-hidden">
                   <!-- Action Buttons -->
@@ -285,45 +277,45 @@
                       type="button"
                       class="btn btn-outline-info btn-sm d-none"
                       id="nb-job-bulk-retry"
-                      title="重试选中的失败或已终止任务"
+                      title="{{ _('template.base.retry_selected_failed_or_cancelled_tasks') }}"
                     >
-                      <i class="bi bi-arrow-clockwise"></i> 重试所选
+                      <i class="bi bi-arrow-clockwise"></i> {{ _('template.base.retry_selected') }}
                     </button>
                     <button
                       type="button"
                       class="btn btn-outline-danger btn-sm d-none"
                       id="nb-job-bulk-terminate"
-                      title="终止选中的未运行任务"
+                      title="{{ _('template.base.cancel_selected_pending_tasks') }}"
                     >
-                      <i class="bi bi-stop-circle"></i> 终止所选
+                      <i class="bi bi-stop-circle"></i> {{ _('template.base.cancel_selected') }}
                     </button>
                     <button
                       type="button"
                       class="btn btn-outline-info btn-sm d-none"
                       id="nb-job-retry"
-                      title="重试当前批次中失败或已终止的任务"
+                      title="{{ _('template.base.retry_failed_or_cancelled_tasks_in_the_current') }}"
                     >
-                      <i class="bi bi-arrow-counterclockwise"></i> 重试失败项
+                      <i class="bi bi-arrow-counterclockwise"></i> {{ _('template.base.retry_failed_items') }}
                     </button>
                     <button
                       type="button"
                       class="btn btn-outline-secondary btn-sm d-none"
                       id="nb-job-logs-toggle"
-                      title="查看当前批次日志"
+                      title="{{ _('template.base.view_current_batch_logs') }}"
                     >
-                      <i class="bi bi-journal-text"></i> 批次日志
+                      <i class="bi bi-journal-text"></i> {{ _('template.base.batch_log') }}
                     </button>
                     <button
                       type="button"
                       class="btn btn-outline-danger btn-sm d-none"
                       id="nb-job-terminate"
-                      title="终止当前批次中尚未开始的任务"
+                      title="{{ _('template.base.cancel_tasks_in_the_current_batch_that_have') }}"
                     >
-                      <i class="bi bi-x-circle"></i> 终止未运行
+                      <i class="bi bi-x-circle"></i> {{ _('template.base.cancel_pending') }}
                     </button>
                     <div class="nb-job-scope-hint ms-auto">
                       <i class="bi bi-info-circle"></i>
-                      仅显示最近一批次备份任务
+                      {{ _('template.base.only_the_latest_backup_batch_is_shown') }}
                     </div>
                   </div>
 
@@ -335,12 +327,12 @@
                         <thead class="sticky-top">
                           <tr>
                             <th style="width: 44px;">
-                              <input class="form-check-input d-none" type="checkbox" id="nb-job-select-all" aria-label="全选任务">
+                              <input class="form-check-input d-none" type="checkbox" id="nb-job-select-all" aria-label="{{ _('template.base.select_all_tasks') }}">
                             </th>
-                            <th>设备</th>
-                            <th style="width: 120px;">IP地址</th>
-                            <th style="width: 100px;">状态</th>
-                            <th style="width: 80px;">操作</th>
+                            <th>{{ _('audit.resource.device') }}</th>
+                            <th style="width: 120px;">IP{{ _('template.audit_logs.address') }}</th>
+                            <th style="width: 100px;">{{ _('login.csv.status') }}</th>
+                            <th style="width: 80px;">{{ _('audit.csv.action') }}</th>
                           </tr>
                         </thead>
                         <tbody id="nb-job-tbody">
@@ -350,8 +342,8 @@
 
                     <div id="nb-job-log-section" class="d-none">
                       <div class="small text-secondary mb-2 d-flex align-items-center justify-content-between">
-                        <span id="nb-job-log-title" class="fw-semibold">任务实时日志</span>
-                        <span id="nb-job-log-status" class="opacity-75">未连接</span>
+                        <span id="nb-job-log-title" class="fw-semibold">{{ _('template.base.task_live_log') }}</span>
+                        <span id="nb-job-log-status" class="opacity-75">{{ _('template.base.disconnected') }}</span>
                       </div>
                       <button type="button" class="btn-close btn-sm nb-job-log-close" id="nb-job-log-close" aria-label="Close logs"></button>
                       <div
@@ -364,11 +356,11 @@
                 </div>
               </div>
 
-              <button class="action-icon-btn" id="themeToggle" title="切换主题">
+              <button class="action-icon-btn" id="themeToggle" title="{{ _('template.base.switch_theme') }}">
                 <i class="bi bi-moon-stars"></i>
               </button>
 
-              <button class="action-icon-btn" id="fullscreenToggle" title="全屏显示">
+              <button class="action-icon-btn" id="fullscreenToggle" title="{{ _('template.base.full_screen') }}">
                 <i class="bi bi-arrows-fullscreen"></i>
               </button>
 
@@ -422,14 +414,14 @@
                       <div class="d-flex align-items-center justify-content-center bg-body-secondary rounded-circle" style="width: 28px; height: 28px;">
                         <i class="bi bi-person-gear text-primary"></i>
                       </div>
-                      <span class="fw-medium">个人设置</span>
+                      <span class="fw-medium">{{ _('page.profile.title') }}</span>
                     </a>
                     <hr class="dropdown-divider my-1 opacity-50">
                     <a class="dropdown-item py-2 rounded-3 d-flex align-items-center gap-2 text-danger mt-1" href="/logout">
                       <div class="d-flex align-items-center justify-content-center bg-danger-subtle rounded-circle" style="width: 28px; height: 28px;">
                         <i class="bi bi-box-arrow-right text-danger"></i>
                       </div>
-                      <span class="fw-medium">退出登录</span>
+                      <span class="fw-medium">{{ _('login.status.logout') }}</span>
                     </a>
                   </li>
                 </ul>
@@ -443,30 +435,17 @@
     {% else %}
       <main class="container py-5" style="max-width: 520px;">
         <div class="mb-4">
-          <div class="h4 mb-1">{{ page_title or app_name }}</div>
+          <div class="h4 mb-1">{{ page_title if page_title else app_name }}</div>
           {% if page_subtitle %}<div class="text-secondary small">{{ page_subtitle }}</div>{% endif %}
         </div>
     {% endif %}
 
     {% block content %}{% endblock %}
 
-    <!-- Toast Container -->
-    <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 2000;">
-      <div id="nb-toast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-          <div class="toast-body">
-            <i id="nb-toast-icon" class="bi me-2"></i>
-            <span id="nb-toast-message"></span>
-          </div>
-          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-    </div>
-
     {% if current_user %}
           </div>
           <footer class="py-3 text-center text-secondary small mt-auto">
-            Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">{{ app_version }}</span>
+            Powered by Network Backup System Copyright © {{ _('template.base.product_tagline') }} <span class="version-tag">{{ app_version }}</span>
           </footer>
         </main>
       </div>
@@ -474,7 +453,7 @@
       </div>
     {% else %}
       <footer class="py-3 text-center text-secondary small mt-4">
-        Powered by Network Backup System Copyright © 网工漫谈 <span class="version-tag">{{ app_version }}</span>
+        Powered by Network Backup System Copyright © {{ _('template.base.product_tagline') }} <span class="version-tag">{{ app_version }}</span>
       </footer>
       </main>
     {% endif %}
@@ -485,19 +464,19 @@
           <div class="modal-content">
             <div class="modal-header">
               <div class="d-flex flex-column gap-1">
-                <h5 class="modal-title mb-0" id="backup-view-title">备份详情</h5>
+                <h5 class="modal-title mb-0" id="backup-view-title">{{ _('template.base.backup_details') }}</h5>
                 <div class="text-secondary small" id="backup-view-meta"></div>
               </div>
               <div class="d-flex gap-2 align-items-center">
-                <a class="btn btn-outline-success btn-sm d-none" id="backup-view-download" href="#">下载</a>
-                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-fullscreen" aria-label="全屏">
+                <a class="btn btn-outline-success btn-sm d-none" id="backup-view-download" href="#">{{ _('template.base.download') }}</a>
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-fullscreen" aria-label="{{ _('template.base.enter_full_screen') }}">
                   <i class="bi bi-arrows-fullscreen" id="backup-view-fullscreen-icon"></i>
                 </button>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
               </div>
             </div>
             <div class="modal-body">
-              <div class="text-secondary small d-none" id="backup-view-loading">加载中...</div>
+              <div class="text-secondary small d-none" id="backup-view-loading">{{ _('template.backups.loading') }}...</div>
               <div class="alert alert-danger d-none mb-3" id="backup-view-error"></div>
               <div class="diff-render" id="backup-view-render"></div>
             </div>
@@ -510,13 +489,13 @@
           <div class="modal-content">
             <div class="modal-header">
               <div>
-                <h5 class="modal-title mb-0" id="backup-log-title">执行日志</h5>
+                <h5 class="modal-title mb-0" id="backup-log-title">{{ _('template.base.execution_log') }}</h5>
                 <div class="text-secondary small" id="backup-log-meta"></div>
               </div>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
             </div>
             <div class="modal-body">
-              <div class="text-secondary small d-none" id="backup-log-loading">加载中...</div>
+              <div class="text-secondary small d-none" id="backup-log-loading">{{ _('template.backups.loading') }}...</div>
               <div class="alert alert-danger d-none mb-3" id="backup-log-error"></div>
               <div id="backup-log-list" class="backup-log-list border rounded bg-body-tertiary small p-2"></div>
             </div>
@@ -528,24 +507,37 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title">确认删除</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+              <h5 class="modal-title">{{ _('dialog.delete.title') }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
             </div>
             <div class="modal-body">
-              <p id="deleteConfirmText" class="mb-0">确定要删除吗？此操作不可恢复。</p>
+              <p id="deleteConfirmText" class="mb-0">{{ _('dialog.delete.default_message') }}</p>
             </div>
             <div class="modal-footer p-2">
-              <button type="button" class="btn btn-sm btn-outline-secondary border px-4" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-sm btn-danger px-4" id="deleteConfirmBtn">确认删除</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary border px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+              <button type="button" class="btn btn-sm btn-danger px-4" id="deleteConfirmBtn">{{ _('dialog.delete.confirm') }}</button>
             </div>
           </div>
         </div>
       </div>
     {% endif %}
 
+    <!-- Keep global feedback as a direct body child so drawers and modals cannot trap it below their stacking contexts. -->
+    <div class="toast-container nb-toast-layer position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 11000;">
+      <div id="nb-toast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            <i id="nb-toast-icon" class="bi me-2"></i>
+            <span id="nb-toast-message"></span>
+          </div>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/core/api.js"></script>
-    <script src="/static/js/core/ui-feedback.js"></script>
+    <script src="/static/js/core/api.js?v={{ app_version }}-i18n-confirm-3"></script>
+    <script src="/static/js/core/ui-feedback.js?v={{ app_version }}-i18n-confirm-4"></script>
     {% if current_user %}
       <script>
         window.NB_TASK_CONFIG = {
@@ -554,9 +546,9 @@
           canRetryTaskRuns: {{ "true" if has_permission('devices.backup') else "false" }}
         };
       </script>
-      <script src="/static/js/core/nb-common.js"></script>
+      <script src="/static/js/core/nb-common.js?v={{ app_version }}-i18n-confirm-3"></script>
     {% endif %}
-    <script src="/static/js/core/select-enhance.js"></script>
+    <script src="/static/js/core/select-enhance.js?v={{ app_version }}-i18n-confirm-3"></script>
 
 {% if current_user and current_user.enable_watermark %}
 <script>

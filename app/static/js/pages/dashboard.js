@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const t = (value) => value;
+    const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
+    const successLabel = NB.t("status.backup.succeeded");
+    const failedLabel = NB.t("status.backup.failed");
+    const changeCountLabel = NB.t("js.dashboard.change_count");
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const chartTextColor = isDark ? '#94a3b8' : '#64748b';
     const chartTitleColor = isDark ? '#e2e8f0' : '#334155';
@@ -79,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             legend: {
-                data: ['成功', '失败'],
+                data: [successLabel, failedLabel],
                 bottom: 0,
                 itemWidth: 12,
                 itemHeight: 12,
@@ -117,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             series: [
                 {
-                    name: '成功',
+                    name: successLabel,
                     type: 'bar',
                     stack: 'total',
                     itemStyle: {
@@ -139,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 },
                 {
-                    name: '失败',
+                    name: failedLabel,
                     type: 'bar',
                     stack: 'total',
                     itemStyle: {
@@ -245,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         series: [
             {
-                name: '平台',
+                name: NB.t("template.backups.platform"),
                 type: 'pie',
                 radius: [layout.innerRadius, layout.outerRadius],
                 center: ['50%', layout.centerY],
@@ -325,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 inRange: {
                     color: colorList
                 },
-                text: ['多', '少'],
+                text: [NB.t("js.dashboard.high"), NB.t("js.dashboard.low")],
                 textStyle: { fontSize: 12, color: textColor },
                 itemWidth: 16,
                 itemHeight: 200
@@ -343,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const val = params.value && params.value.length > 2 ? params.value[2] : 0;
                         const xLabel = (heatmapData.x_labels || [])[xIndex] || '';
                         const yLabel = (heatmapData.y_labels || [])[yIndex] || '';
-                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                        return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${yLabel}</div>${xLabel}<br>${changeCountLabel}: <span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
                     },
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
@@ -416,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formatter: function (params) {
                     const label = params.value && params.value.length > 1 ? params.value[0] : '';
                     const val = params.value && params.value.length > 1 ? params.value[1] : 0;
-                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>变更次数：<span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
+                    return `<div style="text-align: center; font-weight: bold; margin-bottom: 4px;">${label}</div>${changeCountLabel}: <span style="font-weight: bold; color: #3b82f6;">${val}</span>`;
                 },
                 backgroundColor: tooltipBg,
                 borderColor: tooltipBorder,
@@ -444,13 +449,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     show: false
                 },
                 dayLabel: {
-                    nameMap: ['日', '一', '二', '三', '四', '五', '六'],
+                    nameMap: [
+                        NB.t("js.dashboard.weekday.sun"),
+                        NB.t("js.dashboard.weekday.mon"),
+                        NB.t("js.dashboard.weekday.tue"),
+                        NB.t("js.dashboard.weekday.wed"),
+                        NB.t("js.dashboard.weekday.thu"),
+                        NB.t("js.dashboard.weekday.fri"),
+                        NB.t("js.dashboard.weekday.sat")
+                    ],
                     firstDay: 1,
                     color: textColor,
                     fontSize: 10
                 },
                 monthLabel: {
-                    nameMap: 'cn',
+                    nameMap: localeCapabilities.echarts_locale || 'en',
                     color: textColor,
                     fontSize: 11,
                     margin: 6
@@ -569,7 +582,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         series: [
             {
-                name: '成功率',
+                name: t(NB.t("template.dashboard.success_rate")),
                 type: 'bar',
                 data: healthData.map(item => item.value),
                 itemStyle: {
@@ -766,11 +779,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 emptyStateRow.style.display = '';
                 const emptyText = emptyStateRow.querySelector('p');
                 if (filter === 'success') {
-                    emptyText.textContent = '暂无成功的备份记录';
+                    emptyText.textContent = t(NB.t("js.dashboard.no_successful_backup_records"));
                 } else if (filter === 'failed') {
-                    emptyText.textContent = '暂无失败的备份记录';
+                    emptyText.textContent = t(NB.t("js.dashboard.no_failed_backup_records"));
                 } else {
-                    emptyText.textContent = '暂无备份记录';
+                    emptyText.textContent = t(NB.t("template.backups.no_backup_records"));
                 }
             } else if (emptyStateRow) {
                 emptyStateRow.style.display = 'none';

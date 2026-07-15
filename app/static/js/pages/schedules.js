@@ -16,7 +16,7 @@
           } else {
             nextRunEl.classList.add("text-secondary");
           }
-          nextRunEl.innerHTML = `<i class="bi bi-clock me-1"></i>${escapeText(nextRun.text || "")}`;
+          nextRunEl.innerHTML = `<i class="bi bi-clock me-1"></i>${escapeText(tr(nextRun.text || ""))}`;
         }
 
         // 处理开关切换
@@ -28,7 +28,7 @@
           checkbox.disabled = true;
           if (label) {
             label.classList.add("text-muted");
-            label.textContent = "同步中...";
+            label.textContent = tr(NB.t("js.schedules.syncing"));
           }
 
           try {
@@ -36,18 +36,18 @@
             const data = result.data || {};
             if (!result.ok) {
               const detail = await window.NB.api.extractErrorDetail(result.response, "");
-              throw new Error(detail || "切换失败");
+              throw new Error(detail || NB.t("js.schedules.switch_failed"));
             }
 
             checkbox.checked = data.enabled;
             if (label) {
-              label.textContent = data.enabled ? "已开启" : "已禁用";
+              label.textContent = tr(data.enabled ? NB.t("template.schedules.enabled") : NB.t("template.notifications.disabled"));
               label.classList.remove("text-muted");
             }
             updateNextRunDisplay(checkbox, data.next_run);
 
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast(data.enabled ? "定时任务已开启" : "定时任务已禁用", "success");
+              window.NB.showToast(data.enabled ? NB.t("js.schedules.schedulesenabled") : NB.t("js.schedules.schedulesdisabled"), "success");
             }
           } catch (e) {
             console.error(e);
@@ -57,7 +57,7 @@
               label.classList.remove("text-muted");
             }
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("手动执行失败: " + e.message, "error");
+              window.NB.showToast(NB.t("js.schedule_stats_runs.manual_execution_failed") + e.message, "error");
             }
           } finally {
             checkbox.disabled = false;
@@ -130,6 +130,10 @@
           return span.innerHTML;
         }
 
+        function tr(text) { return text; }
+
+        function trHtml(html) { return html; }
+
         function isNearScrollBottom(el) {
           if (!el) return false;
           return el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
@@ -143,7 +147,7 @@
             platformsData = result.data || [];
             renderPlatforms();
           } catch (e) {
-            platformSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
+            platformSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
@@ -155,7 +159,7 @@
             groupsData = result.data || [];
             renderGroups();
           } catch (e) {
-            groupSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
+            groupSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
@@ -170,21 +174,21 @@
             devicesData = data.devices || [];
             renderDevices();
           } catch (e) {
-            deviceSelection.innerHTML = '<div class="text-danger small">加载失败</div>';
+            deviceSelection.innerHTML = `<div class="text-danger small">${escapeText(NB.t("js.schedules.load_failed"))}</div>`;
           }
         }
 
         // 渲染平台选择器
         function renderPlatforms() {
           if (!platformsData.length) {
-            platformSelection.innerHTML = '<div class="text-secondary small">暂无平台数据</div>';
+            platformSelection.innerHTML = `<div class="text-secondary small">${escapeText(NB.t("js.schedules.no_platform_data"))}</div>`;
             return;
           }
           
           platformSelection.innerHTML = platformsData.map(p => `
             <div class="form-check form-check-inline me-0">
               <input class="form-check-input d-none" type="checkbox" id="platform-${escapeText(p.name)}" data-type="platform" data-value="${escapeText(p.name)}">
-              <label class="btn btn-sm btn-outline-secondary border fw-normal px-2 py-1 cursor-pointer transition-all" for="platform-${escapeText(p.name)}">
+              <label class="btn btn-sm btn-outline-secondary border fw-normal px-2 py-1 cursor-pointer transition-all" for="platform-${escapeText(p.name)}" data-i18n-preserve>
                 ${escapeText(p.name)} <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal ms-1">${p.count}</span>
               </label>
             </div>
@@ -271,6 +275,7 @@
               
               const text = document.createElement('span');
               text.className = textClass;
+              text.setAttribute('data-i18n-preserve', '');
               text.textContent = node.name;
               
               const countBadge = document.createElement('span');
@@ -324,7 +329,7 @@
         // 渲染分组选择器
         function renderGroups(searchText = "") {
           if (!groupsData.length) {
-            groupSelection.innerHTML = '<div class="text-secondary small">暂无分组数据</div>';
+            groupSelection.innerHTML = `<div class="text-secondary small">${escapeText(NB.t("js.schedules.no_group_data"))}</div>`;
             return;
           }
           
@@ -355,7 +360,7 @@
           }
 
           if (searchText && !filteredGroups.length) {
-            groupSelection.innerHTML = '<div class="p-3 text-secondary small text-center">未找到匹配的分组</div>';
+            groupSelection.innerHTML = `<div class="p-3 text-secondary small text-center">${escapeText(NB.t("js.schedules.no_matching_groups"))}</div>`;
             return;
           }
 
@@ -379,24 +384,24 @@
           const countEl = document.getElementById('device-selection-count');
           
           if (!devicesData.length) {
-            container.innerHTML = '<div class="p-3 text-secondary small text-center">未找到匹配的设备</div>';
-            if (countEl) countEl.textContent = '共 0 台';
+            container.innerHTML = `<div class="p-3 text-secondary small text-center">${escapeText(NB.t("js.schedules.no_matching_devices"))}</div>`;
+            if (countEl) countEl.textContent = tr(NB.t("js.schedules.total_0_devices"));
             return;
           }
           
-          if (countEl) countEl.textContent = `共 ${devicesData.length} 台`;
+          if (countEl) countEl.textContent = tr(NB.t("js.schedules.total_value0_devices", {value0: devicesData.length}));
           
-          container.innerHTML = `
+          container.innerHTML = trHtml(`
             <table class="table table-sm table-hover align-middle mb-0 small">
               <thead class="bg-body-tertiary sticky-top">
                 <tr>
                   <th class="ps-3" style="width: 40px;">
                     <input class="form-check-input" type="checkbox" id="device-select-all-toggle">
                   </th>
-                  <th>设备名称</th>
-                  <th style="width: 140px;">IP 地址</th>
-                  <th style="width: 120px;">平台</th>
-                  <th style="width: 120px;">分组</th>
+                  <th>${NB.t("email.field.device_name")}</th>
+                  <th style="width: 140px;">${NB.t("audit.csv.ip_address")}</th>
+                  <th style="width: 120px;">${NB.t("template.backups.platform")}</th>
+                  <th style="width: 120px;">${NB.t("audit.resource.group")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,15 +410,15 @@
                     <td class="ps-3">
                       <input class="form-check-input js-device-cb" type="checkbox" id="device-${d.id}" data-type="device" data-value="${d.id}" onclick="event.stopPropagation()">
                     </td>
-                    <td><div class="text-body text-truncate" style="max-width: 180px;" title="${escapeText(d.name || d.host)}">${escapeText(d.name || d.host)}</div></td>
-                    <td><code class="text-secondary small">${escapeText(d.host)}</code></td>
-                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2">${escapeText(d.platform)}</span></td>
-                    <td><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2">${escapeText(d.group)}</span></td>
+                    <td><div class="text-body text-truncate" style="max-width: 180px;" title="${escapeText(d.name || d.host)}" data-i18n-preserve>${escapeText(d.name || d.host)}</div></td>
+                    <td><code class="text-secondary small" data-i18n-preserve>${escapeText(d.host)}</code></td>
+                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2" data-i18n-preserve>${escapeText(d.platform)}</span></td>
+                    <td><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2" data-i18n-preserve>${escapeText(d.group)}</span></td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
-          `;
+          `);
           
           // 行点击事件
           container.querySelectorAll('.js-device-row').forEach(row => {
@@ -500,7 +505,7 @@
             
             // 如果没有任何目标且没有勾选"所有设备"，则直接清空预览并返回
             if (targets.length === 0 && (!targetAllCheckbox || !targetAllCheckbox.checked)) {
-              drawerPreviewSummary.textContent = "未选择任何设备";
+              drawerPreviewSummary.textContent = tr(NB.t("js.schedules.no_devices_selected"));
               drawerPreviewCounts.innerHTML = '';
               drawerPreviewDevices.innerHTML = '';
               drawerPreviewLoading.classList.add('d-none');
@@ -515,7 +520,7 @@
               // 如果有内容，通过透明度和顶部加载提示来避免布局跳动
               drawerPreviewCounts.classList.add('opacity-50');
               drawerPreviewDevices.classList.add('opacity-50');
-              drawerPreviewSummary.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>计算中...';
+              drawerPreviewSummary.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${escapeText(NB.t("js.schedules.calculating"))}`;
               drawerPreviewLoading.classList.add('d-none');
             } else {
               // 如果没内容，显示加载占位符
@@ -542,7 +547,7 @@
               drawerPreviewLoading.classList.add('d-none');
               drawerPreviewCounts.classList.remove('opacity-50');
               drawerPreviewDevices.classList.remove('opacity-50');
-              drawerPreviewSummary.textContent = "计算失败";
+              drawerPreviewSummary.textContent = tr(NB.t("js.schedules.calculation_failed"));
               drawerPreviewError.classList.remove('d-none');
             });
           }, 300);
@@ -563,34 +568,34 @@
           const total = counts.total || 0;
           
           // 更新摘要
-          drawerPreviewSummary.textContent = `共 ${total} 台设备`;
+          drawerPreviewSummary.textContent = tr(NB.t("js.schedules.total_devices", {value0: total}));
           
           // 更新计数
           let countHtml = '';
           if (counts.platforms && Object.keys(counts.platforms).length > 0) {
             const list = Object.entries(counts.platforms).sort().map(([p, c]) => 
-              `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1">${p} · ${c}</span>`
+              `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(p)} · ${c}</span>`
             ).join(' ');
-            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的目标平台:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
+            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_platforms"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
           }
           if (counts.groups && Object.keys(counts.groups).length > 0) {
             const list = Object.entries(counts.groups).sort().map(([g, c]) => 
-              `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1">${g} · ${c}</span>`
+              `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(g)} · ${c}</span>`
             ).join(' ');
-            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的分组:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
+            countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_groups"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
           }
-          drawerPreviewCounts.innerHTML = countHtml;
+          drawerPreviewCounts.innerHTML = trHtml(countHtml);
           
           // 更新设备列表
           const displayLimit = Math.min(drawerPreviewVisibleLimit, devices.length || 0);
           const displayDevices = devices.slice(0, displayLimit);
 
           const deviceBadges = displayDevices.map(device => 
-            `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge">${escapeText(device.name || device.host)} <small class="opacity-75">(${escapeText(device.host)})</small></span>`
+            `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge" data-i18n-preserve>${escapeText(device.name || device.host)} <small class="opacity-75">(${escapeText(device.host)})</small></span>`
           ).join('');
           
           if (deviceBadges) {
-            drawerPreviewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的设备:</div><div class="d-flex flex-wrap gap-1">${deviceBadges}</div></div>`;
+            drawerPreviewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_devices"))}</div><div class="d-flex flex-wrap gap-1" data-i18n-preserve>${deviceBadges}</div></div>`;
           } else {
             drawerPreviewDevices.innerHTML = '';
           }
@@ -598,7 +603,7 @@
           if (devices.length > displayLimit) {
             const more = document.createElement("div");
             more.className = "w-100 text-center text-muted small mt-2";
-            more.textContent = `继续向下滚动加载更多，还有 ${devices.length - displayLimit} 台设备`;
+            more.textContent = tr(NB.t("js.schedules.scroll_down_to_load_more_value0_devices", {value0: devices.length - displayLimit}));
             drawerPreviewDevices.appendChild(more);
           }
         }
@@ -864,14 +869,14 @@
           if (!targetsEl || !targetsSummaryText) return;
           const val = targetsEl.value.trim();
           if (!val) {
-            targetsSummaryText.innerHTML = '<span class="badge rounded-pill bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-normal">未选择设备</span>';
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.no_device_selected"))}</span>`;
             return;
           }
           const lines = val.split('\n').filter(l => l.trim());
           if (lines.length === 1 && lines[0] === 'all') {
-            targetsSummaryText.innerHTML = '<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">所有设备</span>';
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.all_devices"))}</span>`;
           } else {
-            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">已选择 ${lines.length} 项配置</span>`;
+            targetsSummaryText.innerHTML = `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal">${escapeText(NB.t("js.schedules.selected_config_items", {value0: lines.length}))}</span>`;
           }
         }
 
@@ -937,13 +942,13 @@
           if (!scheduleId) return;
           btn.disabled = true;
           const old = btn.innerHTML;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>执行中';
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${escapeText(NB.t("js.schedule_stats_runs.running_button"))}`;
           try {
             const result = await window.NB.api.request(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, { method: "POST" });
             const data = result.data || {};
             if (!result.ok) {
               const detail = await window.NB.api.extractErrorDetail(result.response, "");
-              throw new Error(detail || "切换失败");
+              throw new Error(detail || NB.t("js.schedules.switch_failed"));
             }
             const records = (data && data.records) || [];
             const enqueueStatus = (data && data.enqueue_status) ? String(data.enqueue_status) : "none";
@@ -956,16 +961,16 @@
               if (enqueueWarning) {
                 window.NB.showToast(enqueueWarning, "warning");
               } else if (enqueueStatus === "partial") {
-                window.NB.showToast("已启动 " + records.length + " 个备份任务，部分任务入队失败", "warning");
+                window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks_some_tasks_failed_to_queue"), "warning");
               } else {
-                window.NB.showToast("已启动 " + records.length + " 个备份任务", "info");
+                window.NB.showToast(NB.t("js.devices_bulk.started") + records.length + NB.t("js.devices_bulk.backup_tasks"), "info");
               }
             } else if (records.length === 0) {
-              window.NB.showToast("没有找到需要备份的设备", "warning");
+              window.NB.showToast(NB.t("js.schedule_stats_runs.no_devices_found_for_backup"), "warning");
             }
           } catch (e) {
             console.error(e);
-            window.NB.showToast("手动执行失败: " + e.message, "error");
+            window.NB.showToast(NB.t("js.schedule_stats_runs.manual_execution_failed") + e.message, "error");
           } finally {
             btn.disabled = false;
             btn.innerHTML = old;
@@ -989,7 +994,7 @@
             previewError.classList.toggle("d-none", !hasError);
             const msgEl = previewError.querySelector(".small");
             if (msgEl) {
-              msgEl.textContent = message || "预览加载失败，请重试";
+              msgEl.textContent = message || tr(NB.t("template.schedules.preview_failed_to_load_please_try_again"));
             }
           }
 
@@ -1000,7 +1005,7 @@
             lastPreviewData = data;
             const counts = (data && data.counts) || {};
             const total = Number(counts.total || 0);
-            previewSummary.textContent = total ? `匹配 ${total} 台设备` : "未匹配到设备";
+            previewSummary.textContent = tr(total ? NB.t("js.schedules.matched_value0_devices", {value0: total}) : NB.t("js.schedules.no_matched_devices"));
 
             const platforms = counts.platforms || {};
             const groups = counts.groups || {};
@@ -1008,14 +1013,14 @@
             previewCounts.innerHTML = "";
             let countHtml = '';
              if (Object.keys(platforms).length > 0) {
-               const list = Object.keys(platforms).sort().map(k => `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1">${k || "unknown"} · ${platforms[k]}</span>`).join(' ');
-               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的目标平台:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
+               const list = Object.keys(platforms).sort().map(k => `<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(k || "unknown")} · ${platforms[k]}</span>`).join(' ');
+               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_platforms"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
              }
              if (Object.keys(groups).length > 0) {
-               const list = Object.keys(groups).sort().map(k => `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1">${k} · ${groups[k]}</span>`).join(' ');
-               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的分组:</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
+               const list = Object.keys(groups).sort().map(k => `<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal px-2 mb-1" data-i18n-preserve>${escapeText(k)} · ${groups[k]}</span>`).join(' ');
+               countHtml += `<div class="mb-1 w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_groups"))}</div><div class="d-flex flex-wrap gap-1">${list}</div></div>`;
              }
-            previewCounts.innerHTML = countHtml;
+            previewCounts.innerHTML = trHtml(countHtml);
 
             const devices = (data && data.devices) || [];
             
@@ -1029,12 +1034,12 @@
                     const host = escapeText(d.host || "");
                     const platform = escapeText(d.platform || "");
                     const group = escapeText(d.group || "");
-                    return `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge" title="${name} · ${host} · ${platform} · ${group}">${name || host} <small class="opacity-75">(${host})</small></span>`;
+                    return `<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fw-normal mb-1 me-1 device-badge" title="${name} · ${host} · ${platform} · ${group}" data-i18n-preserve>${name || host} <small class="opacity-75">(${host})</small></span>`;
                   })
                   .join("");
             
             if (deviceBadges) {
-              previewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">匹配到的设备:</div><div class="d-flex flex-wrap gap-1">${deviceBadges}</div></div>`;
+              previewDevices.innerHTML = `<div class="w-100"><div class="text-secondary x-small opacity-75 mb-0">${escapeText(NB.t("js.schedules.matched_devices"))}</div><div class="d-flex flex-wrap gap-1" data-i18n-preserve>${deviceBadges}</div></div>`;
             } else {
               previewDevices.innerHTML = "";
             }
@@ -1042,7 +1047,7 @@
             if (devices.length > displayLimit) {
               const more = document.createElement("div");
               more.className = "w-100 text-center text-muted small mt-2";
-              more.textContent = `继续向下滚动加载更多，还有 ${devices.length - displayLimit} 台设备`;
+              more.textContent = tr(NB.t("js.schedules.scroll_down_to_load_more_value0_devices", {value0: devices.length - displayLimit}));
               previewDevices.appendChild(more);
             }
           }
@@ -1064,7 +1069,7 @@
               const data = result.data || {};
               if (!result.ok) {
                 const detail = await window.NB.api.extractErrorDetail(result.response, "");
-                throw new Error(detail || "预览加载失败，请重试");
+                throw new Error(detail || NB.t("template.schedules.preview_failed_to_load_please_try_again"));
               }
               if (reqId !== inflight) return;
               renderPreview(data);
@@ -1073,7 +1078,7 @@
               previewSummary.textContent = "";
               previewCounts.innerHTML = "";
               previewDevices.innerHTML = "";
-              setError(true, e && e.message ? String(e.message) : "预览加载失败，请重试");
+              setError(true, e && e.message ? String(e.message) : tr(NB.t("template.schedules.preview_failed_to_load_please_try_again")));
             } finally {
               if (reqId === inflight) setLoading(false);
             }

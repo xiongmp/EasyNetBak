@@ -14,10 +14,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from app.db import session_scope
+from app.i18n import translate
 from app.models import BackupRecord, BackupScheduleRun, Device, TaskEvent
 from app.services import task_event_bus_service, task_runtime_config_service, task_state_service
 
 _MODULE_LOGGER = logging.getLogger(__name__)
+_SHUTDOWN_LOGGER = logging.getLogger(f"{__name__}.shutdown")
+_SHUTDOWN_LOGGER.addHandler(logging.NullHandler())
+_SHUTDOWN_LOGGER.propagate = False
 _TASK_EVENT_BUFFER_BATCH_SIZE = 20
 _TASK_EVENT_BUFFER_FLUSH_INTERVAL_SECONDS = 5.0
 _TASK_EVENT_BUFFER_MAX_SIZE = 500
@@ -107,7 +111,12 @@ def log_task_event(
     _buffer_task_event(buffered_event, logger=logger)
 
 
-def flush_task_event_buffer(*, logger: logging.Logger | None = None, force: bool = False) -> int:
+def flush_task_event_buffer(
+    *,
+    logger: logging.Logger | None = None,
+    force: bool = False,
+    allow_requeue: bool = True,
+) -> int:
     global _LAST_TASK_EVENT_FLUSH_AT
 
     selected_logger = logger or _MODULE_LOGGER
@@ -132,7 +141,7 @@ def flush_task_event_buffer(*, logger: logging.Logger | None = None, force: bool
         pending_events,
         logger=selected_logger,
         flush_reason="forced" if force else "buffered",
-        allow_requeue=True,
+        allow_requeue=allow_requeue,
     )
     return len(pending_events)
 
@@ -142,6 +151,7 @@ def get_task_health_snapshot(
     *,
     now: datetime | None = None,
     window_hours: int = 24,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     flush_task_event_buffer(logger=_MODULE_LOGGER, force=True)
 
@@ -320,7 +330,7 @@ def get_task_health_snapshot(
     ).all()
     device_success_trends = [
         {
-            "device_name": device_name or "未知设备",
+            "device_name": device_name or translate(locale, "task.health.unknown_device"),
             "device_host": device_host or "-",
             "total": int(total or 0),
             "success_count": int(success_count or 0),
@@ -350,7 +360,7 @@ def get_task_health_snapshot(
         "top_failure_types": top_failure_types,
         "platform_success_trends": platform_success_trends,
         "device_success_trends": device_success_trends,
-        "degraded_components": task_runtime_config_service.get_task_runtime_degradation_status(),
+        "degraded_components": task_runtime_config_service.get_task_runtime_degradation_status(locale),
     }
 
 
@@ -510,4 +520,9 @@ def _coerce_bool(value: Any) -> bool | None:
     return None
 
 
-atexit.register(flush_task_event_buffer, logger=_MODULE_LOGGER, force=True)
+atexit.register(
+    flush_task_event_buffer,
+    logger=_SHUTDOWN_LOGGER,
+    force=True,
+    allow_requeue=False,
+)

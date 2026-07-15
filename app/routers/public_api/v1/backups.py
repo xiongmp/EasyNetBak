@@ -13,7 +13,7 @@ from app.services import backup_service
 router = public_api_router()
 
 
-@router.get("/backups/{backup_id}/content", summary="获取某次备份的具体配置内容", response_model=BackupContentResponseSchema, tags=["备份管理"])
+@router.get("/backups/{backup_id}/content", summary="openapi.operation.get_backup_content", response_model=BackupContentResponseSchema, tags=["备份管理"])
 def get_backup_content(request: Request, backup_id: UUID, session: Session = Depends(get_session)):
     user = _require_api_permission(request, "backups.view")
     allowed_ids = get_user_allowed_group_ids(user, session=session)

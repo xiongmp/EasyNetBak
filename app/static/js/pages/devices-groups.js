@@ -1,4 +1,11 @@
 const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.groupItems) || [];
+        const tr = (text) => text;
+
+        function escapeText(text) {
+            const span = document.createElement('span');
+            span.textContent = text == null ? '' : String(text);
+            return span.innerHTML;
+        }
 
         function buildTree(flatList) {
             const map = new Map();
@@ -56,6 +63,9 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
 
                 const text = document.createElement('span');
                 text.className = textClass;
+                if (node.id !== 0) {
+                    text.setAttribute('data-i18n-preserve', '');
+                }
                 text.textContent = node.name;
 
                 content.appendChild(toggle);
@@ -115,7 +125,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
               this.btn.dataset.bsToggle = 'dropdown';
               this.btn.dataset.bsAutoClose = 'outside';
               this.btn.style.fontSize = '13px'; // 调整为 13px 以匹配视觉大小
-              this.btn.innerHTML = `<span class="text-truncate flex-grow-1">${label}</span>`;
+              this.btn.innerHTML = `<span class="text-truncate flex-grow-1">${escapeText(label)}</span>`;
               this.container.appendChild(this.btn);
 
               this.menu = document.createElement('ul');
@@ -134,7 +144,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
               this.searchInput.type = 'text';
               this.searchInput.className = 'form-control form-control-sm'; // 去掉 mb-2，由容器 padding 控制
               this.searchInput.style.fontSize = '13px'; // 搜索框字体
-              this.searchInput.placeholder = '搜索...';
+              this.searchInput.placeholder = tr(NB.t("js.devices_groups.search"));
               this.searchInput.addEventListener('click', (e) => e.stopPropagation());
               searchContainer.appendChild(this.searchInput);
               this.menu.appendChild(searchContainer);
@@ -182,7 +192,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
               if (!hasVisibleOption) {
                   const li = document.createElement('li');
                   li.className = 'dropdown-item disabled text-muted text-center small';
-                  li.textContent = '无匹配项';
+                  li.textContent = tr(NB.t("js.devices_groups.no_matches"));
                   this.optionsList.appendChild(li);
               }
             }
@@ -190,7 +200,14 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
             updateLabel() {
               const selectedOption = this.select.options[this.select.selectedIndex];
               const span = this.btn.querySelector('span');
-              if (span) span.textContent = selectedOption ? selectedOption.text : 'Select...';
+                if (span) {
+                  span.textContent = selectedOption ? selectedOption.text : 'Select...';
+                  if (selectedOption && selectedOption.hasAttribute('data-i18n-preserve')) {
+                    span.setAttribute('data-i18n-preserve', '');
+                  } else {
+                    span.removeAttribute('data-i18n-preserve');
+                  }
+                }
             }
 
             attachEvents() {
@@ -230,14 +247,14 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
                   filterGroupIdInput.value = nodeId;
                   const selectedText = document.getElementById('filterGroupSelectedText');
                   if (nodeId == 0) {
-                      selectedText.textContent = '所属分组: 全部';
+                      selectedText.textContent = tr(NB.t("js.devices_groups.group_all"));
                   } else {
                       const selectedGroup = groupItems.find(g => g.id == nodeId);
-                      selectedText.textContent = selectedGroup ? selectedGroup.name : '所属分组: 全部';
+                      selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : tr(NB.t("js.devices_groups.group_all"));
                   }
 
                   const treeData = [
-                      { id: 0, name: '所属分组: 全部', depth: 0, children: [] },
+                      { id: 0, name: tr(NB.t("js.devices_groups.group_all")), depth: 0, children: [] },
                       ...buildTree(groupItems)
                   ];
 

@@ -29,6 +29,7 @@ def schedules_page(request: Request, session: Session = Depends(get_session)):
         limit=list_query.limit,
         edit_id=list_query.edit,
         include_limit_param=list_query.include_limit_param,
+        locale=request.state.locale,
     )
 
     return templates.TemplateResponse(
@@ -75,7 +76,7 @@ def upsert_schedule(
 
     session.commit()
     sync_scheduler_from_db()
-    return RedirectResponse(url="/schedules?msg=已保存", status_code=303)
+    return RedirectResponse(url="/schedules?msg=message.saved", status_code=303)
 
 
 @router.post("/schedules/{schedule_id}/delete", summary="删除定时任务", description="删除指定的定时任务")
@@ -85,14 +86,14 @@ def delete_schedule(request: Request, schedule_id: int, session: Session = Depen
         name = schedule_service.delete_schedule(session, int(schedule_id))
     except schedule_service.ServiceError as exc:
         if exc.code == "SCHEDULE_NOT_FOUND":
-            return RedirectResponse(url="/schedules?err=定时任务不存在", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.not_found", status_code=303)
         if exc.code == "SCHEDULE_DELETE_ACTIVE_RUNS":
-            return RedirectResponse(url="/schedules?err=定时任务存在执行中的批次，无法删除", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.active_runs_delete", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
     _log_action(request, session, "DELETE_SCHEDULE", "schedule", schedule_id, f"Name: {name}")
     session.commit()
     sync_scheduler_from_db()
-    return RedirectResponse(url="/schedules?msg=已删除", status_code=303)
+    return RedirectResponse(url="/schedules?msg=message.deleted", status_code=303)
 
 
 @router.get("/schedules/{schedule_id}/stats", summary="任务统计", description="查看定时任务的执行统计数据")
@@ -107,10 +108,11 @@ def schedule_stats_page(request: Request, schedule_id: int, session: Session = D
             session,
             schedule_id=int(schedule_id),
             offset_minutes=offset_minutes,
+            locale=request.state.locale,
         )
     except schedule_service.ServiceError as exc:
         if exc.code == "SCHEDULE_NOT_FOUND":
-            return RedirectResponse(url="/schedules?err=定时任务不存在", status_code=303)
+            return RedirectResponse(url="/schedules?err=error.schedule.not_found", status_code=303)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     return templates.TemplateResponse(

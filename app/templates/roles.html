@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% set page_title = "角色管理" %}
-{% set page_subtitle = "维护系统角色与权限分配" %}
+{% set page_title = _('nav.roles') %}
+{% set page_subtitle = _('page.roles.subtitle') %}
 {% set can_role_create = has_permission('roles.create') %}
 {% set can_role_update = has_permission('roles.update') %}
 {% set can_role_delete = has_permission('roles.delete') %}
@@ -9,10 +9,10 @@
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="small text-secondary">角色列表</div>
+        <div class="small text-secondary">{{ _('template.roles.role_list') }}</div>
         {% if can_role_create %}
           <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#roleModal">
-            <i class="bi bi-plus-lg me-1"></i>新增角色
+            <i class="bi bi-plus-lg me-1"></i>{{ _('template.roles.add_role') }}
           </button>
         {% endif %}
       </div>
@@ -21,34 +21,35 @@
           <thead>
             <tr>
               <th style="width: 80px;">ID</th>
-              <th style="width: 180px;">角色名称</th>
-              <th style="width: 160px;">角色标识</th>
-              <th style="width: 160px;">权限</th>
-              <th style="width: 120px;">用户数</th>
-              <th style="width: 120px;">类型</th>
-              <th style="width: 200px;">操作</th>
+              <th style="width: 180px;">{{ _('template.roles.role_name') }}</th>
+              <th style="width: 160px;">{{ _('template.roles.role_code') }}</th>
+              <th style="width: 160px;">{{ _('template.roles.permissions') }}</th>
+              <th style="width: 120px;">{{ _('template.roles.users') }}</th>
+              <th style="width: 120px;">{{ _('template.roles.type') }}</th>
+              <th style="width: 200px;">{{ _('audit.csv.action') }}</th>
             </tr>
           </thead>
           <tbody>
             {% for r in items %}
               {% set perm_count = r.permissions.split(',')|length if r.permissions else 0 %}
+              {% set role_display_name = role_labels.get(r.code, r.name) if r.is_system or r.code in admin_role_codes else r.name %}
               <tr>
                 <td>{{ r.id }}</td>
-                <td>{{ r.name }}</td>
-                <td class="text-secondary small">{{ r.code }}</td>
+                <td {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %}>{{ role_display_name }}</td>
+                <td class="text-secondary small" data-i18n-preserve>{{ r.code }}</td>
                 <td>
                   {% if r.code in admin_role_codes %}
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal">全部权限</span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal">{{ _('template.roles.all_permissions') }}</span>
                   {% else %}
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">{{ perm_count }} 项</span>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill fw-normal">{{ perm_count }} {{ _('template.roles.permission_items') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-secondary small">{{ usage.get(r.code, 0) }}</td>
                 <td>
                   {% if r.is_system or r.code in admin_role_codes %}
-                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill fw-normal">系统内置</span>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill fw-normal">{{ _('template.roles.built_in') }}</span>
                   {% else %}
-                    <span class="badge bg-light text-secondary border rounded-pill fw-normal">自定义</span>
+                    <span class="badge bg-light text-secondary border rounded-pill fw-normal">{{ _('template.roles.custom') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-nowrap">
@@ -65,32 +66,32 @@
                         data-bs-perms="{{ r.permissions or '' }}"
                         data-bs-admin="{{ '1' if r.code in admin_role_codes else '0' }}"
                       >
-                        <i class="bi bi-pencil me-1"></i>编辑
+                        <i class="bi bi-pencil me-1"></i>{{ _('template.credentials.edit') }}
                       </button>
                     {% endif %}
                     {% if can_role_delete and r.code not in admin_role_codes %}
                       <form method="post" action="/roles/{{ r.id }}/delete" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此角色吗？">
-                          <i class="bi bi-trash me-1"></i>删除
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.role" data-confirm-msg="{{ _('template.roles.confirm_delete_role') }}？">
+                          <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                         </button>
                       </form>
                     {% elif can_role_delete %}
-                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="系统内置角色不可删除">
+                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="{{ _('template.roles.built_in_roles_cannot_be_deleted') }}">
                         <button class="btn btn-sm btn-outline-secondary px-2 text-nowrap disabled" type="button" style="pointer-events: none;">
-                          <i class="bi bi-trash me-1"></i>删除
+                          <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                         </button>
                       </span>
                     {% endif %}
                     {% if not can_role_update and not can_role_delete %}
-                      <span class="text-muted small">无可用操作</span>
+                      <span class="text-muted small">{{ _('template.roles.no_available_actions') }}</span>
                     {% endif %}
                   </div>
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="7" class="text-center text-secondary py-4">暂无角色</td>
+                <td colspan="7" class="text-center text-secondary py-4">{{ _('template.roles.no_roles') }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -109,35 +110,35 @@
           <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
             <h5 class="modal-title d-flex align-items-center">
               <i class="bi bi-person-badge text-primary me-2"></i>
-              <span id="roleModalTitle">新增角色</span>
+              <span id="roleModalTitle">{{ _('template.roles.add_role') }}</span>
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
           </div>
           <div class="modal-body p-4">
             <div class="row g-4">
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-tag me-1"></i>角色名称
+                  <i class="bi bi-tag me-1"></i>{{ _('template.roles.role_name') }}
                 </label>
-                <input name="name" id="roleName" class="form-control form-control-lg fs-6" placeholder="例如：审计管理员" required />
+                <input name="name" id="roleName" class="form-control form-control-lg fs-6" placeholder="{{ _('template.roles.for_example_audit_administrator') }}" required />
               </div>
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-code-slash me-1"></i>角色标识
+                  <i class="bi bi-code-slash me-1"></i>{{ _('template.roles.role_code') }}
                 </label>
-                <input name="code" id="roleCode" class="form-control form-control-lg fs-6" placeholder="例如：audit_admin" required />
-                <div class="form-text x-small mt-2">角色标识用于系统匹配，可修改并同步更新已分配用户</div>
+                <input name="code" id="roleCode" class="form-control form-control-lg fs-6" placeholder="{{ _('template.credentials.for_example') }}：audit_admin" required />
+                <div class="form-text x-small mt-2">{{ _('template.roles.the_role_code_is_used_for_system_matching') }}</div>
               </div>
               <div class="col-12">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-sliders me-1"></i>权限分配
+                  <i class="bi bi-sliders me-1"></i>{{ _('template.roles.permission_assignment') }}
                 </label>
                 <div class="card p-3 bg-light-subtle border-0">
-                  <div class="small text-secondary mb-3" id="rolePermTips">从左侧选择权限加入右侧</div>
+                  <div class="small text-secondary mb-3" id="rolePermTips">{{ _('template.roles.select_permissions_on_the_left_to_add_them') }}</div>
                   <div class="row g-3 align-items-center">
                     <div class="col-12 col-md-5">
-                      <div class="small text-secondary mb-2">可用权限</div>
-                      <input type="text" id="rolePermSearch" class="form-control form-control-sm mb-2" placeholder="搜索权限..." />
+                      <div class="small text-secondary mb-2">{{ _('template.roles.available_permissions') }}</div>
+                      <input type="text" id="rolePermSearch" class="form-control form-control-sm mb-2" placeholder="{{ _('template.roles.search_permissions') }}..." />
                       <select id="rolePermAvailable" class="form-select" size="12" multiple></select>
                     </div>
                     <div class="col-12 col-md-2 d-flex flex-md-column gap-2 justify-content-center">
@@ -149,8 +150,8 @@
                       </button>
                     </div>
                     <div class="col-12 col-md-5">
-                      <div class="small text-secondary mb-2">已选权限</div>
-                      <input type="text" id="rolePermSearchSelected" class="form-control form-control-sm mb-2" placeholder="搜索已选..." />
+                      <div class="small text-secondary mb-2">{{ _('template.roles.selected_permissions') }}</div>
+                      <input type="text" id="rolePermSearchSelected" class="form-control form-control-sm mb-2" placeholder="{{ _('template.roles.searchselected') }}..." />
                       <select id="rolePermSelected" name="permission_codes" class="form-select" size="12" multiple></select>
                     </div>
                   </div>
@@ -159,9 +160,9 @@
             </div>
           </div>
           <div class="modal-footer bg-body-tertiary border-top-0 py-3">
-            <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
             <button class="btn btn-primary px-5 shadow-sm" type="submit">
-              <i class="bi bi-check-lg me-1"></i>确认保存
+              <i class="bi bi-check-lg me-1"></i>{{ _('template.credentials.confirm_save') }}
             </button>
           </div>
         </form>
@@ -173,7 +174,8 @@
   <select id="roleAllPermissions" class="d-none">
     {% for p in permission_catalog %}
       {% set group_label = permission_group_labels.get(p.group, p.group) %}
-      <option value="{{ p.code }}">{{ group_label }} / {{ p.name }}</option>
+      {% set action = p.code.split('.')[-1] %}
+      <option value="{{ p.code }}">{{ _('permission.group.' ~ p.group, fallback=group_label) }} / {{ _('permission.action.' ~ action, fallback=p.name) }}</option>
     {% endfor %}
   </select>
 
@@ -286,8 +288,8 @@
         codeInput.value = code;
         nameInput.value = name;
         codeInput.disabled = locked;
-        title.textContent = id !== '0' ? '编辑角色' : '新增角色';
-        tips.textContent = locked ? '系统管理员拥有全部权限，权限不可修改' : '从左侧选择权限加入右侧';
+        title.textContent = (id !== '0' ? '{{ _('template.roles.edit_role') }}' : '{{ _('template.roles.add_role') }}');
+        tips.textContent = (locked ? '{{ _('template.roles.system_administrators_have_all_permissions_and_cannot_be') }}' : '{{ _('template.roles.select_permissions_on_the_left_to_add_them') }}');
 
         searchInput.value = '';
         searchInputSelected.value = '';

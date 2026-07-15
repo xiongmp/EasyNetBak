@@ -1,0 +1,10 @@
+<!doctype html><html lang="{{ locale }}"><body>
+<h2 style="color:#d9534f">{{ _("email.backup_failure.title") }}</h2>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:800px">
+<tr><th align="left">{{ _("email.field.device_name") }}</th><td>{{ device.name }}</td></tr>
+<tr><th align="left">{{ _("email.field.device_host") }}</th><td>{{ device.host }}</td></tr>
+<tr><th align="left">{{ _("email.field.backup_time") }}</th><td>{{ backup_time }}</td></tr>
+<tr><th align="left">{{ _("email.field.failure_type") }}</th><td>{{ record.failure_type or "UNKNOWN" }}</td></tr>
+<tr><th align="left">{{ _("email.field.duration") }}</th><td>{{ duration }}</td></tr>
+<tr><th align="left">{{ _("email.field.error") }}</th><td style="color:#d9534f">{{ error_message }}</td></tr>
+</table></body></html>

@@ -1,18 +1,18 @@
-{% macro render_pagination(pagination, pagination_base, total_label="条记录") %}
+{% macro render_pagination(pagination, pagination_base, total_label=_('template.macros.records')) %}
 <nav class="mt-3 d-flex justify-content-between align-items-center">
     <div class="small text-secondary">
-       共 {{ pagination.total }} {{ total_label }}
+       {{ _('template.macros.total') }} {{ pagination.total }} {{ total_label }}
     </div>
     <div class="d-flex align-items-center gap-2">
         <select class="form-select form-select-sm pagination-control-sm" style="width: 105px;" onchange="location.href='{{ pagination_base }}1&limit=' + this.value">
-            <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 条/页</option>
-            <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 条/页</option>
-            <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 条/页</option>
-            <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 条/页</option>
+            <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 {{ _('template.macros.items_per_page') }}</option>
+            <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 {{ _('template.macros.items_per_page') }}</option>
+            <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 {{ _('template.macros.items_per_page') }}</option>
+            <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 {{ _('template.macros.items_per_page') }}</option>
         </select>
         <ul class="pagination pagination-sm mb-0">
             <li class="page-item {% if pagination.page <= 1 %}disabled{% endif %}">
-                <a class="page-link" href="{{ pagination_base }}{{ pagination.page - 1 }}">上一页</a>
+                <a class="page-link" href="{{ pagination_base }}{{ pagination.page - 1 }}">{{ _('template.macros.previous') }}</a>
             </li>
             {% for p in range(1, pagination.total_pages + 1) %}
                 {% if p == 1 or p == pagination.total_pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
@@ -24,17 +24,17 @@
                 {% endif %}
             {% endfor %}
             <li class="page-item {% if pagination.page >= pagination.total_pages %}disabled{% endif %}">
-                <a class="page-link" href="{{ pagination_base }}{{ pagination.page + 1 }}">下一页</a>
+                <a class="page-link" href="{{ pagination_base }}{{ pagination.page + 1 }}">{{ _('template.macros.next') }}</a>
             </li>
         </ul>
         <div class="d-flex align-items-center gap-1 ms-1 small text-secondary">
-            <span>前往</span>
+            <span>{{ _('template.macros.go_to') }}</span>
             <input type="number" class="form-control form-control-sm text-center px-1 pagination-control-sm" 
                    style="width: 40px;" 
                    value="{{ pagination.page }}" 
                    min="1" max="{{ pagination.total_pages }}"
                    onkeydown="if(event.keyCode==13) { let p=parseInt(this.value); if(p>=1 && p<={{ pagination.total_pages }}) location.href='{{ pagination_base }}' + p; }">
-            <span>页</span>
+            <span>{{ _('template.macros.page') }}</span>
         </div>
     </div>
 </nav>
@@ -45,23 +45,23 @@
 {% set badge_label = label or raw_status %}
 {% set badge_tone = tone or "info" %}
 {% set badge_icon = icon or "bi-question-circle" %}
-<div class="backup-status backup-status-{{ badge_tone }}"><i class="bi {{ badge_icon }}"></i>{{ badge_label }}{% if show_raw %}<span class="ms-1 opacity-75">{{ raw_status }}</span>{% endif %}</div>
+<div class="backup-status backup-status-{{ badge_tone }}"><i class="bi {{ badge_icon }}"></i>{{ _(badge_label, fallback=badge_label) }}{% if show_raw %}<span class="ms-1 opacity-75">{{ raw_status }}</span>{% endif %}</div>
 {% endmacro %}
 
 {% macro render_backup_record_status(status, label=None, tone=None, show_raw=False) %}
 {% set raw_status = status or "unknown" %}
 {% if raw_status == "planned" %}
-  {{ render_status_badge(raw_status, label or "待计划", tone or "info", "bi-hourglass-split", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.planned'), tone or "info", "bi-hourglass-split", show_raw) }}
 {% elif raw_status == "queued" %}
-  {{ render_status_badge(raw_status, label or "已入队", tone or "info", "bi-list-task", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.queued'), tone or "info", "bi-list-task", show_raw) }}
 {% elif raw_status == "running" %}
-  {{ render_status_badge(raw_status, label or "运行中", tone or "running", "bi-arrow-repeat", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.running'), tone or "running", "bi-arrow-repeat", show_raw) }}
 {% elif raw_status == "cancelled" %}
-  {{ render_status_badge(raw_status, label or "已终止", tone or "warning", "bi-stop-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.cancelled'), tone or "warning", "bi-stop-circle", show_raw) }}
 {% elif raw_status == "succeeded" %}
-  {{ render_status_badge(raw_status, label or "成功", tone or "success", "bi-check-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.succeeded'), tone or "success", "bi-check-circle", show_raw) }}
 {% elif raw_status == "failed" %}
-  {{ render_status_badge(raw_status, label or "失败", tone or "failed", "bi-x-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.failed'), tone or "failed", "bi-x-circle", show_raw) }}
 {% else %}
   {{ render_status_badge(raw_status, label or raw_status, tone or "info", "bi-question-circle", show_raw) }}
 {% endif %}
@@ -70,25 +70,25 @@
 {% macro render_schedule_run_status(status, label=None, tone=None, show_raw=False) %}
 {% set raw_status = status or "unknown" %}
 {% if raw_status == "planned" %}
-  {{ render_status_badge(raw_status, label or "待计划", tone or "info", "bi-hourglass-split", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.planned'), tone or "info", "bi-hourglass-split", show_raw) }}
 {% elif raw_status == "dispatching" %}
-  {{ render_status_badge(raw_status, label or "派发中", tone or "info", "bi-send", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.dispatching'), tone or "info", "bi-send", show_raw) }}
 {% elif raw_status == "running" %}
-  {{ render_status_badge(raw_status, label or "运行中", tone or "running", "bi-arrow-repeat", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.running'), tone or "running", "bi-arrow-repeat", show_raw) }}
 {% elif raw_status == "finalizing" %}
-  {{ render_status_badge(raw_status, label or "收尾中", tone or "running", "bi-hourglass-bottom", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.finalizing'), tone or "running", "bi-hourglass-bottom", show_raw) }}
 {% elif raw_status == "cancelling" %}
-  {{ render_status_badge(raw_status, label or "终止中", tone or "warning", "bi-slash-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.cancelling'), tone or "warning", "bi-slash-circle", show_raw) }}
 {% elif raw_status == "cancelled" %}
-  {{ render_status_badge(raw_status, label or "已终止", tone or "warning", "bi-stop-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.backup.cancelled'), tone or "warning", "bi-stop-circle", show_raw) }}
 {% elif raw_status == "partial_cancelled" %}
-  {{ render_status_badge(raw_status, label or "部分终止", tone or "warning", "bi-exclamation-octagon", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.partial_cancelled'), tone or "warning", "bi-exclamation-octagon", show_raw) }}
 {% elif raw_status == "succeeded" %}
-  {{ render_status_badge(raw_status, label or "全部成功", tone or "success", "bi-check-all", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.succeeded'), tone or "success", "bi-check-all", show_raw) }}
 {% elif raw_status == "partial_failed" %}
-  {{ render_status_badge(raw_status, label or "部分失败", tone or "failed", "bi-exclamation-triangle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.partial_failed'), tone or "failed", "bi-exclamation-triangle", show_raw) }}
 {% elif raw_status == "failed" %}
-  {{ render_status_badge(raw_status, label or "全部失败", tone or "failed", "bi-x-circle", show_raw) }}
+  {{ render_status_badge(raw_status, label or _('status.schedule_run.failed'), tone or "failed", "bi-x-circle", show_raw) }}
 {% else %}
   {{ render_status_badge(raw_status, label or raw_status, tone or "info", "bi-question-circle", show_raw) }}
 {% endif %}

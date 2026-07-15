@@ -24,12 +24,25 @@
           return optionLabel(option);
         }
 
+        function optionPreservesI18n(option) {
+          return !!(option && option.hasAttribute && option.hasAttribute("data-i18n-preserve"));
+        }
+
+        function setPreserveI18n(element, preserve) {
+          if (!element) return;
+          if (preserve) element.setAttribute("data-i18n-preserve", "");
+          else element.removeAttribute("data-i18n-preserve");
+        }
+
         function syncWrapperState(select, wrapper, button) {
+          const option = select.selectedOptions && select.selectedOptions[0];
+          const text = button.querySelector(".nb-select-text");
           wrapper.classList.toggle("d-none", select.classList.contains("d-none"));
           button.disabled = select.disabled;
           button.classList.toggle("disabled", select.disabled);
           button.setAttribute("aria-disabled", select.disabled ? "true" : "false");
-          button.querySelector(".nb-select-text").textContent = selectedLabel(select);
+          setPreserveI18n(text, optionPreservesI18n(option));
+          text.textContent = optionLabel(option);
         }
 
         function buildOptions(select, menu, button) {
@@ -39,6 +52,7 @@
             const item = document.createElement("button");
             item.type = "button";
             item.className = "nb-select-option";
+            setPreserveI18n(item, optionPreservesI18n(option));
             item.textContent = optionLabel(option);
             const depth = Math.max(0, Number(option.dataset && option.dataset.depth ? option.dataset.depth : "0"));
             item.style.setProperty("--nb-option-depth", String(depth));
@@ -50,7 +64,9 @@
               if (option.disabled) return;
               select.value = option.value;
               select.dispatchEvent(new Event("change", { bubbles: true }));
-              button.querySelector(".nb-select-text").textContent = selectedLabel(select);
+              const text = button.querySelector(".nb-select-text");
+              setPreserveI18n(text, optionPreservesI18n(option));
+              text.textContent = selectedLabel(select);
               const dropdown = bootstrap.Dropdown.getInstance(button) || new bootstrap.Dropdown(button);
               dropdown.hide();
               setTimeout(refreshAllSelects, 0);

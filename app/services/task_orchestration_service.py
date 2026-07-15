@@ -12,8 +12,10 @@ from sqlmodel import Session
 
 from app import crud
 from app.core.settings import settings
+from app.i18n import translate
 from app.platforms import platforms_compatible
 from app.services.alert_service import check_and_alert_batch
+from app.services.backup_error_service import localize_backup_error_message
 from app.services import (
     device_service,
     task_dispatcher_service,
@@ -213,18 +215,23 @@ def celery_worker_available(*, timeout: float = 1.0) -> bool:
     return _celery_worker_available(timeout=timeout)
 
 
-def _describe_enqueue_failure(session: Session, jobs: list[BackupDispatchJob]) -> str:
+def _describe_enqueue_failure(
+    session: Session,
+    jobs: list[BackupDispatchJob],
+    *,
+    locale: str | None = None,
+) -> str:
     for _, backup_id, __ in jobs:
         record = crud.get_backup(session, backup_id)
         if record is None:
             continue
         failure_type = str(getattr(record, "failure_type", "") or "").strip()
         if failure_type == "WORKER_UNAVAILABLE":
-            return "Celery worker 未启动或无响应"
+            return translate(locale, "task.command.queue_unavailable")
         error_message = str(getattr(record, "error_message", "") or "").strip()
         if error_message:
-            return error_message
-    return "Celery 未启用或不可用"
+            return localize_backup_error_message(error_message, failure_type, locale=locale)
+    return translate(locale, "task.command.queue_unavailable")
 
 
 def _finish_schedule_run_enqueue_failed(
@@ -282,10 +289,11 @@ def terminate_schedule_run(
     session: Session,
     *,
     run_id: UUID,
+    locale: str | None = None,
 ) -> TerminateScheduleRunResult:
     run = crud.get_schedule_run(session, run_id)
     if run is None:
-        raise ServiceError("运行记录不存在", code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
+        raise ServiceError(translate(locale, "task.command.run_not_found"), code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
     if task_state_service.is_schedule_run_terminal_status(run.status):
         return TerminateScheduleRunResult(
             run_id=run_id,
@@ -294,7 +302,7 @@ def terminate_schedule_run(
             terminated_records=0,
             skipped_records=int(run.total_devices or 0),
             running_records=0,
-            message="该运行已结束，无需终止",
+            message=translate(locale, "task.command.terminate.already_finished"),
         )
 
     items = crud.list_schedule_run_items(session, run_id)
@@ -332,7 +340,7 @@ def terminate_schedule_run(
             terminated_records=0,
             skipped_records=len(records),
             running_records=len(running_records),
-            message="当前没有可终止的未运行任务",
+            message=translate(locale, "task.command.terminate.no_pending"),
         )
 
     for record in pending_records:
@@ -400,7 +408,7 @@ def terminate_schedule_run(
             terminated_records=len(pending_records),
             skipped_records=max(0, len(records) - len(pending_records)),
             running_records=0,
-            message="未运行任务已终止",
+            message=translate(locale, "task.command.terminate.completed"),
         )
 
     crud.update_schedule_run_status(
@@ -429,7 +437,7 @@ def terminate_schedule_run(
         terminated_records=len(pending_records),
         skipped_records=max(0, len(records) - len(pending_records)),
         running_records=len(running_records),
-        message="未运行任务已终止，运行中的任务将继续完成",
+        message=translate(locale, "task.command.terminate.completed_with_running"),
     )
 
 
@@ -439,21 +447,22 @@ def terminate_selected_schedule_run(
     run_id: UUID,
     backup_ids: list[UUID | str],
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> TerminateSelectedScheduleRunResult:
     selected_backup_ids = _normalize_selected_backup_ids(backup_ids)
     if not selected_backup_ids:
-        raise ServiceError("请选择至少一个任务", code="SCHEDULE_RUN_TERMINATE_SELECTED_EMPTY", status_code=400)
+        raise ServiceError(translate(locale, "task.command.select_at_least_one"), code="SCHEDULE_RUN_TERMINATE_SELECTED_EMPTY", status_code=400)
 
     run = crud.get_schedule_run(session, run_id)
     if run is None:
-        raise ServiceError("运行记录不存在", code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
+        raise ServiceError(translate(locale, "task.command.run_not_found"), code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
 
     items = crud.list_schedule_run_items(session, run_id)
     item_backup_ids = [item.backup_id for item in items if item.backup_id]
     selected_backup_id_set = set(selected_backup_ids)
     selected_in_run_ids = [backup_id for backup_id in item_backup_ids if backup_id in selected_backup_id_set]
     if not selected_in_run_ids:
-        raise ServiceError("所选任务不属于当前运行", code="SCHEDULE_RUN_TERMINATE_SELECTED_INVALID", status_code=400)
+        raise ServiceError(translate(locale, "task.command.selected_not_in_run"), code="SCHEDULE_RUN_TERMINATE_SELECTED_INVALID", status_code=400)
 
     records = crud.list_backups_by_ids(session, item_backup_ids)
     records_by_id = {record.id: record for record in records if getattr(record, "id", None)}
@@ -478,7 +487,7 @@ def terminate_selected_schedule_run(
         selected_records.append(record)
 
     if not selected_records:
-        raise ServiceError("所选任务当前不可操作", code="SCHEDULE_RUN_TERMINATE_SELECTED_FORBIDDEN", status_code=403)
+        raise ServiceError(translate(locale, "task.command.selected_unavailable"), code="SCHEDULE_RUN_TERMINATE_SELECTED_FORBIDDEN", status_code=403)
 
     if task_state_service.is_schedule_run_terminal_status(run.status):
         return TerminateSelectedScheduleRunResult(
@@ -489,7 +498,7 @@ def terminate_selected_schedule_run(
             terminated_records=0,
             skipped_records=len(selected_records) + skipped_records,
             running_records=0,
-            message="该运行已结束，无法再终止所选任务",
+            message=translate(locale, "task.command.terminate_selected.already_finished"),
         )
 
     pending_records = [
@@ -526,7 +535,7 @@ def terminate_selected_schedule_run(
             terminated_records=0,
             skipped_records=skipped_total,
             running_records=len(running_records),
-            message="所选任务中没有可终止的未运行项",
+            message=translate(locale, "task.command.terminate_selected.no_pending"),
         )
 
     for record in pending_records:
@@ -573,7 +582,12 @@ def terminate_selected_schedule_run(
             unfinished_count=0,
         )
 
-    message = f"已终止 {len(pending_records)} 个选中未运行任务"
+    message_key = "task.command.terminate_selected.completed_with_running" if running_records else "task.command.terminate_selected.completed"
+    message = translate(
+        locale,
+        message_key,
+        {"terminated": len(pending_records), "running": len(running_records)},
+    )
     _log_schedule_run_event(
         run_id=run_id,
         event="schedule_run_terminate_selected_completed",
@@ -589,8 +603,6 @@ def terminate_selected_schedule_run(
         unfinished_count=unfinished_count,
         status=final_status,
     )
-    if len(running_records) > 0:
-        message += f"，{len(running_records)} 个运行中任务将继续完成"
     return TerminateSelectedScheduleRunResult(
         run_id=run_id,
         schedule_id=int(run.schedule_id or 0),
@@ -608,16 +620,17 @@ def retry_schedule_run(
     *,
     run_id: UUID,
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> RetryScheduleRunResult:
     run = crud.get_schedule_run(session, run_id)
     if run is None:
-        raise ServiceError("运行记录不存在", code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
+        raise ServiceError(translate(locale, "task.command.run_not_found"), code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
     if task_state_service.is_schedule_run_active_status(run.status):
-        raise ServiceError("运行尚未结束，暂时无法重试", code="SCHEDULE_RUN_RETRY_ACTIVE", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry.run_active"), code="SCHEDULE_RUN_RETRY_ACTIVE", status_code=409)
 
     items = crud.list_schedule_run_items(session, run_id)
     if not items:
-        raise ServiceError("当前运行没有可重试的任务", code="SCHEDULE_RUN_RETRY_EMPTY", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry.empty"), code="SCHEDULE_RUN_RETRY_EMPTY", status_code=409)
 
     backup_ids = [item.backup_id for item in items if item.backup_id]
     records = crud.list_backups_by_ids(session, backup_ids)
@@ -635,7 +648,7 @@ def retry_schedule_run(
             skipped_records += 1
             continue
         if task_state_service.is_backup_record_active_status(status):
-            raise ServiceError("存在仍在执行中的子任务，暂时无法重试", code="SCHEDULE_RUN_RETRY_HAS_ACTIVE_BACKUPS", status_code=409)
+            raise ServiceError(translate(locale, "task.command.retry.has_active"), code="SCHEDULE_RUN_RETRY_HAS_ACTIVE_BACKUPS", status_code=409)
         device = crud.get_device(session, int(record.device_id or 0))
         if device is None:
             skipped_records += 1
@@ -649,7 +662,7 @@ def retry_schedule_run(
         retry_sources.append((int(record.device_id), int(record.template_id) if getattr(record, "template_id", None) else None))
 
     if not retry_sources:
-        raise ServiceError("当前没有可重试的失败或已终止任务", code="SCHEDULE_RUN_RETRY_NOTHING", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry.nothing"), code="SCHEDULE_RUN_RETRY_NOTHING", status_code=409)
 
     new_run = crud.create_schedule_run(
         session,
@@ -677,13 +690,16 @@ def retry_schedule_run(
         skip_email=True,
     )
     if enqueue_status == "none":
-        raise ServiceError(_describe_enqueue_failure(session, jobs), code="SCHEDULE_RUN_RETRY_ENQUEUE_FAILED", status_code=503)
-        raise ServiceError("Celery 未启用或不可用", code="SCHEDULE_RUN_RETRY_ENQUEUE_FAILED", status_code=503)
+        raise ServiceError(
+            _describe_enqueue_failure(session, jobs, locale=locale),
+            code="SCHEDULE_RUN_RETRY_ENQUEUE_FAILED",
+            status_code=503,
+        )
 
     if enqueue_status == "partial":
-        message = f"已重试 {len(enqueued_record_ids)} 个任务，部分任务入队失败"
+        message = translate(locale, "task.command.retry.partial", {"count": len(enqueued_record_ids)})
     else:
-        message = f"已重试 {len(enqueued_record_ids)} 个任务"
+        message = translate(locale, "task.command.retry.completed", {"count": len(enqueued_record_ids)})
     _log_schedule_run_event(
         run_id=new_run_id,
         event="schedule_run_retry_created",
@@ -713,26 +729,27 @@ def retry_selected_schedule_run(
     run_id: UUID,
     backup_ids: list[UUID | str],
     allowed_group_ids: list[int] | None = None,
+    locale: str | None = None,
 ) -> RetrySelectedScheduleRunResult:
     selected_backup_ids = _normalize_selected_backup_ids(backup_ids)
     if not selected_backup_ids:
-        raise ServiceError("请选择至少一个任务", code="SCHEDULE_RUN_RETRY_SELECTED_EMPTY", status_code=400)
+        raise ServiceError(translate(locale, "task.command.select_at_least_one"), code="SCHEDULE_RUN_RETRY_SELECTED_EMPTY", status_code=400)
 
     run = crud.get_schedule_run(session, run_id)
     if run is None:
-        raise ServiceError("运行记录不存在", code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
+        raise ServiceError(translate(locale, "task.command.run_not_found"), code="SCHEDULE_RUN_NOT_FOUND", status_code=404)
     if task_state_service.is_schedule_run_active_status(run.status):
-        raise ServiceError("运行尚未结束，暂时无法重试", code="SCHEDULE_RUN_RETRY_ACTIVE", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry.run_active"), code="SCHEDULE_RUN_RETRY_ACTIVE", status_code=409)
 
     items = crud.list_schedule_run_items(session, run_id)
     if not items:
-        raise ServiceError("当前运行没有可重试的任务", code="SCHEDULE_RUN_RETRY_EMPTY", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry.empty"), code="SCHEDULE_RUN_RETRY_EMPTY", status_code=409)
 
     item_backup_ids = [item.backup_id for item in items if item.backup_id]
     selected_backup_id_set = set(selected_backup_ids)
     selected_in_run_ids = [backup_id for backup_id in item_backup_ids if backup_id in selected_backup_id_set]
     if not selected_in_run_ids:
-        raise ServiceError("所选任务不属于当前运行", code="SCHEDULE_RUN_RETRY_SELECTED_INVALID", status_code=400)
+        raise ServiceError(translate(locale, "task.command.selected_not_in_run"), code="SCHEDULE_RUN_RETRY_SELECTED_INVALID", status_code=400)
 
     records = crud.list_backups_by_ids(session, item_backup_ids)
     records_by_id = {record.id: record for record in records if getattr(record, "id", None)}
@@ -749,7 +766,7 @@ def retry_selected_schedule_run(
             skipped_records += 1
             continue
         if task_state_service.is_backup_record_active_status(status):
-            raise ServiceError("所选任务中仍存在执行中的子任务，暂时无法重试", code="SCHEDULE_RUN_RETRY_SELECTED_HAS_ACTIVE", status_code=409)
+            raise ServiceError(translate(locale, "task.command.retry_selected.has_active"), code="SCHEDULE_RUN_RETRY_SELECTED_HAS_ACTIVE", status_code=409)
         device = crud.get_device(session, int(record.device_id or 0))
         if device is None:
             skipped_records += 1
@@ -763,7 +780,7 @@ def retry_selected_schedule_run(
         retry_sources.append((int(record.device_id), int(record.template_id) if getattr(record, "template_id", None) else None))
 
     if not retry_sources:
-        raise ServiceError("所选任务中没有可重试项", code="SCHEDULE_RUN_RETRY_SELECTED_NOTHING", status_code=409)
+        raise ServiceError(translate(locale, "task.command.retry_selected.nothing"), code="SCHEDULE_RUN_RETRY_SELECTED_NOTHING", status_code=409)
 
     new_run = crud.create_schedule_run(
         session,
@@ -791,12 +808,14 @@ def retry_selected_schedule_run(
         skip_email=True,
     )
     if enqueue_status == "none":
-        raise ServiceError(_describe_enqueue_failure(session, jobs), code="SCHEDULE_RUN_RETRY_SELECTED_ENQUEUE_FAILED", status_code=503)
-        raise ServiceError("Celery 未启用或不可用", code="SCHEDULE_RUN_RETRY_SELECTED_ENQUEUE_FAILED", status_code=503)
+        raise ServiceError(
+            _describe_enqueue_failure(session, jobs, locale=locale),
+            code="SCHEDULE_RUN_RETRY_SELECTED_ENQUEUE_FAILED",
+            status_code=503,
+        )
 
-    message = f"已重试 {len(enqueued_record_ids)} 个选中任务"
-    if enqueue_status == "partial":
-        message += "，部分任务入队失败"
+    message_key = "task.command.retry_selected.partial" if enqueue_status == "partial" else "task.command.retry_selected.completed"
+    message = translate(locale, message_key, {"count": len(enqueued_record_ids)})
     _log_schedule_run_event(
         run_id=new_run_id,
         event="schedule_run_retry_selected_created",
@@ -1214,7 +1233,7 @@ def finalize_schedule_run(
         cancelled_count=cancelled_count,
         unfinished_count=unfinished_count,
     )
-    alert_result = check_and_alert_batch(session, run_id)
+    alert_result = check_and_alert_batch(session, run_id, records=records)
     alert_event_details = dict(alert_result or {})
     alert_event_details.setdefault("success_count", success_count)
     alert_event_details.setdefault("fail_count", fail_count)

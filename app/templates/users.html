@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
-{% set page_title = "用户管理" %}
-{% set page_subtitle = "管理系统登录账号与角色分配" %}
+{% from "macros.html" import render_pagination with context %}
+{% set page_title = _('nav.users') %}
+{% set page_subtitle = _('page.users.subtitle') %}
 {% set can_user_create = has_permission('users.create') %}
 {% set can_user_update = has_permission('users.update') %}
 {% set can_user_delete = has_permission('users.delete') %}
@@ -10,15 +10,15 @@
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="small text-secondary">用户列表</div>
+        <div class="small text-secondary">{{ _('template.users.user_list') }}</div>
         {% if can_user_create %}
           {% if current %}
             <a class="btn btn-sm btn-primary" href="/users">
-              <i class="bi bi-plus-lg me-1"></i>新增用户
+              <i class="bi bi-plus-lg me-1"></i>{{ _('template.users.add_user') }}
             </a>
           {% else %}
             <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#userModal">
-              <i class="bi bi-plus-lg me-1"></i>新增用户
+              <i class="bi bi-plus-lg me-1"></i>{{ _('template.users.add_user') }}
             </button>
           {% endif %}
         {% endif %}
@@ -28,53 +28,54 @@
           <thead>
             <tr>
               <th style="width: 80px;">ID</th>
-              <th style="width: 180px;">用户名</th>
-              <th style="width: 160px;">角色</th>
+              <th style="width: 180px;">{{ _('audit.csv.username') }}</th>
+              <th style="width: 160px;">{{ _('audit.resource.role') }}</th>
               <th style="width: 120px;">MFA</th>
-              <th style="width: 220px;">创建时间</th>
-              <th style="width: 200px;">操作</th>
+              <th style="width: 220px;">{{ _('template.api_keys.created_at') }}</th>
+              <th style="width: 200px;">{{ _('audit.csv.action') }}</th>
             </tr>
           </thead>
           <tbody>
             {% for u in items %}
               <tr>
                 <td>{{ u.id }}</td>
-                <td>{{ u.username }}</td>
+                <td data-i18n-preserve>{{ u.username }}</td>
                 <td>
                   {% set role_info = role_map.get(u.role) %}
-                  {% set role_label = role_info.name if role_info else u.role %}
+                  {% set stored_role_label = role_info.name if role_info else u.role %}
+                  {% set role_label = role_labels.get(u.role, stored_role_label) %}
                   {% if u.role in admin_role_codes %}
-                    <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); border-color: var(--bs-primary-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system and u.role not in admin_role_codes %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-badge-fill"></i>{{ role_label }}
                     </div>
                   {% elif u.role == 'operator' %}
-                    <div class="backup-status" style="background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); border-color: var(--bs-success-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); border-color: var(--bs-success-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-gear-fill"></i>{{ role_label }}
                     </div>
                   {% elif u.role == 'readonly' %}
-                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-fill"></i>{{ role_label }}
                     </div>
                   {% else %}
-                    <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;">
+                    <div class="backup-status" style="background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); border-color: var(--bs-info-border-subtle); font-size: 10px;" {% if role_info and not role_info.is_system %}data-i18n-preserve{% endif %}>
                       <i class="bi bi-person-gear"></i>{{ role_label }}
                     </div>
                   {% endif %}
                   {% if u.group_access_type == 'specific' %}
                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 10px;">
-                        <i class="bi bi-filter"></i>受限
+                        <i class="bi bi-filter"></i>{{ _('template.users.restricted') }}
                     </span>
                   {% endif %}
                 </td>
                 <td>
                   {% if u.mfa_enabled %}
                     {% if u.mfa_secret %}
-                      <span class="badge bg-success-subtle text-success border border-success-subtle">已启用</span>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle">{{ _('template.notifications.enabled') }}</span>
                     {% else %}
-                      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">待绑定</span>
+                      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">{{ _('template.users.pending_setup') }}</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">未启用</span>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ _('template.storage_settings.disabled') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-secondary small">{{ u.created_at|dt_local }}</td>
@@ -82,39 +83,39 @@
                   <div class="d-flex gap-1 text-nowrap">
                     {% if can_user_update %}
                       <a class="btn btn-sm btn-outline-primary px-2 text-nowrap" href="/users?edit={{ u.id }}">
-                        <i class="bi bi-pencil me-1"></i>编辑
+                        <i class="bi bi-pencil me-1"></i>{{ _('template.credentials.edit') }}
                       </a>
                     {% endif %}
                     {% if can_user_delete and u.username != 'admin' %}
                       <form method="post" action="/users/{{ u.id }}/delete" class="d-inline m-0 text-nowrap">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此用户吗？">
-                          <i class="bi bi-trash me-1"></i>删除
+                        <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.user" data-confirm-msg="{{ _('template.users.confirm_delete') }}？">
+                          <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                         </button>
                       </form>
                     {% elif can_user_delete %}
-                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="系统管理员账号不可删除">
+                      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="{{ _('template.users.system_administrator_accounts_cannot_be_deleted') }}">
                         <button class="btn btn-sm btn-outline-secondary px-2 text-nowrap disabled" type="button" style="pointer-events: none;">
-                          <i class="bi bi-trash me-1"></i>删除
+                          <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                         </button>
                       </span>
                     {% endif %}
                     {% if not can_user_update and not can_user_delete %}
-                      <span class="text-muted small">无可用操作</span>
+                      <span class="text-muted small">{{ _('template.roles.no_available_actions') }}</span>
                     {% endif %}
                   </div>
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="6" class="text-center text-secondary py-4">暂无用户</td>
+                <td colspan="6" class="text-center text-secondary py-4">{{ _('template.users.no_users') }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      {{ render_pagination(pagination, pagination_base, "个用户") }}
+      {{ render_pagination(pagination, pagination_base, _('template.users.users')) }}
     </div>
   </div>
 
@@ -128,40 +129,42 @@
           <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
             <h5 class="modal-title d-flex align-items-center">
               <i class="bi {{ 'bi-pencil-square' if current else 'bi-person-plus-fill' }} text-primary me-2"></i>
-              <span>{{ '编辑用户' if current else '新增用户' }}</span>
+              <span>{{ _('template.users.edit_user') if current else _('template.users.add_user') }}</span>
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
           </div>
           <div class="modal-body p-4">
             <div class="row g-4">
               <div class="col-md-6">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-person me-1"></i>用户名
+                  <i class="bi bi-person me-1"></i>{{ _('audit.csv.username') }}
                 </label>
-                <input name="username" id="usernameInput" class="form-control" placeholder="请输入用户名" value="{{ current.username if current else '' }}" {% if current and current.username == 'admin' %}readonly{% endif %} required />
+                <input name="username" id="usernameInput" class="form-control" placeholder="{{ _('template.login.enter_username') }}" value="{{ current.username if current else '' }}" {% if current and current.username == 'admin' %}readonly{% endif %} required />
               </div>
               <div class="col-md-6">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-key me-1"></i>登录密码
+                  <i class="bi bi-key me-1"></i>{{ _('template.users.login_password') }}
                 </label>
                 <input name="password" type="password" class="form-control" {{ 'required' if not current else '' }} />
                 {% if current %}
-                  <div class="form-text x-small mt-1">留空表示不修改</div>
+                  <div class="form-text x-small mt-1">{{ _('template.users.leave_blank_to_keep_unchanged') }}</div>
                 {% else %}
-                  <div class="form-text x-small mt-1">密码长度建议不少于 8 位</div>
+                  <div class="form-text x-small mt-1">{{ _('template.users.password') }} 8 {{ _('template.users.characters') }}</div>
                 {% endif %}
               </div>
               <div class="col-12">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-shield-lock me-1"></i>用户角色
+                  <i class="bi bi-shield-lock me-1"></i>{{ _('template.users.user_role') }}
                 </label>
                 <select name="role" class="form-select" {% if current and current.username == 'admin' %}disabled{% endif %}>
                   {% if not current %}
-                    <option value="" selected disabled>请选择角色</option>
+                    <option value="" selected disabled>{{ _('template.users.select_a_role') }}</option>
                   {% endif %}
                   {% for r in roles %}
-                    <option value="{{ r.code }}" {% if current and current.role == r.code %}selected{% endif %}>
-                      {{ r.name }}{% if r.is_admin %} (Full Access){% endif %}
+                    {% set role_display_name = role_labels.get(r.code, r.name) if r.is_system or r.code in admin_role_codes else r.name %}
+                    {% set role_option_label = role_display_name ~ (' (' ~ _('role.full_access') ~ ')' if r.is_admin else '') %}
+                    <option value="{{ r.code }}" data-nb-label="{{ role_option_label|e }}" {% if not r.is_system and r.code not in admin_role_codes %}data-i18n-preserve{% endif %} {% if current and current.role == r.code %}selected{% endif %}>
+                      {{ role_option_label }}
                     </option>
                   {% endfor %}
                 </select>
@@ -169,7 +172,7 @@
 
               <div class="col-12">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-shield-check me-1"></i>MFA 认证
+                  <i class="bi bi-shield-check me-1"></i>MFA {{ _('template.users.authentication') }}
                 </label>
                 <div class="card bg-light-subtle border-0">
                   <div class="card-body">
@@ -177,35 +180,35 @@
                       <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" name="mfa_enabled" id="mfaEnabled" value="1"
                           {% if current and current.mfa_enabled %}checked{% endif %}>
-                        <label class="form-check-label small fw-medium" for="mfaEnabled">启用 MFA 验证</label>
+                        <label class="form-check-label small fw-medium" for="mfaEnabled">{{ _('template.storage_settings.enable') }} MFA {{ _('template.users.verify') }}</label>
                       </div>
                       {% if current and current.mfa_enabled %}
                         {% if current.mfa_secret %}
-                          <span class="badge bg-success-subtle text-success border border-success-subtle">已启用</span>
+                          <span class="badge bg-success-subtle text-success border border-success-subtle">{{ _('template.notifications.enabled') }}</span>
                         {% else %}
-                          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">待绑定</span>
+                          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">{{ _('template.users.pending_setup') }}</span>
                         {% endif %}
                       {% else %}
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">未启用</span>
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ _('template.storage_settings.disabled') }}</span>
                       {% endif %}
                     </div>
 
                     <div id="mfaSetupPanel" style="display: {{ 'block' if not current or (current and not current.mfa_enabled) or (current and current.mfa_enabled and not current.mfa_secret) else 'none' }};">
                       <div class="form-text x-small text-secondary mt-0">
-                        启用后，用户首次登录时将提示扫描二维码绑定验证器（如使用Microsoft Authenticator），并输入验证码完成配置。
+                        {{ _('template.users.mfa_first_sign_in_help') }}
                       </div>
                     </div>
                     
                     {% if current and current.mfa_enabled %}
                       <div class="form-check mb-2 ms-1">
                         <input class="form-check-input" type="checkbox" name="mfa_reset" id="mfaReset" value="1">
-                        <label class="form-check-label small text-secondary" for="mfaReset">重置 MFA 密钥</label>
+                        <label class="form-check-label small text-secondary" for="mfaReset">{{ _('template.audit_logs.reset') }} MFA {{ _('template.mfa_setup.key') }}</label>
                       </div>
                     {% endif %}
 
                     {% if current and current.mfa_enabled and current.username != 'admin' %}
                       <div class="form-text x-small text-secondary mt-1">
-                        用户丢失验证器时，可由管理员在此取消启用后重新登录绑定。
+                        {{ _('template.users.verify_administratorat_cancelwhen_enabled_sign_in') }}。
                       </div>
                     {% endif %}
                   </div>
@@ -215,7 +218,7 @@
               {% if current and current.role in admin_role_codes %}
                 <div class="col-12">
                   <label class="form-label small fw-bold text-secondary">
-                    <i class="bi bi-key-fill me-1"></i>恢复码
+                    <i class="bi bi-key-fill me-1"></i>{{ _('template.mfa_verify.recovery_code') }}
                   </label>
                   <div class="card bg-light-subtle border-0">
                     <div class="card-body">
@@ -224,27 +227,27 @@
                           <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" name="recovery_codes_enabled" id="recoveryCodesEnabled" value="1"
                               {% if current and current.recovery_codes_enabled %}checked{% endif %}>
-                            <label class="form-check-label small fw-medium" for="recoveryCodesEnabled">启用恢复码</label>
+                            <label class="form-check-label small fw-medium" for="recoveryCodesEnabled">{{ _('template.users.enablerecovery_code') }}</label>
                           </div>
-                          <span class="badge bg-body-secondary text-secondary border fw-normal" style="font-size: 0.75rem;">已生成 {{ recovery_codes_count }} 枚</span>
+                          <span class="badge bg-body-secondary text-secondary border fw-normal" style="font-size: 0.75rem;">{{ _('template.api_keys.generated') }} {{ recovery_codes_count }} {{ _('template.users.codes') }}</span>
                         </div>
                         <button class="btn btn-sm btn-outline-primary bg-white py-0" style="font-size: 0.8rem;" type="submit" name="recovery_codes_generate" value="1">
-                          <i class="bi bi-arrow-clockwise me-1"></i>生成恢复码
+                          <i class="bi bi-arrow-clockwise me-1"></i>{{ _('template.users.generaterecovery_code') }}
                         </button>
                       </div>
                       
                       <div class="form-text x-small text-secondary mt-0">
-                        恢复码作为管理员启用MFA后一组一次性使用的备用验证码，生成后旧恢复码将立即失效，每个恢复码也只能使用一次，使用过则失效
+                        {{ _('template.users.recovery_code_administratorenable') }}MFA{{ _('template.users.use_verification_code_old_recovery_codes_become_invalid') }}
                       </div>
 
                       {% if recovery_codes %}
                         <div class="mt-3 pt-3 border-top border-secondary-subtle">
                           <div class="d-flex align-items-center justify-content-between mb-2">
                             <div class="small text-danger fw-medium" style="font-size: 0.8rem;">
-                              <i class="bi bi-exclamation-circle me-1"></i>仅显示一次，请立即保存
+                              <i class="bi bi-exclamation-circle me-1"></i>{{ _('template.users.shown_only_once_save_now') }}
                             </div>
                             <button class="btn btn-sm btn-outline-secondary bg-white py-0" style="font-size: 0.8rem;" type="button" id="copyRecoveryCodes" data-codes="{{ recovery_codes|join('\n') }}">
-                              <i class="bi bi-clipboard me-1"></i>复制恢复码
+                              <i class="bi bi-clipboard me-1"></i>{{ _('template.users.copy_recovery_codes') }}
                             </button>
                           </div>
                           <div class="p-2 bg-body rounded border d-flex flex-wrap gap-2 font-monospace" style="max-height: 120px; overflow-y: auto;">
@@ -261,7 +264,7 @@
 
               <div class="col-12">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-droplet-half me-1"></i>背景水印
+                  <i class="bi bi-droplet-half me-1"></i>{{ _('template.users.background_watermark') }}
                 </label>
                 <div class="card bg-light-subtle border-0">
                   <div class="card-body py-2">
@@ -269,7 +272,7 @@
                       <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" name="enable_watermark" id="enableWatermark" value="1"
                           {% if not current or current.enable_watermark %}checked{% endif %}>
-                        <label class="form-check-label small fw-medium" for="enableWatermark">显示用户名背景水印</label>
+                        <label class="form-check-label small fw-medium" for="enableWatermark">{{ _('template.users.show_username_background_watermark') }}</label>
                       </div>
                     </div>
                   </div>
@@ -279,9 +282,9 @@
               <div class="col-12">
                   <label class="form-label small fw-bold text-secondary d-flex align-items-center">
                       <i class="bi bi-diagram-3 me-1"></i>
-                      <span>设备分组访问权限</span>
+                      <span>{{ _('template.users.device_groupsaccesspermissions') }}</span>
                       <div class="form-text x-small ms-2 mt-0 text-secondary opacity-50">
-                          <i class="bi bi-info-circle me-1"></i>勾选分组以分配权限；授权父节点即自动包含其所有子孙节点。
+                          <i class="bi bi-info-circle me-1"></i>{{ _('template.users.select_groups_to_assign_permissions_granting_a_parent') }}。
                       </div>
                   </label>
                   <div class="card bg-light-subtle border-0">
@@ -292,14 +295,14 @@
                                       {% if not current or current.group_access_type == 'all' %}checked{% endif %}
                                       {% if current and current.username == 'admin' %}disabled{% endif %}
                                       onchange="toggleGroupSelect(false)">
-                                  <label class="form-check-label small" for="userAccessAll">所有分组 (无限制)</label>
+                                  <label class="form-check-label small" for="userAccessAll">{{ _('template.users.group') }} ({{ _('template.users.unrestricted') }})</label>
                               </div>
                               <div class="form-check">
                                   <input class="form-check-input" type="radio" name="group_access_type" id="userAccessSpecific" value="specific"
                                       {% if current and current.group_access_type == 'specific' %}checked{% endif %}
                                       {% if current and current.username == 'admin' %}disabled{% endif %}
                                       onchange="toggleGroupSelect(true)">
-                                  <label class="form-check-label small" for="userAccessSpecific">指定分组</label>
+                                  <label class="form-check-label small" for="userAccessSpecific">{{ _('template.users.specific_groups') }}</label>
                               </div>
                           </div>
                       </div>
@@ -314,10 +317,10 @@
             </div>
           </div>
           <div class="modal-footer bg-body-tertiary border-top-0 py-3">
-            <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
             <button class="btn btn-primary px-5 shadow-sm" type="submit">
               <i class="bi {{ 'bi-check-lg' if current else 'bi-person-check' }} me-1"></i>
-              {{ '确认修改' if current else '创建用户' }}
+              {{ _('template.users.confirm_changes') if current else _('audit.action.CREATE_USER') }}
             </button>
           </div>
         </form>
@@ -440,6 +443,7 @@
               
               const text = document.createElement('span');
               text.className = textClass;
+              text.setAttribute('data-i18n-preserve', '');
               text.textContent = node.name;
               
               content.appendChild(toggle);
@@ -535,7 +539,7 @@
       if (treeContainer) {
           const isDisabled = {% if current and current.username == 'admin' %}true{% else %}false{% endif %};
           const treeData = [
-              { id: -1, name: '未分组设备', children: [] },
+              { id: -1, name: '{{ _('template.users.ungroupeddevice') }}', children: [] },
               ...buildTree(groupItems)
           ];
           renderCheckboxTree(treeData, treeContainer, {
@@ -584,11 +588,11 @@
           }
           try {
             await navigator.clipboard.writeText(codes);
-            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.textContent = ('{{ _('template.api_keys.copied') }}');
             copyRecoveryCodes.classList.remove('btn-outline-secondary');
             copyRecoveryCodes.classList.add('btn-success');
             setTimeout(() => {
-              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.textContent = ('{{ _('template.users.copy_recovery_codes') }}');
               copyRecoveryCodes.classList.add('btn-outline-secondary');
               copyRecoveryCodes.classList.remove('btn-success');
             }, 1500);
@@ -601,11 +605,11 @@
             fallback.select();
             document.execCommand('copy');
             document.body.removeChild(fallback);
-            copyRecoveryCodes.textContent = '已复制';
+            copyRecoveryCodes.textContent = ('{{ _('template.api_keys.copied') }}');
             copyRecoveryCodes.classList.remove('btn-outline-secondary');
             copyRecoveryCodes.classList.add('btn-success');
             setTimeout(() => {
-              copyRecoveryCodes.textContent = '复制恢复码';
+              copyRecoveryCodes.textContent = ('{{ _('template.users.copy_recovery_codes') }}');
               copyRecoveryCodes.classList.add('btn-outline-secondary');
               copyRecoveryCodes.classList.remove('btn-success');
             }, 1500);

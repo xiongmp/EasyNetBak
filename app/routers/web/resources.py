@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from sqlmodel import Session, select
@@ -109,7 +109,7 @@ def create_credential(
             _log_action(request, session, "CREATE_CREDENTIAL", "credential", cred.id, f"Name: {cred.name}")
     except resource_service.ServiceError as exc:
         return RedirectResponse(url=f"/credentials?err={quote(exc.message)}", status_code=303)
-    return RedirectResponse(url="/credentials?msg=已保存", status_code=303)
+    return RedirectResponse(url="/credentials?msg=message.saved", status_code=303)
 
 
 @router.post("/credentials/{credential_id}/delete", summary="删除凭据", description="删除指定的登录凭据")
@@ -120,7 +120,7 @@ def delete_credential(request: Request, credential_id: int, session: Session = D
         _log_action(request, session, "DELETE_CREDENTIAL", "credential", credential_id, f"Name: {cred.name}")
     except resource_service.ServiceError as exc:
         return RedirectResponse(url=f"/credentials?err={quote(exc.message)}", status_code=303)
-    return RedirectResponse(url="/credentials?msg=已删除", status_code=303)
+    return RedirectResponse(url="/credentials?msg=message.deleted", status_code=303)
 
 
 @router.get("/credentials/import_template.csv", summary="下载凭据导入模板", description="获取凭据导入的CSV模板文件")
@@ -153,7 +153,7 @@ async def import_credentials_csv(
     else:
         _require_permission(request, "credentials.create")
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        return RedirectResponse(url="/credentials?err=请上传CSV文件", status_code=303)
+        return RedirectResponse(url="/credentials?err=credential_import.error.csv_required", status_code=303)
     content = await file.read()
     text = None
     for enc in ("utf-8-sig", "gbk", "utf-8"):
@@ -167,7 +167,7 @@ async def import_credentials_csv(
     reader = csv.DictReader(io.StringIO(text))
     required = {"name", "username"}
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
-        return RedirectResponse(url="/credentials?err=CSV缺少必要列", status_code=303)
+        return RedirectResponse(url="/credentials?err=credential_import.error.invalid_columns", status_code=303)
 
     created = 0
     updated = 0
@@ -225,8 +225,15 @@ async def import_credentials_csv(
         _log_action(request, session, "CREATE_CREDENTIAL", "credential", cred.id, f"Name: {name} (Import)")
         created += 1
 
-    msg = f"导入完成：创建{created}，更新{updated}，跳过{skipped}"
-    return RedirectResponse(url=f"/credentials?msg={quote(msg)}", status_code=303)
+    params = urlencode(
+        {
+            "msg": "message.credentials_imported",
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+        }
+    )
+    return RedirectResponse(url=f"/credentials?{params}", status_code=303)
 
 
 @router.get("/groups", summary="设备组页面", description="查看设备分组列表")
@@ -287,7 +294,7 @@ def create_group(
             _log_action(request, session, "CREATE_GROUP", "group", group.id, f"Name: {group.name}")
     except resource_service.ServiceError as exc:
         return RedirectResponse(url=f"/groups?err={quote(exc.message)}", status_code=303)
-    return RedirectResponse(url="/groups?msg=已保存", status_code=303)
+    return RedirectResponse(url="/groups?msg=message.saved", status_code=303)
 
 
 @router.post("/groups/{group_id}/delete", summary="删除设备组", description="删除指定的设备分组")
@@ -309,7 +316,7 @@ def delete_group(request: Request, group_id: int, session: Session = Depends(get
             else:
                 msg = f"删除失败: {exc.message}"
             return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
-        return RedirectResponse(url="/groups?msg=已删除", status_code=303)
+        return RedirectResponse(url="/groups?msg=message.deleted", status_code=303)
     except Exception as exc:
         msg = f"操作失败: {str(exc)}"
         return RedirectResponse(url=f"/groups?err={quote(msg)}", status_code=303)
@@ -399,7 +406,7 @@ def create_template(
             _log_action(request, session, "CREATE_TEMPLATE", "template", tpl.id, f"Name: {tpl.name}")
     except resource_service.ServiceError as exc:
         return RedirectResponse(url=f"/templates?err={quote(exc.message)}", status_code=303)
-    return RedirectResponse(url="/templates?msg=已保存", status_code=303)
+    return RedirectResponse(url="/templates?msg=message.saved", status_code=303)
 
 
 @router.post("/templates/{template_id}/delete", summary="删除模板", description="删除指定的备份模板")
@@ -410,4 +417,4 @@ def delete_template(request: Request, template_id: int, session: Session = Depen
         _log_action(request, session, "DELETE_TEMPLATE", "template", template_id, f"Name: {tpl.name}")
     except resource_service.ServiceError as exc:
         return RedirectResponse(url=f"/templates?err={quote(exc.message)}", status_code=303)
-    return RedirectResponse(url="/templates?msg=已删除", status_code=303)
+    return RedirectResponse(url="/templates?msg=message.deleted", status_code=303)

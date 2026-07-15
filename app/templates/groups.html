@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_pagination %}
-{% set page_title = "分组管理" %}
-{% set page_subtitle = "用于按区域/业务/类型组织设备（便于批量操作）" %}
+{% from "macros.html" import render_pagination with context %}
+{% set page_title = _('template.groups.groupmanage') %}
+{% set page_subtitle = _('page.groups.subtitle') %}
 {% set can_group_create = has_permission('groups.create') %}
 {% set can_group_update = has_permission('groups.update') %}
 {% set can_group_delete = has_permission('groups.delete') %}
@@ -11,10 +11,10 @@
   <div class="card border-0 shadow-sm">
     <div class="card-body p-3">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="small text-secondary">分组列表</div>
+        <div class="small text-secondary">{{ _('template.groups.grouplist') }}</div>
         {% if can_group_create %}
           <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#groupCreateModal">
-            <i class="bi bi-plus-lg me-1"></i>新增分组
+            <i class="bi bi-plus-lg me-1"></i>{{ _('template.groups.add_group') }}
           </button>
         {% endif %}
       </div>
@@ -23,10 +23,10 @@
           <thead>
             <tr>
               <th style="width: 80px;">ID</th>
-              <th style="width: 300px;">名称</th>
-              <th style="width: 150px;">设备数量</th>
-              <th style="width: 200px;">创建时间</th>
-              <th class="text-start">操作</th>
+              <th style="width: 300px;">{{ _('template.api_keys.name') }}</th>
+              <th style="width: 150px;">{{ _('template.groups.device_count') }}</th>
+              <th style="width: 200px;">{{ _('template.api_keys.created_at') }}</th>
+              <th class="text-start">{{ _('audit.csv.action') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -36,7 +36,7 @@
                 <td class="text-start">
                   <div class="d-flex align-items-center" style="padding-left: {{ g.depth * 2 }}rem;">
                     {% if g.children and g.children|length > 0 %}
-                      <button class="btn btn-sm btn-link p-0 text-secondary me-1 btn-tree-toggle" data-id="{{ g.id }}" title="展开/折叠">
+                      <button class="btn btn-sm btn-link p-0 text-secondary me-1 btn-tree-toggle" data-id="{{ g.id }}" title="{{ _('template.groups.expand_collapse') }}">
                         <i class="bi bi-chevron-down toggle-icon" style="transition: transform 0.2s; font-size: 0.8rem;"></i>
                       </button>
                     {% else %}
@@ -45,19 +45,19 @@
                     
                     {% if g.depth == 0 %}
                       <i class="bi bi-house-door-fill text-secondary me-2 fs-5"></i>
-                      <span class="fw-medium text-body">{{ g.name }}</span>
+                      <span class="fw-medium text-body" data-i18n-preserve>{{ g.name }}</span>
                     {% elif g.depth == 1 %}
                       <i class="bi bi-folder-fill text-secondary me-2 fs-5"></i>
-                      <span class="fw-medium text-body">{{ g.name }}</span>
+                      <span class="fw-medium text-body" data-i18n-preserve>{{ g.name }}</span>
                     {% else %}
                       <i class="bi bi-folder text-secondary opacity-75 me-2 fs-5"></i>
-                      <span class="text-secondary">{{ g.name }}</span>
+                      <span class="text-secondary" data-i18n-preserve>{{ g.name }}</span>
                     {% endif %}
                   </div>
                 </td>
                 <td class="text-start">
                   <div class="backup-status d-inline-flex align-items-center gap-1 px-2 py-1 rounded" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border: 1px solid var(--bs-border-color); font-size: 12px;">
-                    <i class="bi bi-cpu"></i>{{ usage.get(g.id, 0) }} 台设备
+                    <i class="bi bi-cpu"></i>{{ usage.get(g.id, 0) }} {{ _('template.backups.devices') }}
                   </div>
                 </td>
                 <td class="text-secondary small text-nowrap text-start">{{ g.created_at|dt_local }}</td>
@@ -72,8 +72,8 @@
                                 data-bs-id="{{ g.id }}"
                                 data-bs-name="{{ g.name }}"
                                 data-bs-parent-id="{{ g.parent_id or '0' }}"
-                                title="编辑分组">
-                          <i class="bi bi-pencil me-1"></i>编辑
+                                title="{{ _('template.groups.edit_group') }}">
+                          <i class="bi bi-pencil me-1"></i>{{ _('template.credentials.edit') }}
                         </button>
                         <button class="btn btn-sm btn-outline-success px-2 text-nowrap" 
                                 type="button" 
@@ -82,26 +82,26 @@
                                 data-bs-id="0"
                                 data-bs-name=""
                                 data-bs-parent-id="{{ g.id }}"
-                                title="添加子分组">
-                          <i class="bi bi-plus-lg me-1"></i>添加
+                                title="{{ _('template.groups.add_subgroup') }}">
+                          <i class="bi bi-plus-lg me-1"></i>{{ _('template.groups.add') }}
                         </button>
                       {% endif %}
                       {% if can_group_delete %}
                         <form method="post" action="/groups/{{ g.id }}/delete" class="m-0 text-nowrap">
-                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-msg="确定要删除此分组吗？" title="删除分组">
-                            <i class="bi bi-trash me-1"></i>删除
+                          <button class="btn btn-sm btn-outline-danger px-2 btn-delete-ask text-nowrap" type="submit" data-confirm-key="dialog.delete.group" data-confirm-msg="{{ _('template.groups.confirm_delete_group') }}？" title="{{ _('audit.action.DELETE_GROUP') }}">
+                            <i class="bi bi-trash me-1"></i>{{ _('template.api_keys.delete') }}
                           </button>
                         </form>
                       {% endif %}
                     </div>
                   {% else %}
-                    <span class="text-secondary small text-nowrap text-start">只读</span>
+                    <span class="text-secondary small text-nowrap text-start">{{ _('template.groups.read_only') }}</span>
                   {% endif %}
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="5" class="text-center text-secondary py-4">暂无分组</td>
+                <td colspan="5" class="text-center text-secondary py-4">{{ _('template.groups.no_groups') }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -119,38 +119,38 @@
             <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
               <h5 class="modal-title d-flex align-items-center">
                 <i class="bi bi-folder-plus text-primary me-2"></i>
-                <span id="modalTitle">新增分组</span>
+                <span id="modalTitle">{{ _('template.groups.add_group') }}</span>
               </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
             </div>
             <div class="modal-body p-4">
               <div class="mb-3">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-diagram-3 me-1"></i>父分组
+                  <i class="bi bi-diagram-3 me-1"></i>{{ _('template.groups.parent_group') }}
                 </label>
                 <div class="dropdown custom-tree-select w-100">
                   <button class="form-select form-select-lg fs-6 text-start d-flex justify-content-between align-items-center w-100" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="parentGroupDropdownBtn">
-                    <span id="parentGroupSelectedText">作为一级根分组</span>
+                    <span id="parentGroupSelectedText">{{ _('template.groups.use_as_a_top_level_group') }}</span>
                   </button>
                   <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
                     <div id="parentGroupTreeContainer"></div>
                   </div>
                   <input type="hidden" name="parent_id" id="modalGroupParentId" value="0">
                 </div>
-                <div class="form-text x-small mt-2">选择该分组所属的上级节点</div>
+                <div class="form-text x-small mt-2">{{ _('template.groups.select_this_group_s_parent') }}</div>
               </div>
               <div class="mb-3">
                 <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-tag me-1"></i>分组名称
+                  <i class="bi bi-tag me-1"></i>{{ _('template.groups.groupname') }}
                 </label>
-                <input name="name" id="modalGroupName" class="form-control form-control-lg fs-6" placeholder="例如：IDC-核心区" required />
-                <div class="form-text x-small mt-2">建议按地域、业务或机房区域进行分组</div>
+                <input name="name" id="modalGroupName" class="form-control form-control-lg fs-6" placeholder="{{ _('template.credentials.for_example') }}：IDC-Core" required />
+                <div class="form-text x-small mt-2">{{ _('template.groups.group_by_region_service_or_room_area') }}</div>
               </div>
             </div>
             <div class="modal-footer bg-body-tertiary border-top-0 py-3">
-              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-link text-secondary text-decoration-none px-4" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
               <button class="btn btn-primary px-5 shadow-sm" type="submit">
-                <i class="bi bi-check-lg me-1"></i>确认保存
+                <i class="bi bi-check-lg me-1"></i>{{ _('template.credentials.confirm_save') }}
               </button>
             </div>
           </form>
@@ -164,6 +164,12 @@
         { id: {{ g.id }}, parent_id: {{ g.parent_id or 0 }}, name: {{ g.name|tojson }}, depth: {{ g.depth }} },
         {% endfor %}
       ];
+
+      function escapeText(text) {
+          const span = document.createElement('span');
+          span.textContent = text == null ? '' : String(text);
+          return span.innerHTML;
+      }
 
       function buildTree(flatList) {
           const map = new Map();
@@ -227,6 +233,9 @@
               
               const text = document.createElement('span');
               text.className = textClass;
+              if (node.id !== 0) {
+                  text.setAttribute('data-i18n-preserve', '');
+              }
               text.textContent = node.name;
               
               content.appendChild(toggle);
@@ -277,7 +286,7 @@
             const nameInput = modal.querySelector('#modalGroupName');
             const parentIdInput = modal.querySelector('#modalGroupParentId');
             
-            title.textContent = id !== '0' ? '编辑分组' : '新增分组';
+            title.textContent = (id !== '0' ? '{{ _('template.groups.edit_group') }}' : '{{ _('template.groups.add_group') }}');
             idInput.value = id;
             nameInput.value = name;
             parentIdInput.value = parentId;
@@ -295,15 +304,15 @@
                 parentIdInput.value = nodeId;
                 const selectedText = document.getElementById('parentGroupSelectedText');
                 if (nodeId == 0) {
-                    selectedText.textContent = '作为一级根分组';
+                    selectedText.textContent = ('{{ _('template.groups.use_as_a_top_level_group') }}');
                 } else {
                     const selectedGroup = groupItems.find(g => g.id == nodeId);
-                    selectedText.textContent = selectedGroup ? selectedGroup.name : '作为一级根分组';
+                    selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : ('{{ _('template.groups.use_as_a_top_level_group') }}');
                 }
                 
                 // Re-render tree to update selected state
                  const treeData = [
-                     { id: 0, name: '作为一级根分组', depth: 0, children: [] },
+                     { id: 0, name: '{{ _('template.groups.use_as_a_top_level_group') }}', depth: 0, children: [] },
                      ...buildTree(groupItems)
                  ];
                 

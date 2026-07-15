@@ -1,34 +1,34 @@
 {% extends "base.html" %}
-{% set page_title = "导入结果" %}
-{% set page_subtitle = "CSV 导入执行报告" %}
+{% set page_title = _('template.import_result.import_result') %}
+{% set page_subtitle = _('template.import_result.csv_import_report') %}
 
 {% block content %}
   <div class="card mb-4">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="fw-semibold">导入完成</div>
+          <div class="fw-semibold">{{ _('template.import_result.import_complete') }}</div>
           <div class="text-secondary small mt-1">
-            模式：{{ mode }} · 匹配：{{ "Host IP + 端口" if match_by == "host_port" else "设备名称" if match_by == "name" else match_by }} · 创建 {{ created }} · 更新 {{ updated }} · 跳过 {{ skipped }}
+            {{ _('template.import_result.mode') }}：{{ mode }} · {{ _('template.import_result.matched') }}：{{ _('template.import_result.host_ip_port') if match_by == "host_port" else _('email.field.device_name') if match_by == "name" else match_by }} · {{ _('template.devices.create') }} {{ created }} · {{ _('template.import_result.update') }} {{ updated }} · {{ _('template.import_result.skip') }} {{ skipped }}
           </div>
         </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/devices">返回设备管理</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/devices">{{ _('template.import_result.back_to_devices') }}</a>
       </div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-body">
-      <div class="fw-semibold mb-3">明细</div>
+      <div class="fw-semibold mb-3">{{ _('template.import_result.details') }}</div>
       <div class="table-responsive">
         <table class="table table-sm align-middle">
           <thead>
             <tr>
-              <th style="width: 80px;">行</th>
-              <th style="width: 120px;">动作</th>
-              <th style="width: 240px;">名称</th>
+              <th style="width: 80px;">{{ _('template.import_result.row') }}</th>
+              <th style="width: 120px;">{{ _('template.import_result.action') }}</th>
+              <th style="width: 240px;">{{ _('template.api_keys.name') }}</th>
               <th style="width: 220px;">Host</th>
-              <th>说明</th>
+              <th>{{ _('template.import_result.notes') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -44,13 +44,13 @@
                     <div class="backup-status" style="background: var(--bs-secondary-bg-subtle); color: var(--bs-secondary-text-emphasis); border-color: var(--bs-border-color); font-size: 10px; padding: 1px 6px;">skip</div>
                   {% endif %}
                 </td>
-                <td>{{ r.name }}</td>
-                <td class="text-secondary small">{{ r.host }}</td>
-                <td class="text-secondary small">{{ r.message }}</td>
+                <td data-i18n-preserve>{{ r.name }}</td>
+                <td class="text-secondary small" data-i18n-preserve>{{ r.host }}</td>
+                <td class="text-secondary small" data-i18n-preserve>{{ r.message }}</td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="5" class="text-center text-secondary py-4">无明细</td>
+                <td colspan="5" class="text-center text-secondary py-4">{{ _('template.import_result.no_details') }}</td>
               </tr>
             {% endfor %}
           </tbody>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from "macros.html" import render_backup_record_status, render_pagination %}
-{% set page_title = "设备详情" %}
-{% set page_subtitle = "查看备份历史并手动触发备份" %}
+{% from "macros.html" import render_backup_record_status, render_pagination with context %}
+{% set page_title = _('template.device_detail.device_details') %}
+{% set page_subtitle = _('template.device_detail.view_backup_history_and_trigger_backups_manually') %}
 {% set can_device_view = has_permission('devices.view') %}
 {% set can_trigger_backup = can_device_view and has_permission('devices.backup') %}
 {% set can_backup_history_view = has_permission('backups.view') %}
@@ -16,13 +16,13 @@
             <i class="bi bi-hdd-network-fill text-primary fs-5"></i>
           </div>
           <div class="d-flex flex-wrap align-items-center gap-3">
-            <h5 class="mb-0 fw-bold text-body">{{ device.name }}</h5>
+            <h5 class="mb-0 fw-bold text-body" data-i18n-preserve>{{ device.name }}</h5>
             <div class="text-secondary small d-flex flex-wrap gap-3">
-              <span><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
-              <span><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
-              <span><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
+              <span data-i18n-preserve><i class="bi bi-link-45deg me-1"></i>{{ device.host }}:{{ device.port }}</span>
+              <span data-i18n-preserve><i class="bi bi-cpu me-1"></i>{{ device.platform }}</span>
+              <span data-i18n-preserve><i class="bi bi-translate me-1"></i>{{ device.encoding or 'utf-8' }}</span>
               {% if device.group_id and group_map.get(device.group_id) %}
-                <span><i class="bi bi-grid me-1"></i>{{ group_map.get(device.group_id).name }}</span>
+                <span data-i18n-preserve><i class="bi bi-grid me-1"></i>{{ group_map.get(device.group_id).name }}</span>
               {% endif %}
               {% if device.credential_id and credentials.get(device.credential_id) %}
                 <span><i class="bi bi-shield-lock me-1"></i>{{ credentials.get(device.credential_id).name }}</span>
@@ -31,7 +31,7 @@
           </div>
         </div>
         <a class="btn btn-sm btn-outline-secondary px-3" href="/devices">
-          <i class="bi bi-arrow-left me-1"></i>返回列表
+          <i class="bi bi-arrow-left me-1"></i>{{ _('template.device_detail.back_to_list') }}
         </a>
       </div>
 
@@ -43,7 +43,7 @@
           <div class="row g-3">
             <!-- 第一行：连接信息 -->
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-tag me-1"></i>设备名称</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-tag me-1"></i>{{ _('email.field.device_name') }}</label>
               <input name="name" class="form-control form-control-sm" value="{{ device.name }}" required />
             </div>
             <div class="col-12 col-lg-3">
@@ -51,20 +51,20 @@
               <input name="host" class="form-control form-control-sm" value="{{ device.host }}" required />
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-diagram-2 me-1"></i>登录方式</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-diagram-2 me-1"></i>{{ _('template.device_detail.login_method') }}</label>
               <select name="login_method" class="form-select form-select-sm" id="device-update-login-method" required>
                 <option value="ssh" {% if (device.login_method or 'ssh') == 'ssh' %}selected{% endif %}>SSH</option>
                 <option value="telnet" {% if device.login_method == 'telnet' %}selected{% endif %}>Telnet</option>
               </select>
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-door-open me-1"></i>端口</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-door-open me-1"></i>{{ _('template.device_detail.port') }}</label>
               <input name="port" type="number" class="form-control form-control-sm" value="{{ device.port }}" id="device-update-port" />
             </div>
 
             <!-- 第二行：分类与备份设置 -->
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-cpu me-1"></i>设备类型</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-cpu me-1"></i>{{ _('template.device_detail.device_type') }}</label>
               <select name="platform" class="form-select form-select-sm" id="device-update-platform" required>
                 {% for p in ssh_platforms %}
                   <option value="{{ p.id }}" data-kind="ssh" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
@@ -75,7 +75,7 @@
               </select>
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-translate me-1"></i>设备编码</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-translate me-1"></i>{{ _('template.device_detail.device_encoding') }}</label>
               <select name="encoding" class="form-select form-select-sm">
                 <option value="utf-8" {% if (device.encoding or 'utf-8')|lower == 'utf-8' %}selected{% endif %}>utf-8</option>
                 <option value="gb18030" {% if (device.encoding or 'utf-8')|lower == 'gb18030' %}selected{% endif %}>gb18030</option>
@@ -84,10 +84,10 @@
               </select>
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-grid me-1"></i>设备分组</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-grid me-1"></i>{{ _('nav.groups') }}</label>
               <div class="dropdown custom-tree-select w-100">
                 <button class="form-select form-select-sm text-start d-flex justify-content-between align-items-center w-100 filter-control-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="updateGroupDropdownBtn">
-                  <span id="updateGroupSelectedText" class="text-truncate">未分组</span>
+                  <span id="updateGroupSelectedText" class="text-truncate">{{ _('template.device_detail.ungrouped') }}</span>
                 </button>
                 <div class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 300px; overflow-y: auto;">
                   <div id="updateGroupTreeContainer"></div>
@@ -96,19 +96,19 @@
               </div>
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-shield-lock me-1"></i>登录凭据</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-shield-lock me-1"></i>{{ _('template.device_detail.login_credential') }}</label>
               <select name="credential_id" class="form-select form-select-sm" required>
                 {% for cid, c in credentials.items() %}
-                  <option value="{{ cid }}" {% if device.credential_id == cid %}selected{% endif %}>{{ c.name }} · {{ c.username }}</option>
+                  <option value="{{ cid }}" data-i18n-preserve data-nb-label="{{ (c.name ~ ' · ' ~ c.username)|e }}" {% if device.credential_id == cid %}selected{% endif %}>{{ c.name }} · {{ c.username }}</option>
                 {% endfor %}
               </select>
             </div>
             <div class="col-12 col-lg-3">
-              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-file-earmark-code me-1"></i>默认备份模板</label>
+              <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-file-earmark-code me-1"></i>{{ _('template.device_detail.default_backup_template') }}</label>
               <select name="default_template_id" class="form-select form-select-sm">
-                <option value="0" {% if not device.default_template_id %}selected{% endif %}>使用设备类型默认命令</option>
+                <option value="0" {% if not device.default_template_id %}selected{% endif %}>{{ _('template.device_detail.use_the_default_commands_for_this_device_type') }}</option>
                 {% for t in templates %}
-                  <option value="{{ t.id }}" {% if device.default_template_id == t.id %}selected{% endif %}>{{ t.name }} · {{ t.platform }}</option>
+                  <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}" {% if device.default_template_id == t.id %}selected{% endif %}>{{ t.name }} · {{ t.platform }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -116,14 +116,14 @@
             <!-- 提交按钮 -->
             <div class="col-12 mt-3">
               <button class="btn btn-primary btn-sm px-4 shadow-sm" type="submit">
-                <i class="bi bi-check-lg me-1"></i>保存修改
+                <i class="bi bi-check-lg me-1"></i>{{ _('template.device_detail.save_changes') }}
               </button>
             </div>
           </div>
         </form>
       {% else %}
         <div class="alert alert-secondary mb-0 border-0 shadow-sm">
-          <i class="bi bi-lock-fill me-2"></i>当前账号无权限修改设备
+          <i class="bi bi-lock-fill me-2"></i>{{ _('template.device_detail.this_account_cannot_edit_devices') }}
         </div>
       {% endif %}
 
@@ -134,30 +134,30 @@
         <div class="bg-body-tertiary p-3 rounded-3 border border-light-subtle">
           <form method="post" action="/devices/{{ device.id }}/backup" class="row g-2 align-items-center" id="device-backup-form">
             <div class="col-auto">
-              <span class="small fw-bold text-secondary"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>立即执行备份:</span>
+              <span class="small fw-bold text-secondary"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>{{ _('template.device_detail.run_backup_now') }}:</span>
             </div>
             <div class="col-12 col-lg-4">
               <select name="template_id" class="form-select form-select-sm" id="device-backup-template">
-                <option value="0">使用设备默认模板</option>
+                <option value="0">{{ _('template.device_detail.use_device_default_template') }}</option>
                 {% for t in templates %}
-                  <option value="{{ t.id }}">{{ t.name }} · {{ t.platform }}</option>
+                  <option value="{{ t.id }}" data-i18n-preserve data-nb-label="{{ (t.name ~ ' · ' ~ t.platform)|e }}">{{ t.name }} · {{ t.platform }}</option>
                 {% endfor %}
               </select>
             </div>
             <div class="col-auto">
               <button class="btn btn-success btn-sm px-3" type="submit" id="device-backup-btn">
-                <i class="bi bi-play-fill me-1"></i>开始
+                <i class="bi bi-play-fill me-1"></i>{{ _('template.device_detail.start') }}
               </button>
             </div>
             <div class="col text-secondary small ms-lg-2">
-              <i class="bi bi-info-circle me-1"></i>后台执行，完成后自动刷新
+              <i class="bi bi-info-circle me-1"></i>{{ _('template.device_detail.run_in_background_refresh_automatically_when_finished') }}
             </div>
           </form>
         </div>
       {% else %}
         <hr class="text-black-50 opacity-10 my-3" />
         <div class="alert alert-secondary mb-0 border-0 shadow-sm">
-          <i class="bi bi-lock-fill me-2"></i>当前账号无权限执行备份
+          <i class="bi bi-lock-fill me-2"></i>{{ _('template.device_detail.this_account_cannot_run_backups') }}
         </div>
       {% endif %}
 
@@ -225,6 +225,9 @@
                   
                   const text = document.createElement('span');
                   text.className = textClass;
+                  if (node.id !== 0) {
+                      text.setAttribute('data-i18n-preserve', '');
+                  }
                   text.textContent = node.name;
                   
                   content.appendChild(toggle);
@@ -274,20 +277,20 @@
                     updateGroupIdInput.value = nodeId;
                     const selectedText = document.getElementById('updateGroupSelectedText');
                     if (nodeId == 0) {
-                        selectedText.textContent = '未分组';
+                        selectedText.textContent = ('{{ _('template.device_detail.ungrouped') }}');
                     } else {
                         // 使用 group_paths 获取全路径，如果不存在则退回使用 name
                         const pathData = {{ group_paths|tojson }};
                         const selectedGroup = groupItems.find(g => g.id == nodeId);
                         if (pathData && pathData[nodeId]) {
-                            selectedText.textContent = pathData[nodeId];
+                            selectedText.innerHTML = '<span data-i18n-preserve>' + escapeText(pathData[nodeId]) + '</span>';
                         } else {
-                            selectedText.textContent = selectedGroup ? selectedGroup.name : '未分组';
+                            selectedText.innerHTML = selectedGroup ? '<span data-i18n-preserve>' + escapeText(selectedGroup.name) + '</span>' : ('{{ _('template.device_detail.ungrouped') }}');
                         }
                     }
                     
                     const treeData = [
-                        { id: 0, name: '未分组', depth: 0, children: [] },
+                        { id: 0, name: '{{ _('template.device_detail.ungrouped') }}', depth: 0, children: [] },
                         ...buildTree(groupItems)
                     ];
                     
@@ -343,16 +346,16 @@
 
   <div class="card">
     <div class="card-body">
-      <div class="fw-semibold mb-3">备份历史</div>
+      <div class="fw-semibold mb-3">{{ _('template.backups.backup_history') }}</div>
       {% if can_backup_history_view %}
         <div class="table-responsive">
           <table class="table table-sm align-middle">
             <thead>
               <tr>
-                <th style="width: 220px;">时间</th>
-                <th style="width: 110px;">状态</th>
-                <th>错误</th>
-                <th style="width: 220px;">查看</th>
+                <th style="width: 220px;">{{ _('audit.csv.time') }}</th>
+                <th style="width: 110px;">{{ _('login.csv.status') }}</th>
+                <th>{{ _('label.error') }}</th>
+                <th style="width: 220px;">{{ _('template.api_keys.view') }}</th>
               </tr>
             </thead>
             <tbody id="device-backups-tbody">
@@ -362,24 +365,24 @@
                   <td>
                     {{ render_backup_record_status(r.status) }}
                   </td>
-                  <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}">{{ r.error_message or "" }}</td>
+                  <td class="text-danger small text-truncate" style="max-width: 520px;" title="{{ (r.error_message or '')|e }}" data-i18n-preserve>{{ r.error_message or "" }}</td>
                   <td>
-                    <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">配置</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="{{ r.id }}">日志</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="{{ r.id }}">{{ _('template.device_detail.configuration') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="{{ r.id }}">{{ _('template.backups.logs') }}</button>
                   </td>
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td>
+                  <td colspan="4" class="text-center text-secondary py-4">{{ _('template.backups.no_backup_records') }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        {{ render_pagination(pagination, pagination_base, "次备份") }}
+        {{ render_pagination(pagination, pagination_base, _('template.device_detail.backups')) }}
       {% else %}
         <div class="alert alert-secondary mb-0 border-0 shadow-sm">
-          <i class="bi bi-lock-fill me-2"></i>当前账号无权限查看备份历史
+          <i class="bi bi-lock-fill me-2"></i>{{ _('template.device_detail.this_account_cannot_view_backup_history') }}
         </div>
       {% endif %}
     </div>
@@ -450,7 +453,7 @@
       const items = backups || [];
       if (!els.tbody) return;
       if (!items.length) {
-        els.tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份记录</td></tr>';
+        els.tbody.innerHTML = ('<tr><td colspan="4" class="text-center text-secondary py-4">{{ _('template.backups.no_backup_records') }}</td></tr>');
         return;
       }
       const rows = items.map((b, idx) => {
@@ -462,10 +465,10 @@
           <tr>
             <td class="text-secondary small">${escapeText(b.started_at || "")}</td>
             <td>${status}</td>
-            <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}">${err}</td>
+            <td class="text-danger small text-truncate" style="max-width: 520px;" title="${err}" data-i18n-preserve>${err}</td>
             <td>
-              <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">配置</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="${escapeText(b.id)}">日志</button>
+              <button type="button" class="btn btn-sm btn-outline-primary device-backup-view" data-backup-id="${escapeText(b.id)}">{{ _('template.device_detail.configuration') }}</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary device-backup-log" data-backup-id="${escapeText(b.id)}">{{ _('template.backups.logs') }}</button>
             </td>
           </tr>
         `;
@@ -486,7 +489,7 @@
         stopPolling();
         setDisabled(els.btn, false);
         if (window.NB && typeof window.NB.showToast === "function") {
-          window.NB.showToast(detail || "刷新备份状态失败", "error");
+          window.NB.showToast(detail || "{{ _('template.device_detail.failed_to_refresh_backup_status') }}", "error");
         }
         return null;
       }
@@ -542,7 +545,7 @@
               }
               setDisabled(els.btn, false);
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast(detail || "备份任务提交失败", "error");
+                window.NB.showToast(detail || "{{ _('template.backups.failed_to_submit_backup_task') }}", "error");
               }
               return;
             }
@@ -563,7 +566,7 @@
               if (enqueueWarning) {
                 window.NB.showToast(enqueueWarning, "warning");
               } else {
-                window.NB.showToast("备份任务已提交", "success");
+                window.NB.showToast("{{ _('template.backups.backup_task_submitted') }}", "success");
               }
             }
             if (data && data.record && data.record.id) {
@@ -574,20 +577,20 @@
           } catch (e) {
             setDisabled(els.btn, false);
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast("请求出错: " + e.message, "error");
+              window.NB.showToast("{{ _('template.backups.request_failed') }}: " + e.message, "error");
             }
           }
         };
 
         if (window.NB && typeof window.NB.confirm === "function") {
           window.NB.confirm({
-            title: "立即备份",
-            message: "确定要立即执行备份吗？",
+            title: "{{ _('template.backups.back_up_now') }}",
+            message: "{{ _('template.backups.run_the_backup_now') }}？",
             onConfirm: doBackup,
-            confirmBtnText: "开始备份",
+            confirmBtnText: "{{ _('template.backups.start_backup') }}",
             confirmBtnClass: "btn-primary"
           });
-        } else if (confirm("确定要立即执行备份吗？")) {
+        } else if (confirm("{{ _('template.backups.run_the_backup_now') }}？")) {
           doBackup();
         }
       });

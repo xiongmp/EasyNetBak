@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<body>
+<h2>{{ _("email.summary.title") }}</h2>
+<p><strong>{{ _("email.field.task_time") }}:</strong> {{ task_time }}</p>
+<p><strong>{{ _("email.summary.result") }}:</strong> {{ _("email.summary.total", {"total": run.total_devices}) }}{{ _("email.count.separator") }}{{ _("email.count.succeeded") }} <span style="color:#5cb85c">{{ run.success_count }}</span> {{ _("email.count.unit") }}{{ _("email.count.separator") }}{{ _("email.count.failed") }} <span style="color:#d9534f">{{ run.fail_count }}</span> {{ _("email.count.unit") }}{{ _("email.count.separator") }}{{ _("email.count.cancelled") }} <span style="color:#f0ad4e">{{ cancelled_records|length }}</span> {{ _("email.count.unit") }}</p>
+
+{% if failed_records %}
+<h3 style="color:#d9534f">{{ _("email.section.failed") }}</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
+<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.duration") }}</th><th>{{ _("email.field.failure_type") }}</th><th>{{ _("email.field.error") }}</th></tr>
+{% for item in failed_records %}
+<tr><td>{{ item.device.name }}</td><td>{{ item.device.host }}</td><td>{{ item.duration }}</td><td>{{ item.record.failure_type or "UNKNOWN" }}</td><td style="color:#d9534f">{{ item.error_message }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if cancelled_records %}
+<h3 style="color:#f0ad4e">{{ _("email.section.cancelled") }}</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
+<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.details") }}</th></tr>
+{% for device, record in cancelled_records %}
+<tr><td>{{ device.name }}</td><td>{{ device.host }}</td><td>{{ record.error_message or record.failure_type or _("email.summary.detail.cancelled") }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if changed_records %}
+<h3 style="color:#f0ad4e">{{ _("email.section.changed") }}</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
+<tr><th>{{ _("email.field.device_name") }}</th><th>{{ _("email.field.device_host") }}</th><th>{{ _("email.field.change_summary") }}</th></tr>
+{% for device, record, summary_html in changed_records %}
+<tr><td>{{ device.name }}</td><td>{{ device.host }}</td><td>{{ summary_html|safe }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+</body>
+</html>

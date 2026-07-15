@@ -13,6 +13,7 @@ from sqlmodel import select
 from app import crud
 from app.core.settings import settings
 from app.models import BackupRecord, BackupSchedule, BackupScheduleRunItem, Device
+from app.i18n import get_current_locale, translate
 from app.core.time import format_local_datetime, normalize_timezone_offset, parse_timezone_offset_to_minutes
 from app.scheduler import resolve_device_ids_from_targets
 from app.services import pagination_service, task_state_service
@@ -23,41 +24,29 @@ from app.services.errors import ServiceError
 logger = logging.getLogger(__name__)
 
 
-_FAILURE_TYPE_LABELS = {
-    "TIMEOUT": "超时",
-    "READ_TIMEOUT": "读取超时",
-    "DISCONNECTED": "连接中断",
-    "SESSION_LIMIT": "会话数超限",
-    "NETWORK_UNREACHABLE": "网络不可达",
-    "REFUSED": "连接被拒绝",
-    "TASK_FAILURE": "任务异常",
-    "TASK_REVOKED": "任务已撤销",
-    "TIME_LIMIT": "执行超时",
-    "ENQUEUE_FAILED": "入队失败",
-    "DEVICE_NOT_FOUND": "设备不存在",
-    "TEMPLATE_NOT_FOUND": "模板不存在",
-    "PLATFORM_MISMATCH": "模板与平台不匹配",
-    "CANCELLED": "已终止",
-    "UNKNOWN": "未知异常",
-}
-
-
-def _failure_type_label(value: str | None) -> str:
+def _failure_type_label(value: str | None, *, locale: str | None = None) -> str:
     normalized = str(value or "").strip().upper()
-    return _FAILURE_TYPE_LABELS.get(normalized, normalized or "未知异常")
+    code = normalized or "UNKNOWN"
+    return translate(locale or get_current_locale(), f"schedule.error.failure_type.{code}", fallback=code)
 
 
-def _format_failure_summary(failures_by_type: dict[str, Any]) -> str:
+def _format_failure_summary(failures_by_type: dict[str, Any], *, locale: str | None = None) -> str:
     rows: list[str] = []
     for failure_type, count in failures_by_type.items():
         amount = max(0, int(count or 0))
         if amount <= 0:
             continue
-        rows.append(f"{_failure_type_label(str(failure_type))} {amount} 个")
-    return "，".join(rows)
+        rows.append(
+            translate(
+                locale or get_current_locale(),
+                "schedule.error.failure_count",
+                {"type": _failure_type_label(str(failure_type), locale=locale), "count": amount},
+            )
+        )
+    return translate(locale or get_current_locale(), "schedule.error.list_separator").join(rows)
 
 
-def summarize_schedule_run_error(error_message: str | None) -> str:
+def summarize_schedule_run_error(error_message: str | None, *, locale: str | None = None) -> str:
     raw = str(error_message or "").strip()
     if not raw:
         return ""
@@ -76,27 +65,32 @@ def summarize_schedule_run_error(error_message: str | None) -> str:
     failures_by_type = payload.get("failures_by_type")
 
     if termination_mode == "pending_only" and cancelled_backups > 0:
-        parts.append(f"已终止 {cancelled_backups} 个未运行任务")
+        parts.append(translate(locale, "schedule.error.cancelled_pending", {"count": cancelled_backups}))
     elif cancelled_backups > 0:
-        parts.append(f"已终止 {cancelled_backups} 个任务")
+        parts.append(translate(locale, "schedule.error.cancelled", {"count": cancelled_backups}))
 
     if unfinished_backups > 0:
         if termination_mode == "pending_only":
-            parts.append(f"仍有 {unfinished_backups} 个任务执行中")
+            parts.append(translate(locale, "schedule.error.still_running", {"count": unfinished_backups}))
         else:
-            parts.append(f"仍有 {unfinished_backups} 个任务未结束")
+            parts.append(translate(locale, "schedule.error.unfinished", {"count": unfinished_backups}))
 
     if isinstance(failures_by_type, dict):
-        failure_summary = _format_failure_summary(failures_by_type)
+        failure_summary = _format_failure_summary(failures_by_type, locale=locale)
         if failure_summary:
-            parts.append(f"失败类型：{failure_summary}")
+            parts.append(translate(locale, "schedule.error.failure_summary", {"summary": failure_summary}))
 
     if parts:
-        return "；".join(parts)
+        return translate(locale, "schedule.error.part_separator").join(parts)
     return raw
 
 
-def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) -> dict[str, Any]:
+def _serialize_schedule_run(
+    run: BackupScheduleRun,
+    *,
+    offset_minutes: int = 0,
+    locale: str | None = None,
+) -> dict[str, Any]:
     started_at = getattr(run, "started_at", None)
     finished_at = getattr(run, "finished_at", None)
     status = getattr(run, "status", None)
@@ -112,7 +106,7 @@ def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) 
         else:
             duration_text = f"{duration_seconds // 60}m {duration_seconds % 60}s"
     elif task_state_service.is_schedule_run_active_status(status):
-        duration_text = task_state_service.get_schedule_run_status_label(status)
+        duration_text = task_state_service.get_schedule_run_status_label(status, locale)
 
     return {
         "id": str(run.id),
@@ -125,10 +119,10 @@ def _serialize_schedule_run(run: BackupScheduleRun, *, offset_minutes: int = 0) 
         "success_count": int(getattr(run, "success_count", 0) or 0),
         "fail_count": int(getattr(run, "fail_count", 0) or 0),
         "status": str(status or ""),
-        "status_label": task_state_service.get_schedule_run_status_label(status),
+        "status_label": task_state_service.get_schedule_run_status_label(status, locale),
         "status_tone": task_state_service.get_schedule_run_status_tone(status),
         "error_message": str(getattr(run, "error_message", "") or ""),
-        "error_summary": summarize_schedule_run_error(getattr(run, "error_message", None)),
+        "error_summary": summarize_schedule_run_error(getattr(run, "error_message", None), locale=locale),
     }
 
 
@@ -267,6 +261,7 @@ def _build_next_run_payload(
     schedules: list[BackupSchedule],
     *,
     timezone_offset: str | None,
+    locale: str | None = None,
 ) -> dict[int, dict[str, str]]:
     tz_value = normalize_timezone_offset(timezone_offset, default=settings.timezone_offset)
     offset_minutes = parse_timezone_offset_to_minutes(tz_value) or 0
@@ -279,23 +274,23 @@ def _build_next_run_payload(
             continue
         schedule_id = int(schedule.id)
         if not bool(schedule.enabled):
-            next_runs[schedule_id] = {"text": "已禁用", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.disabled"), "tone": "secondary"}
             continue
 
         crontab = (schedule.crontab or "").strip()
         if not crontab:
-            next_runs[schedule_id] = {"text": "未配置", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.not_configured"), "tone": "secondary"}
             continue
 
         try:
             trigger = CronTrigger.from_crontab(crontab, timezone=tzinfo)
             next_fire_time = trigger.get_next_fire_time(None, now)
         except Exception:
-            next_runs[schedule_id] = {"text": "Cron 无效", "tone": "danger"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.invalid_cron"), "tone": "danger"}
             continue
 
         if next_fire_time is None:
-            next_runs[schedule_id] = {"text": "无后续执行", "tone": "secondary"}
+            next_runs[schedule_id] = {"text": translate(locale, "schedule.next_run.none"), "tone": "secondary"}
             continue
 
         next_runs[schedule_id] = {
@@ -306,14 +301,19 @@ def _build_next_run_payload(
     return next_runs
 
 
-def get_schedule_next_run_payload(session: Session, *, schedule_id: int) -> dict[str, str]:
+def get_schedule_next_run_payload(
+    session: Session,
+    *,
+    schedule_id: int,
+    locale: str | None = None,
+) -> dict[str, str]:
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
         raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     timezone_offset = crud.get_setting(session, key="timezone_offset")
-    return _build_next_run_payload([schedule], timezone_offset=timezone_offset).get(
+    return _build_next_run_payload([schedule], timezone_offset=timezone_offset, locale=locale).get(
         int(schedule_id),
-        {"text": "未知", "tone": "secondary"},
+        {"text": translate(locale, "schedule.next_run.unknown"), "tone": "secondary"},
     )
 
 
@@ -324,6 +324,7 @@ def get_schedule_page_payload(
     limit: int = 10,
     edit_id: str | None = None,
     include_limit_param: bool = False,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     params = pagination_service.normalize_pagination_params(
         page=page,
@@ -376,7 +377,7 @@ def get_schedule_page_payload(
         "group_map": group_map,
         "device_map": {d.id: d.name for d in devices if d.id},
         "last_runs": crud.list_latest_schedule_runs(session, [int(schedule.id) for schedule in items if schedule.id]),
-        "next_runs": _build_next_run_payload(items, timezone_offset=timezone_offset),
+        "next_runs": _build_next_run_payload(items, timezone_offset=timezone_offset, locale=locale),
         "pagination": pagination.as_dict(),
         "pagination_base": pagination_base,
     }
@@ -387,6 +388,7 @@ def get_schedule_stats_payload(
     *,
     schedule_id: int,
     offset_minutes: int = 0,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
@@ -430,6 +432,7 @@ def get_schedule_stats_payload(
     fail_by_device: dict[int, int] = {}
     total_by_group: dict[str, int] = {}
     fail_by_group: dict[str, int] = {}
+    ungrouped_label = translate(locale, "template.device_detail.ungrouped")
 
     for item in items:
         record = by_backup_id.get(str(item.backup_id))
@@ -437,10 +440,10 @@ def get_schedule_stats_payload(
             continue
         device_id = int(item.device_id)
         device = by_device_id.get(device_id)
-        group_name = "未分组"
+        group_name = ungrouped_label
         if device is not None:
             group_id = int(getattr(device, "group_id", 0) or 0)
-            group_name = full_path_by_id.get(group_id, "未分组") if group_id else "未分组"
+            group_name = full_path_by_id.get(group_id, ungrouped_label) if group_id else ungrouped_label
         total_by_group[group_name] = int(total_by_group.get(group_name, 0) + 1)
         if not bool(record.success):
             fail_by_device[device_id] = int(fail_by_device.get(device_id, 0) + 1)
@@ -482,7 +485,7 @@ def get_schedule_stats_payload(
         "top_failed": top_failed,
         "group_summary": group_summary,
         "run_status_labels": {
-            str(run.id): task_state_service.get_schedule_run_status_label(run.status)
+            str(run.id): task_state_service.get_schedule_run_status_label(run.status, locale)
             for run in runs
             if getattr(run, "id", None)
         },
@@ -492,7 +495,7 @@ def get_schedule_stats_payload(
             if getattr(run, "id", None)
         },
         "run_error_summaries": {
-            str(run.id): summarize_schedule_run_error(getattr(run, "error_message", None))
+            str(run.id): summarize_schedule_run_error(getattr(run, "error_message", None), locale=locale)
             for run in runs
             if getattr(run, "id", None)
         },
@@ -507,12 +510,13 @@ def get_schedule_runs_live_payload(
     schedule_id: int,
     offset_minutes: int = 0,
     limit: int = 30,
+    locale: str | None = None,
 ) -> dict[str, Any]:
     schedule = crud.get_schedule(session, int(schedule_id))
     if schedule is None:
         raise ServiceError("定时任务不存在", code="SCHEDULE_NOT_FOUND", status_code=404)
     runs = crud.list_schedule_runs(session, int(schedule_id), limit=max(1, int(limit or 30)))
-    items = [_serialize_schedule_run(run, offset_minutes=offset_minutes) for run in runs]
+    items = [_serialize_schedule_run(run, offset_minutes=offset_minutes, locale=locale) for run in runs]
     has_active_runs = any(task_state_service.is_schedule_run_active_status(item.get("status")) for item in items)
     return {
         "schedule_id": int(schedule_id),

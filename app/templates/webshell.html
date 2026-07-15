@@ -16,7 +16,7 @@
       <div class="p-2 border-bottom border-secondary webshell-sidebar-header">
         <div class="input-group input-group-sm">
           <span class="input-group-text bg-black text-secondary border-secondary filter-control-sm"><i class="bi bi-search"></i></span>
-          <input type="search" class="form-control bg-black text-white border-secondary filter-control-sm" id="sidebar-search" placeholder="搜索设备..." autocomplete="off" spellcheck="false">
+          <input type="search" class="form-control bg-black text-white border-secondary filter-control-sm" id="sidebar-search" placeholder="{{ _('template.webshell.searchdevice') }}..." autocomplete="off" spellcheck="false">
         </div>
       </div>
       <div class="flex-grow-1 overflow-auto" id="sidebar-tree">
@@ -60,7 +60,7 @@
               <button class="accordion-button collapsed bg-transparent text-white py-2 px-3 shadow-none border-0 tree-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-group-0" aria-expanded="false" aria-controls="collapse-group-0">
                 <span class="tree-arrow me-2"></span>
                 <i class="bi bi-folder me-2 text-warning"></i>
-                <span class="group-name fw-semibold">未分组</span>
+                <span class="group-name fw-semibold">{{ _('template.device_detail.ungrouped') }}</span>
                 <span class="ms-2 text-secondary small">({{ ungrouped_devices|length }})</span>
               </button>
             </h2>
@@ -88,14 +88,14 @@
     <div class="flex-grow-1 position-relative overflow-hidden d-flex flex-column">
       <div class="d-flex justify-content-between align-items-center flex-wrap px-3 py-2 bg-dark text-white border-bottom border-secondary webshell-topbar">
         <div class="d-flex align-items-center gap-2 flex-wrap topbar-left">
-           <span class="fw-bold webshell-device-name" id="topbar-device-name" title="{{ device.name }}"><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
+           <span class="fw-bold webshell-device-name" id="topbar-device-name" title="{{ device.name }}" data-i18n-preserve><i class="bi bi-terminal me-2"></i>{{ device.name }}</span>
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-host" id="topbar-device-host" title="{{ device.host }}:{{ device.port }}">{{ device.host }}:{{ device.port }}</span>
+           <span class="small text-light opacity-75 webshell-meta-host" id="topbar-device-host" title="{{ device.host }}:{{ device.port }}" data-i18n-preserve>{{ device.host }}:{{ device.port }}</span>
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-platform" id="topbar-device-platform" title="{{ device.platform }}">{{ device.platform }}</span>
+           <span class="small text-light opacity-75 webshell-meta-platform" id="topbar-device-platform" title="{{ device.platform }}" data-i18n-preserve>{{ device.platform }}</span>
            {% if credential %}
            <span class="text-secondary small webshell-meta-sep">|</span>
-           <span class="small text-light opacity-75 webshell-meta-user" title="{{ credential.username }}"><i class="bi bi-person me-1"></i><span id="topbar-username">{{ credential.username }}</span></span>
+           <span class="small text-light opacity-75 webshell-meta-user" title="{{ credential.username }}" data-i18n-preserve><i class="bi bi-person me-1"></i><span id="topbar-username">{{ credential.username }}</span></span>
            {% else %}
            <span class="text-secondary small webshell-meta-sep" id="topbar-username-separator">|</span>
            <span class="small text-light opacity-75 webshell-meta-user" id="topbar-username-container"><i class="bi bi-person me-1"></i><span id="topbar-username"></span></span>
@@ -103,25 +103,25 @@
            <span class="badge bg-secondary ms-2 webshell-login-badge" id="topbar-login-badge">{{ (device.login_method or 'ssh')|upper }}</span>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap topbar-right">
-          <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-toggle-sidebar" title="切换设备列表"><i class="bi bi-layout-sidebar"></i></button>
+          <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-toggle-sidebar" title="{{ _('template.webshell.toggle_device_list') }}"><i class="bi bi-layout-sidebar"></i></button>
           <div class="d-flex gap-1 me-2 border-end border-secondary pe-2" id="global-split-buttons">
-            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-v" title="左右分栏 (Vertical Split)"><i class="bi bi-layout-split"></i></button>
-            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-h" title="上下分栏 (Horizontal Split)"><i class="bi bi-hdd-stack"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-v" title="{{ _('template.webshell.side_by_side') }} (Vertical Split)"><i class="bi bi-layout-split"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-global-split-h" title="{{ _('template.webshell.stacked') }} (Horizontal Split)"><i class="bi bi-hdd-stack"></i></button>
           </div>
           <div class="d-flex gap-1 me-2 border-end border-secondary pe-2">
-            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="缩小字体"><i class="bi bi-dash"></i></button>
-            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="放大字体"><i class="bi bi-plus"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-out" title="{{ _('template.webshell.decrease_font_size') }}"><i class="bi bi-dash"></i></button>
+            <button class="btn btn-sm btn-dark-toolbar" id="btn-zoom-in" title="{{ _('template.webshell.increase_font_size') }}"><i class="bi bi-plus"></i></button>
           </div>
           <div class="dropdown me-2">
-            <button class="btn btn-sm btn-dark-toolbar dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换主题">
+            <button class="btn btn-sm btn-dark-toolbar dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="{{ _('template.base.switch_theme') }}">
               <i class="bi bi-palette"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="themeDropdown" id="theme-list">
             </ul>
           </div>
-           <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="导出当前会话日志"><i class="bi bi-download"></i></button>
-           <button class="btn btn-sm btn-outline-light" id="btn-reconnect">重连</button>
-           <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">关闭</button>
+           <button class="btn btn-sm btn-dark-toolbar me-2" id="btn-export-log" title="{{ _('template.webshell.export_current_session_log') }}"><i class="bi bi-download"></i></button>
+           <button class="btn btn-sm btn-outline-light" id="btn-reconnect">{{ _('template.webshell.reconnect') }}</button>
+           <button class="btn btn-sm btn-outline-secondary" onclick="window.close()">{{ _('template.base.close') }}</button>
         </div>
       </div>
       <div class="webshell-tabs border-bottom border-secondary">
@@ -145,16 +145,16 @@
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content bg-dark text-white border-secondary">
       <div class="modal-header border-secondary py-2">
-        <h6 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>粘贴确认</h6>
+        <h6 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>{{ _('template.webshell.paste_confirmation') }}</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="small text-secondary mb-2">即将粘贴以下内容到终端 (可编辑)：</p>
+        <p class="small text-secondary mb-2">{{ _('template.webshell.paste_preview_help') }}</p>
         <textarea class="form-control bg-black text-white border-secondary font-monospace" id="paste-content" rows="18" spellcheck="false"></textarea>
       </div>
       <div class="modal-footer border-secondary py-2">
-        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-paste">确认粘贴</button>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-paste">{{ _('template.webshell.confirm_paste') }}</button>
       </div>
     </div>
   </div>
@@ -165,45 +165,45 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content bg-dark text-white border-secondary">
       <div class="modal-header border-secondary py-2">
-        <h6 class="modal-title fw-bold">登录设备</h6>
+        <h6 class="modal-title fw-bold">{{ _('template.webshell.sign_in_to_device') }}</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3 d-flex align-items-center">
-          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">设备</label>
+          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">{{ _('audit.resource.device') }}</label>
           <div class="flex-grow-1 p-2 bg-black border border-secondary rounded small">
             <span id="login-device-name">{{ device.name }}</span> - IP: <span id="login-device-host">{{ device.host }}</span>
           </div>
         </div>
 
         <div class="mb-3 d-flex align-items-center">
-          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">连接方式</label>
+          <label class="form-label mb-0 me-3 text-secondary webshell-field-label">{{ _('template.webshell.connection_method') }}</label>
           <div class="flex-grow-1 d-flex gap-3">
             <div class="form-check mb-0">
               <input class="form-check-input" type="radio" name="loginType" id="loginTypeAuto" value="auto" checked>
-              <label class="form-check-label" for="loginTypeAuto">免密登录 (保存的凭据)</label>
+              <label class="form-check-label" for="loginTypeAuto">{{ _('template.webshell.sign_in') }} ({{ _('template.webshell.save_credential') }})</label>
             </div>
             <div class="form-check mb-0">
               <input class="form-check-input" type="radio" name="loginType" id="loginTypeManual" value="manual">
-              <label class="form-check-label" for="loginTypeManual">手动输入凭据</label>
+              <label class="form-check-label" for="loginTypeManual">{{ _('template.webshell.enter_credential_manually') }}</label>
             </div>
           </div>
         </div>
 
         <div id="manualLoginFields">
           <div class="mb-3 d-flex align-items-center">
-            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">用户名</label>
-            <input type="text" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualUsername" placeholder="请输入用户名">
+            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">{{ _('audit.csv.username') }}</label>
+            <input type="text" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualUsername" placeholder="{{ _('template.login.enter_username') }}">
           </div>
           <div class="mb-3 d-flex align-items-center">
-            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">密码</label>
-            <input type="password" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualPassword" placeholder="请输入密码 (可选)">
+            <label class="form-label mb-0 me-3 text-secondary webshell-field-label">{{ _('template.credentials.password') }}</label>
+            <input type="password" class="form-control form-control-sm bg-black text-white border-secondary flex-grow-1" id="manualPassword" placeholder="{{ _('template.login.enter_password') }} ({{ _('template.credentials.optional') }})">
           </div>
         </div>
 
       </div>
       <div class="modal-footer border-secondary py-2">
-        <button type="button" class="btn btn-primary w-100" id="btn-login-connect">登录</button>
+        <button type="button" class="btn btn-primary w-100" id="btn-login-connect">{{ _('audit.action.LOGIN') }}</button>
       </div>
     </div>
   </div>
@@ -213,11 +213,11 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content bg-dark text-white border-secondary">
       <div class="modal-header border-secondary py-2">
-        <h6 class="modal-title">切换设备</h6>
+        <h6 class="modal-title">{{ _('template.webshell.switch_device') }}</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="small text-secondary mb-2">当前终端会话将断开。</p>
+        <p class="small text-secondary mb-2">{{ _('template.webshell.terminal_disconnect_warning') }}。</p>
         <div class="d-flex align-items-center">
           <i class="bi bi-hdd-network me-2 text-primary"></i>
           <div class="flex-grow-1 text-truncate">
@@ -226,8 +226,8 @@
         </div>
       </div>
       <div class="modal-footer border-secondary py-2">
-        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-switch-device">确定切换</button>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ _('button.cancel') }}</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-switch-device">{{ _('template.webshell.confirm_switch') }}</button>
       </div>
     </div>
   </div>
@@ -251,5 +251,5 @@
     csrfToken: {{ csrf_token | tojson }}
   };
 </script>
-<script src="/static/js/pages/webshell.js"></script>
+<script src="/static/js/pages/webshell.js?v={{ app_version }}-i18n-status-2"></script>
 {% endblock %}

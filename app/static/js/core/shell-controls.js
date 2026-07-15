@@ -36,10 +36,10 @@ document.addEventListener('DOMContentLoaded', function() {
               
               if (isAppFullscreen) {
                 fullscreenIcon.className = 'bi bi-fullscreen-exit';
-                fullscreenToggle.setAttribute('title', '退出全屏');
+                fullscreenToggle.setAttribute('title', window.NB ? (NB.t("template.config_search.exit_full_screen")) : NB.t("template.config_search.exit_full_screen"));
               } else {
                 fullscreenIcon.className = 'bi bi-arrows-fullscreen';
-                fullscreenToggle.setAttribute('title', '全屏显示');
+                fullscreenToggle.setAttribute('title', window.NB ? (NB.t("template.base.full_screen")) : NB.t("template.base.full_screen"));
               }
 
               window.dispatchEvent(new CustomEvent('appFullscreenChanged', {
@@ -108,10 +108,10 @@ document.addEventListener('DOMContentLoaded', function() {
             function updateToggleIcon(isCollapsed) {
               if (isCollapsed) {
                 toggleIcon.className = 'bi bi-text-indent-left';
-                sidebarToggle.setAttribute('title', '展开菜单');
+                sidebarToggle.setAttribute('title', window.NB ? (NB.t("js.shell_controls.expand_menu")) : NB.t("js.shell_controls.expand_menu"));
               } else {
                 toggleIcon.className = 'bi bi-list';
-                sidebarToggle.setAttribute('title', '折叠菜单');
+                sidebarToggle.setAttribute('title', window.NB ? (NB.t("template.base.collapse_menu")) : NB.t("template.base.collapse_menu"));
               }
             }
 

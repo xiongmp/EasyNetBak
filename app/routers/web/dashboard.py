@@ -8,6 +8,7 @@ from sqlmodel import select
 from app import crud
 from app.db import get_session
 from app.models import Device
+from app.i18n import translate
 from app.routers.support import _current_user, _require_permission
 from app.routers.web_context import _layout_context, templates
 from app.services import task_observability_service
@@ -19,6 +20,20 @@ _DASHBOARD_WINDOW_OPTIONS: dict[str, dict[str, int | str]] = {
     "7d": {"label": "最近7天", "hours": 24 * 7, "days": 7},
     "30d": {"label": "最近30天", "hours": 24 * 30, "days": 30},
 }
+
+_DASHBOARD_WINDOW_LABEL_KEYS = {
+    "24h": "dashboard.window.24h",
+    "7d": "dashboard.window.7d",
+    "30d": "dashboard.window.30d",
+}
+
+
+def _localize_dashboard_window(key: str, value: dict[str, int | str], locale: str | None) -> dict[str, int | str]:
+    return {
+        **value,
+        "key": key,
+        "label": translate(locale, _DASHBOARD_WINDOW_LABEL_KEYS[key], fallback=str(value["label"])),
+    }
 
 
 def _resolve_dashboard_window(raw_window: str | None) -> dict[str, int | str]:
@@ -42,15 +57,26 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
     if selected_key not in _DASHBOARD_WINDOW_OPTIONS:
         selected_key = "7d"
     selected_window = _resolve_dashboard_window(selected_key)
+    locale = getattr(request.state, "locale", None)
     summary = crud.get_dashboard_summary(session, window_hours=int(selected_window["hours"]))
     platform_stats = crud.get_device_platform_stats(session)
     trend_stats = crud.get_backup_trend_stats(session, window_key=selected_key)
     change_heatmap = crud.get_config_change_heatmap_stats(session, window_key=selected_key)
+    trend_stats["granularity_label"] = translate(
+        locale,
+        str(trend_stats.get("granularity_label") or ""),
+        fallback=str(trend_stats.get("granularity_label") or ""),
+    )
+    change_heatmap["y_labels"] = [
+        translate(locale, str(label), fallback=str(label))
+        for label in change_heatmap.get("y_labels", [])
+    ]
     health_stats = crud.get_group_health_stats(session, window_days=int(selected_window["days"]))
     recent_backups = crud.get_latest_backups_per_device(session)
     task_health = task_observability_service.get_task_health_snapshot(
         session,
         window_hours=int(selected_window["hours"]),
+        locale=locale,
     )
 
     device_ids = {r.device_id for r in recent_backups}
@@ -66,8 +92,8 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
         name="dashboard.html",
         context={
             **_layout_context(request=request, active="dashboard"),
-            "page_title": "仪表盘",
-            "page_subtitle": "系统运行概览与统计分析",
+            "page_title": translate(request.state.locale, "nav.dashboard"),
+            "page_subtitle": translate(request.state.locale, "page.dashboard.subtitle"),
             "summary": summary,
             "platform_stats": platform_stats,
             "trend_stats": trend_stats,
@@ -77,13 +103,12 @@ def dashboard_page(request: Request, session: Session = Depends(get_session), wi
             "device_map": device_map,
             "task_health": task_health,
             "dashboard_window": {
-                "key": selected_key,
-                "label": str(selected_window["label"]),
+                **_localize_dashboard_window(selected_key, selected_window, locale),
                 "hours": int(selected_window["hours"]),
                 "days": int(selected_window["days"]),
             },
             "dashboard_window_options": [
-                {"key": key, **value}
+                _localize_dashboard_window(key, value, locale)
                 for key, value in _DASHBOARD_WINDOW_OPTIONS.items()
             ],
         },

@@ -1,41 +1,41 @@
 {% extends "base.html" %}
-{% set page_title = "备份历史" %}
-{% set page_subtitle = "按设备查看备份版本，并支持配置查看与差异对比" %}
+{% set page_title = _('template.backups.backup_history') %}
+{% set page_subtitle = _('page.backups.subtitle') %}
 
 {% block content %}
   <div class="row g-2">
     <div class="col-12 col-xl-5">
       <div class="card nb-backups-card">
         <div class="card-body nb-card-body-flex p-3">
-          <div class="fw-bold text-secondary mb-2 small">设备列表</div>
+          <div class="fw-bold text-secondary mb-2 small">{{ _('template.backups.device_list') }}</div>
 
           <div class="d-flex gap-2 align-items-center mb-3">
             <div class="input-group input-group-sm nb-device-search">
               <span class="input-group-text border-end-0 filter-control-sm"><i class="bi bi-search text-secondary"></i></span>
-              <input class="form-control border-start-0 ps-0 filter-control-sm" id="device-search" placeholder="搜索设备名或IP..." />
+              <input class="form-control border-start-0 ps-0 filter-control-sm" id="device-search" placeholder="{{ _('template.backups.search_device_name_or_ip') }}IP..." />
             </div>
-            <button class="btn btn-outline-primary btn-sm px-2 filter-control-sm" id="multi-device-btn" title="点击切换多设备对比模式">
-              <i class="bi bi-intersect me-1"></i>多设备对比
+            <button class="btn btn-outline-primary btn-sm px-2 filter-control-sm" id="multi-device-btn" title="{{ _('template.backups.toggle_multi_device_comparison_mode') }}">
+              <i class="bi bi-intersect me-1"></i>{{ _('template.backups.compare_devices') }}
             </button>
             {% if has_permission('devices.backup') %}
             <button class="btn btn-primary btn-sm ms-auto px-3 filter-control-sm" id="backup-now-btn" disabled>
-              <i class="bi bi-play-fill me-1"></i>立即备份
+              <i class="bi bi-play-fill me-1"></i>{{ _('template.backups.back_up_now') }}
             </button>
             {% endif %}
           </div>
 
           <div class="alert alert-warning py-1 px-2 small d-none mb-2" id="multi-mode-hint">
-             <i class="bi bi-exclamation-circle me-1"></i>请在下方列表选择两台设备进行对比
+             <i class="bi bi-exclamation-circle me-1"></i>{{ _('template.backups.select_two_devices_from_the_list_below_to') }}
           </div>
 
           <div class="table-responsive nb-scroll-area">
             <table class="table table-sm table-hover align-middle mb-0">
               <thead class="bg-body-tertiary">
                 <tr>
-                  <th>设备名称</th>
-                  <th style="width: 140px;">管理 IP</th>
-                  <th style="width: 100px;">平台</th>
-                  <th style="width: 70px;" class="text-start">版本</th>
+                  <th>{{ _('email.field.device_name') }}</th>
+                  <th style="width: 140px;">{{ _('template.backups.manage') }} IP</th>
+                  <th style="width: 100px;">{{ _('template.backups.platform') }}</th>
+                  <th style="width: 70px;" class="text-start">{{ _('template.backups.version') }}</th>
                 </tr>
               </thead>
               <tbody id="device-tbody">
@@ -46,11 +46,11 @@
                       data-device-id="{{ d.id }}"
                       data-search="{{ (d.name ~ ' ' ~ d.host ~ ' ' ~ d.platform)|lower }}">
                     <td class="text-start">
-                      <div class="fw-medium">{{ d.name }}</div>
+                      <div class="fw-medium" data-i18n-preserve>{{ d.name }}</div>
                     </td>
-                    <td class="text-secondary small text-start">{{ d.host }}</td>
+                    <td class="text-secondary small text-start" data-i18n-preserve>{{ d.host }}</td>
                     <td class="text-start">
-                      <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2">{{ d.platform }}</span>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2" data-i18n-preserve>{{ d.platform }}</span>
                     </td>
                     <td class="text-start">
                       <span class="badge bg-secondary-subtle text-secondary px-2">{{ d.backup_count }}</span>
@@ -58,7 +58,7 @@
                   </tr>
                 {% else %}
                   <tr>
-                    <td colspan="4" class="text-center text-secondary py-4">暂无设备数据</td>
+                    <td colspan="4" class="text-center text-secondary py-4">{{ _('template.backups.no_device_data') }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -77,18 +77,18 @@
         <div class="card-body nb-card-body-flex p-3">
           <div class="mb-3">
             <div class="d-flex align-items-center gap-2 mb-2">
-              <div class="fw-bold text-secondary small">备份历史</div>
-              <div class="badge bg-info-subtle text-info border border-info-subtle fw-normal" id="selected-device-meta">未选择设备</div>
+              <div class="fw-bold text-secondary small">{{ _('template.backups.backup_history') }}</div>
+              <div class="badge bg-info-subtle text-info border border-info-subtle fw-normal" id="selected-device-meta">{{ _('template.backups.no_device_selected') }}</div>
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-outline-secondary btn-sm px-3" id="diff-btn" disabled>
-                <i class="bi bi-file-diff me-1"></i>差异对比
+                <i class="bi bi-file-diff me-1"></i>{{ _('template.backups.compare_differences') }}
               </button>
               <button class="btn btn-outline-secondary btn-sm px-3" id="view-btn" disabled>
-                <i class="bi bi-eye me-1"></i>查看配置
+                <i class="bi bi-eye me-1"></i>{{ _('template.backups.viewconfiguration') }}
               </button>
               <button class="btn btn-outline-secondary btn-sm px-3" id="download-btn" disabled>
-                <i class="bi bi-download me-1"></i>下载配置
+                <i class="bi bi-download me-1"></i>{{ _('template.backups.download_configuration') }}
               </button>
             </div>
           </div>
@@ -102,18 +102,18 @@
                   <thead class="bg-body-tertiary">
                     <tr>
                       <th style="width: 40px;"></th>
-                      <th class="backup-time-cell" style="width: 180px;">备份时间</th>
-                      <th style="width: 110px;">状态</th>
-                      <th>详细信息 / 错误原因</th>
-                      <th style="width: 80px;">日志</th>
+                      <th class="backup-time-cell" style="width: 180px;">{{ _('email.field.backup_time') }}</th>
+                      <th style="width: 110px;">{{ _('login.csv.status') }}</th>
+                      <th>{{ _('template.backups.details_error_reason') }}</th>
+                      <th style="width: 80px;">{{ _('template.backups.logs') }}</th>
                       {% if has_permission('backups.delete') %}
-                      <th style="width: 80px;">操作</th>
+                      <th style="width: 80px;">{{ _('audit.csv.action') }}</th>
                       {% endif %}
                     </tr>
                   </thead>
                   <tbody id="backup-tbody-1">
                     <tr>
-                      <td colspan="{{ 6 if has_permission('backups.delete') else 5 }}" class="text-center text-secondary py-4 small">请在左侧选择设备以查看其备份历史</td>
+                      <td colspan="{{ 6 if has_permission('backups.delete') else 5 }}" class="text-center text-secondary py-4 small">{{ _('template.backups.select_a_device_on_the_left_to_view') }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -128,12 +128,12 @@
                   <thead class="bg-body-tertiary" id="thead-2">
                     <tr>
                       <th style="width: 40px;"></th>
-                      <th class="backup-time-cell" style="width: 180px;">备份时间</th>
-                      <th style="width: 110px;">状态</th>
-                      <th>详细信息 / 错误原因</th>
-                      <th style="width: 80px;">日志</th>
+                      <th class="backup-time-cell" style="width: 180px;">{{ _('email.field.backup_time') }}</th>
+                      <th style="width: 110px;">{{ _('login.csv.status') }}</th>
+                      <th>{{ _('template.backups.details_error_reason') }}</th>
+                      <th style="width: 80px;">{{ _('template.backups.logs') }}</th>
                       {% if has_permission('backups.delete') %}
-                      <th style="width: 80px;">操作</th>
+                      <th style="width: 80px;">{{ _('audit.csv.action') }}</th>
                       {% endif %}
                     </tr>
                   </thead>
@@ -152,22 +152,22 @@
       <div class="d-flex flex-wrap gap-3 align-items-center mb-3 border-bottom pb-3">
         <div class="form-check form-check-inline mb-0 small">
           <input class="form-check-input" type="radio" name="diff-mode" id="diff-mode-unified" value="unified" checked />
-          <label class="form-check-label" for="diff-mode-unified">并排视图</label>
+          <label class="form-check-label" for="diff-mode-unified">{{ _('template.backups.side_by_side_view') }}</label>
         </div>
         <div class="form-check form-check-inline mb-0 small">
           <input class="form-check-input" type="radio" name="diff-mode" id="diff-mode-split" value="split" />
-          <label class="form-check-label" for="diff-mode-split">分栏视图</label>
+          <label class="form-check-label" for="diff-mode-split">{{ _('template.backups.split_view') }}</label>
         </div>
         <div class="vr"></div>
         <div class="form-check form-check-inline mb-0 small">
           <input class="form-check-input" type="checkbox" id="diff-only-changed" checked />
-          <label class="form-check-label" for="diff-only-changed">仅显示差异</label>
+          <label class="form-check-label" for="diff-only-changed">{{ _('template.backups.show_differences_only') }}</label>
         </div>
         <div class="form-check form-check-inline mb-0 small">
           <input class="form-check-input" type="checkbox" id="diff-ignore-noise" />
           <label class="form-check-label" for="diff-ignore-noise">
-            智能忽略
-            <i class="bi bi-question-circle text-secondary ms-1" style="cursor: help;" title="忽略 ntp clock-period、last configuration change 等自动变更行。这里的规则是在“Diff 忽略规则”中配置的"></i>
+            {{ _('template.backups.smart_ignore') }}
+            <i class="bi bi-question-circle text-secondary ms-1" style="cursor: help;" title="{{ _('template.backups.ignore') }} ntp clock-period、last configuration change {{ _('template.backups.automatically_changing_lines_at') }}“Diff {{ _('template.backups.ignore_rules') }}”{{ _('template.backups.inconfiguration') }}"></i>
           </label>
         </div>
       </div>
@@ -175,20 +175,20 @@
       <div class="row g-2 mb-3">
         <div class="col-12 col-md-6">
           <div class="p-2 border rounded-1 bg-body-tertiary">
-            <div class="text-secondary small opacity-75">版本 A (新)</div>
+            <div class="text-secondary small opacity-75">{{ _('template.backups.version') }} A ({{ _('template.backups.new_version') }})</div>
             <div class="fw-medium small" id="diff-meta-a"></div>
           </div>
         </div>
         <div class="col-12 col-md-6">
           <div class="p-2 border rounded-1 bg-body-tertiary">
-            <div class="text-secondary small opacity-75">版本 B (旧)</div>
+            <div class="text-secondary small opacity-75">{{ _('template.backups.version') }} B ({{ _('template.backups.old_version') }})</div>
             <div class="fw-medium small" id="diff-meta-b"></div>
           </div>
         </div>
       </div>
 
       <div class="text-center text-secondary small d-none py-5" id="diff-loading">
-        <div class="spinner-border spinner-border-sm me-2" role="status"></div>正在计算差异...
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>{{ _('template.backups.calculating_differences') }}...
       </div>
       <div class="diff-render" id="diff-render"></div>
     </div>
@@ -254,6 +254,10 @@
       span.textContent = text == null ? "" : String(text);
       return span.innerHTML;
     }
+
+    function tr(text) { return text; }
+
+    function trHtml(html) { return html; }
 
     function updateActionButtons() {
       setDisabled(els.viewBtn, selectedBackups.length !== 1);
@@ -337,7 +341,7 @@
       };
 
       if (!selectedDeviceIds.length) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">{{ _('template.backups.select_a_device_on_the_left') }}</td></tr>`);
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
         els.paneHeader1.classList.add("d-none");
@@ -353,7 +357,7 @@
       const renderDevice = (did, tbody, headerEl) => {
         const info = deviceBackupsMap[did];
         if (!info) {
-          tbody.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">正在加载数据...</td></tr>`;
+          tbody.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">{{ _('template.backups.loading_data') }}...</td></tr>`);
           return;
         }
         const device = info || {};
@@ -363,10 +367,10 @@
         if (isMultiDeviceMode) {
           headerEl.innerHTML = `
             <div class="d-flex align-items-center justify-content-between px-2 py-1 bg-body-tertiary border-bottom">
-              <span class="fw-bold text-primary small text-truncate me-2" title="${escapeText(device.name)}">
+              <span class="fw-bold text-primary small text-truncate me-2" title="${escapeText(device.name)}" data-i18n-preserve>
                 <i class="bi bi-hdd-network me-1"></i>${escapeText(device.name)}
               </span>
-              <span class="text-secondary small opacity-75 text-truncate flex-shrink-0">${escapeText(device.host)}</span>
+              <span class="text-secondary small opacity-75 text-truncate flex-shrink-0" data-i18n-preserve>${escapeText(device.host)}</span>
             </div>
           `;
         } else {
@@ -375,7 +379,7 @@
 
         let html = "";
         if (!backups.length) {
-          html += `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">暂无备份记录</td></tr>`;
+          html += trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-2 small">{{ _('template.backups.no_backup_records') }}</td></tr>`);
         } else {
           backups.forEach(b => {
             const checked = selectedBackups.includes(b.id) ? "checked" : "";
@@ -384,7 +388,7 @@
             const isActive = window.NB && typeof window.NB.isActiveBackupStatus === "function"
               ? window.NB.isActiveBackupStatus(b.status)
               : !b.finished_at;
-            const deleteTitle = isActive ? "执行中的备份任务无法删除" : "删除";
+            const deleteTitle = tr(isActive ? "{{ _('template.backups.running_backup_tasks_cannot_be_deleted') }}" : "{{ _('template.api_keys.delete') }}");
             const opCell = CAN_DELETE_BACKUP
               ? `<td><button class="btn btn-outline-danger btn-sm py-0 px-2 backup-delete-row" title="${escapeText(deleteTitle)}" data-backup-id="${escapeText(b.id)}" ${isActive ? "disabled" : ""}><i class="bi bi-trash"></i></button></td>`
               : "";
@@ -393,8 +397,8 @@
                 <td><input class="form-check-input backup-select" type="checkbox" ${checked} /></td>
                 <td class="backup-time-cell text-secondary small">${escapeText(b.started_at)}</td>
                 <td>${status}</td>
-                <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}">${err}</td>
-                <td><button class="btn btn-outline-secondary btn-sm py-0 px-2 backup-log-row" title="查看执行日志" data-backup-id="${escapeText(b.id)}"><i class="bi bi-journal-text"></i></button></td>
+                <td class="text-danger small text-truncate" style="max-width: 320px;" title="${err}" data-i18n-preserve>${err}</td>
+                <td><button class="btn btn-outline-secondary btn-sm py-0 px-2 backup-log-row" title="${tr("{{ _('template.backups.viewexecution_log') }}")}" data-backup-id="${escapeText(b.id)}"><i class="bi bi-journal-text"></i></button></td>
                 ${opCell}
               </tr>
             `;
@@ -436,7 +440,7 @@
            setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || selectedDeviceIds.length === 0);
          }
          if (window.NB && typeof window.NB.showToast === "function") {
-           window.NB.showToast(detail || "加载备份记录失败", "error");
+           window.NB.showToast(detail || "{{ _('template.backups.failed_to_load_backup_record') }}", "error");
          }
          return null;
        }
@@ -477,18 +481,18 @@
 
     async function loadSelectedDevicesBackups() {
       if (selectedDeviceIds.length === 0) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">请选择左侧设备</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">{{ _('template.backups.select_a_device_on_the_left') }}</td></tr>`);
         els.backupTbody2.innerHTML = '';
         els.pane2.classList.add("d-none");
-        els.selectedDeviceMeta.textContent = "未选择设备";
+        els.selectedDeviceMeta.textContent = tr("{{ _('template.backups.no_device_selected') }}");
         return;
       }
       
-      els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
+      els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">{{ _('template.backups.loading') }}...</td></tr>`);
       
       const isDualPane = isMultiDeviceMode && selectedDeviceIds.length === 2;
       if (isDualPane) {
-        els.backupTbody2.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">加载中...</td></tr>`;
+        els.backupTbody2.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-secondary py-4">{{ _('template.backups.loading') }}...</td></tr>`);
         els.pane2.classList.remove("d-none");
       } else {
         els.pane2.classList.add("d-none");
@@ -498,12 +502,12 @@
       if (selectedDeviceIds.length === 1) {
          const d = DEVICE_ROWS.find(x => String(x.id) === String(selectedDeviceIds[0]));
          if (d) {
-            els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+            els.selectedDeviceMeta.innerHTML = `<span data-i18n-preserve>${escapeText(d.name || "")} - ${escapeText(d.host || "")}</span>`;
          } else {
-            els.selectedDeviceMeta.textContent = "加载中...";
+            els.selectedDeviceMeta.textContent = tr("{{ _('template.backups.loading') }}...");
          }
       } else {
-         els.selectedDeviceMeta.textContent = `已选 ${selectedDeviceIds.length} 台设备`;
+         els.selectedDeviceMeta.textContent = tr(`{{ _('template.backups.selected') }} ${selectedDeviceIds.length} {{ _('template.backups.devices') }}`);
       }
 
       // Fetch all
@@ -521,14 +525,14 @@
       });
       
       if (successCount === 0) {
-        els.backupTbody1.innerHTML = `<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-danger py-4">加载失败</td></tr>`;
+        els.backupTbody1.innerHTML = trHtml(`<tr><td colspan="${BACKUP_TABLE_COLSPAN}" class="text-center text-danger py-4">{{ _('template.backups.load_failed') }}</td></tr>`);
         return;
       }
       
       // Update meta title for single device
       if (selectedDeviceIds.length === 1) {
          const d = deviceBackupsMap[selectedDeviceIds[0]] || {};
-         els.selectedDeviceMeta.textContent = `${d.name || ""} - ${d.host || ""}`;
+         els.selectedDeviceMeta.innerHTML = `<span data-i18n-preserve>${escapeText(d.name || "")} - ${escapeText(d.host || "")}</span>`;
       }
 
       renderBackupsTable();
@@ -647,7 +651,7 @@
               detail = "";
             }
             if (window.NB && typeof window.NB.showToast === "function") {
-              window.NB.showToast(detail || "删除失败，请稍后重试", "error");
+              window.NB.showToast(detail || "{{ _('template.backups.deletefailed_please_try_again_later') }}", "error");
             }
             updateActionButtons();
             return;
@@ -657,19 +661,19 @@
           await loadSelectedDevicesBackups();
           updateActionButtons();
           if (window.NB && typeof window.NB.showToast === "function") {
-            window.NB.showToast("备份记录已删除", "success");
+            window.NB.showToast("{{ _('template.backups.backup_record_deleted') }}", "success");
           }
         } catch (e) {
           if (window.NB && typeof window.NB.showToast === "function") {
-            window.NB.showToast("删除请求失败: " + e.message, "error");
+            window.NB.showToast("{{ _('template.backups.deleterequest_failed') }}: " + e.message, "error");
           }
           updateActionButtons();
         }
       };
 
       if (window.NB && typeof window.NB.confirmDelete === "function") {
-        window.NB.confirmDelete("确定要删除此备份记录吗？此操作不可恢复。", doDelete);
-      } else if (confirm("确定要删除此备份记录吗？此操作不可恢复。")) {
+        window.NB.confirmDelete("{{ _('template.backups.delete_this_backup_record_this_action_cannot_be') }}。", doDelete);
+      } else if (confirm("{{ _('template.backups.delete_this_backup_record_this_action_cannot_be') }}。")) {
         doDelete();
       }
     }
@@ -860,7 +864,7 @@
         } catch (e) {
           detail = "";
         }
-        els.diffRender.innerHTML = `<div class="text-danger small p-3">${escapeText(detail || "差异加载失败")}</div>`;
+        els.diffRender.innerHTML = `<div class="text-danger small p-3">${escapeText(detail || tr("{{ _('template.backups.failed_to_load_differences') }}"))}</div>`;
         return;
       }
       const data = await resp.json();
@@ -971,7 +975,7 @@
                   detail = "";
                 }
                 if (window.NB && typeof window.NB.showToast === "function") {
-                  window.NB.showToast(detail || "备份任务提交失败", "error");
+                  window.NB.showToast(detail || "{{ _('template.backups.failed_to_submit_backup_task') }}", "error");
                 }
                 setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
                 return;
@@ -984,7 +988,7 @@
                 if (enqueueWarning) {
                   window.NB.showToast(enqueueWarning, "warning");
                 } else {
-                  window.NB.showToast("备份任务已提交", "success");
+                  window.NB.showToast("{{ _('template.backups.backup_task_submitted') }}", "success");
                 }
               }
 
@@ -1012,7 +1016,7 @@
               }
             } catch (e) {
               if (window.NB && typeof window.NB.showToast === "function") {
-                window.NB.showToast("请求出错: " + e.message, "error");
+                window.NB.showToast("{{ _('template.backups.request_failed') }}: " + e.message, "error");
               }
               setDisabled(els.backupNowBtn, !CAN_TRIGGER_BACKUP || !selectedDeviceId);
             }
@@ -1020,13 +1024,13 @@
 
           if (window.NB && typeof window.NB.confirm === "function") {
             window.NB.confirm({
-              title: "立即备份",
-              message: "确定要立即执行备份吗？",
+              title: "{{ _('template.backups.back_up_now') }}",
+              message: "{{ _('template.backups.run_the_backup_now') }}？",
               onConfirm: doBackup,
-              confirmBtnText: "开始备份",
+              confirmBtnText: "{{ _('template.backups.start_backup') }}",
               confirmBtnClass: "btn-primary"
             });
-          } else if (confirm("确定要立即执行备份吗？")) {
+          } else if (confirm("{{ _('template.backups.run_the_backup_now') }}？")) {
             doBackup();
           }
         });
