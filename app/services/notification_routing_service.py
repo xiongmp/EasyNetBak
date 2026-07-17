@@ -24,6 +24,7 @@ from sqlmodel import Session, select
 
 from app import crud
 from app.core.settings import settings
+from app.core.time import format_local_datetime, parse_timezone_offset_to_minutes
 from app.i18n import translate
 from app.i18n.email import render_email_template
 from app.i18n.validators import normalize_locale
@@ -45,6 +46,10 @@ CHANNEL_TYPES = ("smtp", "wecom", "dingtalk", "feishu", "webhook")
 ROBOT_CHANNEL_TYPES = ("wecom", "dingtalk", "feishu")
 TEMPLATE_CHANNEL_TYPES = (*CHANNEL_TYPES, "robot")
 EVENT_TYPES = ("backup_failed", "config_changed", "backup_summary", "task_cancelled")
+LEGACY_BUILTIN_POLICY_EVENTS = {
+    "failure": {"backup_failed", "backup_summary", "task_cancelled"},
+    "config_change": {"config_changed", "backup_summary"},
+}
 CONTENT_TYPES = ("html", "markdown", "text", "json")
 FAILURE_TYPES = (
     "TIMEOUT", "AUTH_FAILED", "REFUSED", "READ_TIMEOUT", "DISCONNECTED",
@@ -505,6 +510,32 @@ def has_custom_policy_for_event(session: Session, event_type: str) -> bool:
     )
 
 
+def has_unconditional_summary_policy(session: Session) -> bool:
+    """Return whether a completed backup should always emit a summary.
+
+    Untouched legacy failure/configuration policies include ``backup_summary``
+    only so they can aggregate matching batch details. Once their event set is
+    edited, the choices shown in the policy editor become literal.
+    """
+    ensure_builtin_defaults(session)
+    for policy in list_policies(session):
+        event_types = set(_json_list(policy.event_types_json))
+        if not policy.enabled or "backup_summary" not in event_types:
+            continue
+        if (
+            policy.builtin_key == BUILTIN_POLICY_KEYS["failure"]
+            and event_types == LEGACY_BUILTIN_POLICY_EVENTS["failure"]
+        ):
+            continue
+        if (
+            policy.builtin_key == BUILTIN_POLICY_KEYS["config_change"]
+            and event_types == LEGACY_BUILTIN_POLICY_EVENTS["config_change"]
+        ):
+            continue
+        return True
+    return False
+
+
 def has_enabled_policy_for_event(session: Session, event_type: str) -> bool:
     ensure_builtin_defaults(session)
     return any(
@@ -530,6 +561,11 @@ def list_deliveries(session: Session, *, limit: int = 30, locale: str = "zh-CN")
     events = {item.id: item for item in session.exec(
         select(NotificationEvent).where(NotificationEvent.id.in_([delivery.event_id for delivery in deliveries]))
     )} if deliveries else {}
+    offset_minutes = parse_timezone_offset_to_minutes(
+        crud.get_setting(session, key="timezone_offset") or settings.timezone_offset
+    )
+    if offset_minutes is None:
+        offset_minutes = parse_timezone_offset_to_minutes(settings.timezone_offset) or 0
     rows: list[dict[str, Any]] = []
     for item in deliveries:
         channel = channels.get(item.channel_id)
@@ -545,8 +581,8 @@ def list_deliveries(session: Session, *, limit: int = 30, locale: str = "zh-CN")
             "status": item.status,
             "attempts": item.attempts,
             "last_error": item.last_error or "",
-            "created_at": item.created_at,
-            "sent_at": item.sent_at,
+            "created_at": format_local_datetime(item.created_at, offset_minutes=offset_minutes),
+            "sent_at": format_local_datetime(item.sent_at, offset_minutes=offset_minutes),
         })
     return rows
 
@@ -903,14 +939,23 @@ def _subset_payload(session: Session, policy: NotificationPolicy, payload: dict[
 
 
 def _builtin_policy_matches(policy: NotificationPolicy, event_type: str, payload: dict[str, Any]) -> bool:
-    if policy.builtin_key == BUILTIN_POLICY_KEYS["failure"] and event_type in {"backup_summary", "task_cancelled"}:
+    event_types = set(_json_list(policy.event_types_json))
+    if (
+        policy.builtin_key == BUILTIN_POLICY_KEYS["failure"]
+        and event_types == LEGACY_BUILTIN_POLICY_EVENTS["failure"]
+        and event_type in {"backup_summary", "task_cancelled"}
+    ):
         return bool(
             int(payload.get("failed_count") or 0)
             or int(payload.get("cancelled_count") or 0)
             or payload.get("success") is False
             or payload.get("cancelled")
         )
-    if policy.builtin_key == BUILTIN_POLICY_KEYS["config_change"] and event_type == "backup_summary":
+    if (
+        policy.builtin_key == BUILTIN_POLICY_KEYS["config_change"]
+        and event_types == LEGACY_BUILTIN_POLICY_EVENTS["config_change"]
+        and event_type == "backup_summary"
+    ):
         return bool(int(payload.get("changed_count") or 0) or payload.get("changed"))
     return True
 

@@ -303,7 +303,7 @@ def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = F
     if not device:
         return _alert_result(mode="device_missing", rule_enabled=False, skipped=True, reason="device_missing")
 
-    always_send = notification_routing_service.is_builtin_policy_enabled(session, "summary")
+    always_send = notification_routing_service.has_unconditional_summary_policy(session)
     if always_send and not skip_email:
         return _send_single_backup_summary_email(session, device, record)
 
@@ -635,7 +635,11 @@ def check_and_alert_batch(
     # 获取配置
     alert_on_fail = notification_routing_service.is_builtin_policy_enabled(session, "failure")
     alert_on_change = notification_routing_service.is_builtin_policy_enabled(session, "config_change")
-    always_send = notification_routing_service.is_builtin_policy_enabled(session, "summary")
+    always_send = (
+        notification_routing_service.has_unconditional_summary_policy(session)
+        if session is not None
+        else notification_routing_service.is_builtin_policy_enabled(session, "summary")
+    )
 
     for record in records:
         device = crud.get_device(session, record.device_id)
@@ -677,7 +681,7 @@ def check_and_alert_batch(
         should_send = True
         trigger_reason = "config_changed"
 
-    if not should_send and not notification_routing_service.has_custom_policy_for_event(session, "backup_summary"):
+    if not should_send:
         any_rule_enabled = bool(always_send or alert_on_fail or alert_on_change)
         return {
             "mode": "batch_summary",

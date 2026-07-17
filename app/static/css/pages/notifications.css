@@ -189,6 +189,11 @@
 .choice-chip input:checked + span { border-color: var(--signal-blue); background: rgba(36, 87, 214, .08); color: var(--signal-blue); }
 .choice-chip.is-muted span { border-style: dashed; color: var(--signal-muted); }
 .choice-chip input:focus-visible + span { outline: 3px solid rgba(36, 87, 214, .22); outline-offset: 2px; }
+.event-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.event-choice-chip span { display: flex; min-height: 4.25rem; flex-direction: column; align-items: flex-start; gap: .2rem; }
+.event-choice-chip strong { font-size: .76rem; font-weight: 750; }
+.event-choice-chip small { color: var(--signal-muted); font-size: .68rem; line-height: 1.35; }
+.event-choice-chip input:checked + span small { color: inherit; opacity: .82; }
 .template-editor { min-height: 540px; resize: vertical; line-height: 1.55; }
 #templateModal {
   --signal-ink: #172033;
@@ -287,6 +292,7 @@
   .policy-row { grid-template-columns: 58px minmax(0, 1fr) auto; }
   .policy-actions { grid-column: 2 / -1; }
   .policy-builder { grid-template-columns: 1fr; gap: .6rem; }
+  .event-choice-grid { grid-template-columns: 1fr; }
   .builder-arrow { transform: rotate(90deg); }
   .template-workbench { grid-template-columns: 1fr; }
   .template-output { grid-column: 1; }

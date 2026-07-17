@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app import crud
 from app.core.settings import settings
@@ -29,7 +31,17 @@ from app.i18n.render import is_frontend_message_key, javascript_messages
 from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
-from app.models import BackupRecord, BackupSchedule, BackupScheduleRun, Device, TaskEvent
+from app.models import (
+    BackupRecord,
+    BackupSchedule,
+    BackupScheduleRun,
+    Device,
+    NotificationChannel,
+    NotificationDelivery,
+    NotificationEvent,
+    NotificationPolicy,
+    TaskEvent,
+)
 from app.routers.web_context import _layout_context, templates
 from app.services import (
     alert_service,
@@ -766,3 +778,89 @@ def test_batch_email_uses_finalizer_snapshot_for_failure_and_change_lists(monkey
     assert "Connection timed out: the device is unreachable or the port is unavailable" in captured["content"]
     assert "TCP connection to device failed. Wrong TCP port." in captured["content"]
     assert "连接超时" not in captured["content"]
+
+
+def test_edited_builtin_failure_policy_sends_successful_backup_summary(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    values = {
+        "smtp_host": "smtp.example.invalid",
+        "smtp_port": "587",
+        "smtp_user": "backup@example.invalid",
+        "smtp_pass": "encrypted-value",
+        "smtp_from": "backup@example.invalid",
+        "smtp_to": "ops@example.invalid",
+        "alert_on_fail": "1",
+        "alert_on_config_change": "0",
+        "always_send_summary": "0",
+    }
+    monkeypatch.setattr(crud, "get_setting", lambda session, key: values.get(key))
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        notification_routing_service,
+        "_send_channel",
+        lambda channel, **kwargs: sent.append(kwargs),
+    )
+
+    with Session(engine) as session:
+        notification_routing_service.ensure_builtin_defaults(session)
+        policy = session.exec(
+            select(NotificationPolicy).where(NotificationPolicy.builtin_key == "builtin_failure")
+        ).one()
+        assert notification_routing_service.has_unconditional_summary_policy(session) is False
+
+        policy.event_types_json = json.dumps(list(notification_routing_service.EVENT_TYPES))
+        session.add(policy)
+        session.flush()
+
+        assert notification_routing_service.has_unconditional_summary_policy(session) is True
+        result = notification_routing_service.dispatch_event(
+            session,
+            event_type="backup_summary",
+            source_key="test:edited-builtin-success:1",
+            locale="zh-CN",
+            payload={
+                "failed_count": 0,
+                "cancelled_count": 0,
+                "changed_count": 0,
+                "items": [{"device_name": "edge-ok", "success": True, "cancelled": False}],
+            },
+            fallback_subject="全部备份成功",
+            fallback_body="<html><body>success</body></html>",
+        )
+
+    assert result["sent"] == 1
+    assert len(sent) == 1
+
+
+def test_notification_delivery_times_use_system_timezone(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(
+        crud,
+        "get_setting",
+        lambda session, key: "+08:00" if key == "timezone_offset" else None,
+    )
+
+    with Session(engine) as session:
+        channel = NotificationChannel(name="SMTP", channel_type="smtp", enabled=True)
+        event = NotificationEvent(event_type="backup_summary", source_key="test:timezone:1", locale="zh-CN")
+        session.add(channel)
+        session.add(event)
+        session.flush()
+        session.add(
+            NotificationDelivery(
+                event_id=event.id,
+                channel_id=channel.id,
+                dedupe_key="timezone-delivery",
+                status="sent",
+                created_at=datetime(2026, 7, 17, 1, 2, 3),
+                sent_at=datetime(2026, 7, 17, 1, 3, 4),
+            )
+        )
+        session.flush()
+
+        row = notification_routing_service.list_deliveries(session)[0]
+
+    assert row["created_at"] == "2026-07-17 09:02:03"
+    assert row["sent_at"] == "2026-07-17 09:03:04"
