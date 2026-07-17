@@ -19,12 +19,17 @@ from app.routers.support import _log_action, _require_any_permission, _require_p
 from app.routers.web_context import _layout_context, templates
 from app.schemas.inputs import AuditLogListQueryInput, BaseListQueryInput, LoginLogListQueryInput, SearchListQueryInput
 from app.scheduler import run_cleanup, sync_scheduler_from_db
-from app.services import api_key_management_service, audit_service, pagination_service, settings_service
+from app.services import (
+    api_key_management_service,
+    audit_service,
+    notification_routing_service,
+    pagination_service,
+    settings_service,
+)
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.errors import ServiceError
 from app.services.s3_service import test_s3_connection
 from app.services.ftp_service import test_ftp_connection
-from app.services.notification_service import send_email
 
 
 router = APIRouter(tags=["系统设置 (System)"])
@@ -358,114 +363,392 @@ def api_test_ftp(
 
 
 @router.get("/notifications", summary="通知设置页面", description="查看系统消息通知配置")
-def notifications_page(request: Request, session: Session = Depends(get_session)):
+def notifications_page(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+):
     _require_any_permission(request, ["notifications.view", "notifications.update"])
-    smtp_host = crud.get_setting(session, key="smtp_host") or ""
-    smtp_port = crud.get_setting(session, key="smtp_port") or "25"
-    smtp_user = crud.get_setting(session, key="smtp_user") or ""
-    smtp_pass = decrypt_secret(crud.get_setting(session, key="smtp_pass")) or ""
-    smtp_from = crud.get_setting(session, key="smtp_from") or ""
-    smtp_to = crud.get_setting(session, key="smtp_to") or ""
-    alert_on_fail = crud.get_setting(session, key="alert_on_fail") or "0"
-    alert_on_config_change = crud.get_setting(session, key="alert_on_config_change") or "0"
-    always_send_summary = crud.get_setting(session, key="always_send_summary") or "0"
+    notification_routing_service.ensure_builtin_defaults(session)
 
-    # 对 SMTP 密码进行等长掩码处理
-    display_smtp_pass = "*" * len(smtp_pass) if smtp_pass else ""
-
-    return templates.TemplateResponse(
+    locale = request.state.locale
+    channel_rows = [
+        notification_routing_service.serialize_channel(item, locale=locale)
+        for item in notification_routing_service.list_channels(session)
+    ]
+    template_rows = [
+        notification_routing_service.serialize_template(item, locale=locale)
+        for item in notification_routing_service.list_templates(session)
+    ]
+    policy_rows = [
+        notification_routing_service.serialize_policy(item, locale=locale)
+        for item in notification_routing_service.list_policies(session)
+    ]
+    groups = crud.list_groups(session)
+    platforms = sorted({str(item.platform).strip() for item in crud.list_devices(session) if str(item.platform or "").strip()})
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    response = templates.TemplateResponse(
         request=request,
         name="notifications.html",
         context={
             **_layout_context(request=request, active="notifications"),
-            "smtp_host": smtp_host,
-            "smtp_port": smtp_port,
-            "smtp_user": smtp_user,
-            "smtp_pass": display_smtp_pass,
-            "smtp_from": smtp_from,
-            "smtp_to": smtp_to,
-            "alert_on_fail": alert_on_fail,
-            "alert_on_config_change": alert_on_config_change,
-            "always_send_summary": always_send_summary,
+            "csrf_token": csrf_token,
+            "notification_channels": channel_rows,
+            "notification_templates": template_rows,
+            "notification_policies": policy_rows,
+            "notification_deliveries": notification_routing_service.list_deliveries(session, locale=locale),
+            "notification_event_types": notification_routing_service.EVENT_TYPES,
+            "notification_channel_types": notification_routing_service.CHANNEL_TYPES,
+            "notification_template_channel_types": notification_routing_service.TEMPLATE_CHANNEL_TYPES,
+            "notification_content_types": notification_routing_service.CONTENT_TYPES,
+            "notification_failure_types": notification_routing_service.FAILURE_TYPES,
+            "notification_template_variable_groups": notification_routing_service.template_variable_catalog(locale=locale),
+            "notification_template_sample_contexts": {
+                event_type: notification_routing_service.sample_template_context(locale=locale, event_type=event_type)
+                for event_type in ("*", *notification_routing_service.EVENT_TYPES)
+            },
+            "notification_groups": groups,
+            "notification_platforms": platforms,
         },
     )
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
 
 
-@router.post("/notifications/test", summary="测试通知设置", description="发送测试请求以验证通知配置")
-def test_notifications(
+def _notification_redirect_error(request: Request, exc: ServiceError) -> RedirectResponse:
+    if "CHANNEL" in exc.code:
+        key = "notification.error.channel"
+    elif "TEMPLATE" in exc.code:
+        key = "notification.error.template"
+    elif "POLICY" in exc.code:
+        key = "notification.error.policy"
+    else:
+        key = "notification.error.operation"
+    return RedirectResponse(url=f"/notifications?err={quote(translate(request.state.locale, key))}", status_code=303)
+
+
+@router.post("/notifications/channels", summary="保存通知通道", description="创建或更新通知投递通道")
+async def save_notification_channel(
     request: Request,
+    csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
+    channel_id: int = Form(0),
+    name: str = Form(""),
+    channel_type: str = Form("webhook"),
+    enabled: str = Form("0"),
     smtp_host: str = Form(""),
     smtp_port: str = Form("25"),
     smtp_user: str = Form(""),
-    smtp_pass: str = Form(""),
     smtp_from: str = Form(""),
     smtp_to: str = Form(""),
+    smtp_password: str = Form(""),
+    webhook_url: str = Form(""),
+    signing_secret: str = Form(""),
+    authorization: str = Form(""),
+    timeout: int = Form(10),
+    allow_private: str = Form("0"),
 ):
+    await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
-
-    # 如果 smtp_pass 为空或为纯星号掩码，尝试从数据库获取
-    if not smtp_pass or (set(smtp_pass) == {'*'}):
-        smtp_pass = decrypt_secret(crud.get_setting(session, key="smtp_pass")) or ""
-
-    config = {
-        "smtp_host": smtp_host.strip(),
-        "smtp_port": smtp_port.strip(),
-        "smtp_user": smtp_user.strip(),
-        "smtp_pass": smtp_pass.strip(),
-        "smtp_from": smtp_from.strip(),
-        "smtp_to": smtp_to.strip(),
-    }
-
     try:
-        success = send_email(
+        normalized_smtp_port = max(1, min(int(smtp_port or 25), 65535))
+    except (TypeError, ValueError):
+        normalized_smtp_port = 25
+    config = {
+        "host": smtp_host.strip(),
+        "port": str(normalized_smtp_port),
+        "user": smtp_user.strip(),
+        "from": smtp_from.strip(),
+        "to": smtp_to.strip(),
+        "starttls": True,
+        "timeout": max(1, min(int(timeout or 10), 30)),
+        "allow_private": allow_private in {"1", "on"},
+    }
+    secrets = {
+        "password": smtp_password,
+        "url": webhook_url,
+        "signing_secret": signing_secret,
+        "authorization": authorization,
+    }
+    try:
+        channel = notification_routing_service.save_channel(
+            session,
+            channel_id=channel_id or None,
+            name=name,
+            channel_type=channel_type,
+            enabled=enabled in {"1", "on"},
+            config=config,
+            secrets=secrets,
+        )
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_channel", channel.id, f"Saved channel: {channel.name} ({channel.channel_type})")
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/channels/test", summary="发送 SMTP 通道测试邮件")
+async def test_notification_smtp_channel(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    channel_id: int = Form(0),
+    smtp_host: str = Form(""),
+    smtp_port: str = Form("25"),
+    smtp_user: str = Form(""),
+    smtp_from: str = Form(""),
+    smtp_to: str = Form(""),
+    smtp_password: str = Form(""),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        normalized_port = max(1, min(int(smtp_port or 25), 65535))
+        success = notification_routing_service.test_smtp_channel(
+            session,
+            channel_id=channel_id or None,
+            config={
+                "host": smtp_host,
+                "port": str(normalized_port),
+                "user": smtp_user,
+                "from": smtp_from,
+                "to": smtp_to,
+            },
+            password=smtp_password,
             subject=translate(request.state.locale, "notification.test_email.subject"),
             content=translate(request.state.locale, "notification.test_email.content"),
-            smtp_config=config,
         )
-        if success:
-            return {"success": True, "message": translate(request.state.locale, "notification.test_email.sent")}
-        return {"success": False, "message": translate(request.state.locale, "notification.test_email.failed")}
-    except Exception as exc:
+    except (ServiceError, TypeError, ValueError):
         return {
             "success": False,
-            "message": translate(request.state.locale, "notification.test_email.error", {"error": str(exc)}),
+            "error": {"code": "SMTP_TEST_FAILED", "message": translate(request.state.locale, "notification.test_email.failed")},
+        }
+    except Exception:
+        logger.warning("SMTP notification channel test failed", exc_info=True)
+        return {
+            "success": False,
+            "error": {"code": "SMTP_TEST_FAILED", "message": translate(request.state.locale, "notification.test_email.failed")},
+        }
+    return {
+        "success": bool(success),
+        "message": translate(request.state.locale, "notification.test_email.sent" if success else "notification.test_email.failed"),
+    }
+
+
+@router.post("/notifications/channels/{channel_id}/enabled", summary="启用或停用通知通道")
+async def set_notification_channel_enabled(
+    request: Request,
+    channel_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    enabled: str = Form("0"),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        item = notification_routing_service.set_channel_enabled(session, channel_id, enabled in {"1", "on"})
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_channel", item.id, f"Set channel enabled={item.enabled}")
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/channels/{channel_id}/delete", summary="删除通知通道")
+async def delete_notification_channel(
+    request: Request,
+    channel_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        notification_routing_service.delete_channel(session, channel_id)
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_channel", channel_id, "Deleted notification channel")
+    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
+
+
+@router.post("/notifications/templates", summary="保存通知模板")
+async def save_notification_template(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    template_id: int = Form(0),
+    name: str = Form(""),
+    enabled: str = Form("0"),
+    event_type: str = Form("*"),
+    channel_type: str = Form("*"),
+    locale: str = Form("zh-CN"),
+    subject_template: str = Form(""),
+    body_template: str = Form(""),
+    content_type: str = Form("html"),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        item = notification_routing_service.save_template(
+            session,
+            template_id=template_id or None,
+            name=name,
+            enabled=enabled in {"1", "on"},
+            event_type=event_type,
+            channel_type=channel_type,
+            locale=locale,
+            subject_template=subject_template,
+            body_template=body_template,
+            content_type=content_type,
+        )
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_template", item.id, f"Saved template: {item.name}")
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/templates/{template_id}/enabled", summary="启用或停用通知模板")
+async def set_notification_template_enabled(
+    request: Request,
+    template_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    enabled: str = Form("0"),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        item = notification_routing_service.set_template_enabled(session, template_id, enabled in {"1", "on"})
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_template", item.id, f"Set template enabled={item.enabled}")
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/templates/{template_id}/delete", summary="删除通知模板")
+async def delete_notification_template(
+    request: Request,
+    template_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        notification_routing_service.delete_template(session, template_id)
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_template", template_id, "Deleted notification template")
+    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
+
+
+@router.post("/notifications/template-preview", summary="预览通知模板")
+async def preview_notification_template(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    subject_template: str = Form(""),
+    body_template: str = Form(""),
+    content_type: str = Form("html"),
+    locale: str = Form("zh-CN"),
+    event_type: str = Form("*"),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        return {
+            "success": True,
+            **notification_routing_service.preview_template(
+                subject_template=subject_template,
+                body_template=body_template,
+                content_type=content_type,
+                locale=locale,
+                event_type=event_type,
+            ),
+        }
+    except ServiceError as exc:
+        return {
+            "success": False,
+            "error": {
+                "code": exc.code,
+                "message": translate(request.state.locale, "notification.error.template"),
+                "detail": str(exc.context.get("detail") or ""),
+            },
         }
 
 
-@router.post("/notifications", summary="更新通知设置", description="修改通知参数")
-def update_notifications(
+@router.post("/notifications/policies", summary="保存通知策略")
+async def save_notification_policy(
     request: Request,
+    csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
-    smtp_host: str = Form(""),
-    smtp_port: str = Form("25"),
-    smtp_user: str = Form(""),
-    smtp_pass: str = Form(""),
-    smtp_from: str = Form(""),
-    smtp_to: str = Form(""),
-    alert_on_fail: str = Form("0"),
-    alert_on_config_change: str = Form("0"),
-    always_send_summary: str = Form("0"),
+    policy_id: int = Form(0),
+    name: str = Form(""),
+    enabled: str = Form("0"),
+    priority: int = Form(100),
+    event_types: list[str] = Form([]),
+    group_ids: list[int] = Form([]),
+    include_descendants: str = Form("0"),
+    platforms: list[str] = Form([]),
+    failure_types: list[str] = Form([]),
+    channel_ids: list[int] = Form([]),
+    template_id: int = Form(...),
+    stop_processing: str = Form("0"),
 ):
+    await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
-    crud.set_setting(session, key="smtp_host", value=smtp_host.strip())
-    crud.set_setting(session, key="smtp_port", value=smtp_port.strip())
-    crud.set_setting(session, key="smtp_user", value=smtp_user.strip())
-
-    # 只有当用户输入的值不是全星号（掩码）且不为空时，才更新
-    if smtp_pass and not (set(smtp_pass) == {'*'}):
-        crud.set_setting(session, key="smtp_pass", value=encrypt_secret(smtp_pass.strip()))
-
-    crud.set_setting(session, key="smtp_from", value=smtp_from.strip())
-    crud.set_setting(session, key="smtp_to", value=smtp_to.strip())
-    crud.set_setting(session, key="alert_on_fail", value="1" if alert_on_fail in {"1", "on"} else "0")
-    crud.set_setting(
-        session, key="alert_on_config_change", value="1" if alert_on_config_change in {"1", "on"} else "0"
-    )
-    crud.set_setting(session, key="always_send_summary", value="1" if always_send_summary in {"1", "on"} else "0")
-    _log_action(request, session, "UPDATE_NOTIFICATIONS", "settings", None, "Updated notification settings")
-
+    try:
+        item = notification_routing_service.save_policy(
+            session,
+            policy_id=policy_id or None,
+            name=name,
+            enabled=enabled in {"1", "on"},
+            priority=priority,
+            event_types=event_types,
+            group_ids=group_ids,
+            include_descendants=include_descendants in {"1", "on"},
+            platforms=platforms,
+            failure_types=failure_types,
+            channel_ids=channel_ids,
+            template_id=template_id or None,
+            stop_processing=stop_processing in {"1", "on"},
+        )
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", item.id, f"Saved policy: {item.name}")
     return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/policies/{policy_id}/enabled", summary="启用或停用通知策略")
+async def set_notification_policy_enabled(
+    request: Request,
+    policy_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    enabled: str = Form("0"),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        item = notification_routing_service.set_policy_enabled(session, policy_id, enabled in {"1", "on"})
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", item.id, f"Set policy enabled={item.enabled}")
+    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+
+
+@router.post("/notifications/policies/{policy_id}/delete", summary="删除通知策略")
+async def delete_notification_policy(
+    request: Request,
+    policy_id: int,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_permission(request, "notifications.update")
+    try:
+        notification_routing_service.delete_policy(session, policy_id)
+    except ServiceError as exc:
+        return _notification_redirect_error(request, exc)
+    _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", policy_id, "Deleted notification policy")
+    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
 
 
 @router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")

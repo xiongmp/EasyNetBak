@@ -2,262 +2,234 @@
 {% set page_title = _('nav.notifications') %}
 {% set page_subtitle = _('page.notifications.subtitle') %}
 
+{% block head %}
+<link href="/static/css/pages/notifications.css?v={{ app_version }}" rel="stylesheet" />
+{% endblock %}
+
 {% block content %}
-<div class="row g-4">
-  <div class="col-12 col-xl-8">
-    {% if has_permission('notifications.update') %}
-      <form method="post" action="/notifications">
-        <!-- SMTP 服务器设置 -->
-        <div class="card border shadow-sm mb-4">
-          <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
-            <h6 class="card-title fw-bold text-primary mb-0">
-              <i class="bi bi-envelope-at me-2"></i>SMTP {{ _('template.notifications.serverconfiguration') }}
-            </h6>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-12 col-md-6">
-                <label class="form-label small fw-bold text-secondary mb-1">SMTP {{ _('template.notifications.server') }}</label>
-                <input name="smtp_host" class="form-control" value="{{ smtp_host }}" placeholder="{{ _('template.credentials.for_example') }}: smtp.qq.com" />
-                <div class="form-text small">SMTP {{ _('template.notifications.serveraddress_if') }} smtp.office365.com）</div>
-              </div>
-              <div class="col-12 col-md-3">
-                <label class="form-label small fw-bold text-secondary mb-1">{{ _('template.device_detail.port') }}</label>
-                <input name="smtp_port" class="form-control" value="{{ smtp_port }}" placeholder="465" />
-              </div>
-              <div class="col-12 col-md-3">
-                <label class="form-label small fw-bold text-secondary mb-1">{{ _('template.notifications.sender_address') }}</label>
-                <input name="smtp_from" class="form-control" value="{{ smtp_from }}" placeholder="backup@example.com" />
-              </div>
+<div class="notification-console" data-can-update="{{ '1' if has_permission('notifications.update') else '0' }}" data-preview-failed="{{ _('notification.error.template') }}" data-request-failed="{{ _('notification.error.operation') }}">
+  <input type="hidden" id="notification-csrf-token" value="{{ csrf_token }}" />
 
-              <div class="col-12 col-md-6">
-                <label class="form-label small fw-bold text-secondary mb-1">SMTP {{ _('template.notifications.account') }}</label>
-                <input name="smtp_user" class="form-control" value="{{ smtp_user }}" placeholder="{{ _('template.notifications.usually_an_email_address') }}" />
-              </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label small fw-bold text-secondary mb-1">SMTP {{ _('template.credentials.password') }}</label>
-                <div class="input-group">
-                  <input name="smtp_pass" id="smtp_pass" type="password" class="form-control" value="{{ smtp_pass }}" placeholder="{{ _('template.notifications.not_set') }}" />
-                  <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 'smtp_pass')">
-                    <i class="bi bi-eye"></i>
-                  </button>
-                </div>
-              </div>
+  {% if not has_permission('notifications.update') %}
+  <div class="alert alert-info mb-4" role="status"><i class="bi bi-eye me-2"></i>{{ _('notification.read_only') }}</div>
+  {% endif %}
 
-              <div class="col-12">
-                <label class="form-label small fw-bold text-secondary mb-1">{{ _('template.notifications.default_recipients') }}</label>
-                <textarea name="smtp_to" class="form-control" rows="2" placeholder="admin@example.com, tech@example.com">{{ smtp_to }}</textarea>
-                <div class="form-text small">{{ _('template.notifications.recipient_separator_help') }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 告警规则设置 -->
-        <div class="card border shadow-sm mb-4">
-          <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
-            <h6 class="card-title fw-bold text-primary mb-0">
-              <i class="bi bi-bell me-2"></i>{{ _('template.notifications.alert_and_notification_rules') }}
-            </h6>
-          </div>
-          <div class="card-body">
-            <div class="list-group list-group-flush border rounded-3">
-              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-                <div class="me-3">
-                  <span class="fw-bold d-block small">{{ _('template.notifications.backup_failure_alerts') }}</span>
-                  <span class="text-secondary" style="font-size: 0.75rem;">{{ _('template.notifications.send_an_email_to_default_recipients_immediately_when') }}</span>
-                </div>
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" name="alert_on_fail" id="alert_on_fail" {% if alert_on_fail == '1' %}checked{% endif %}>
-                </div>
-              </div>
-              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-                <div class="me-3">
-                  <span class="fw-bold d-block small">{{ _('template.notifications.periodic_summary') }}</span>
-                  <span class="text-secondary" style="font-size: 0.75rem;">{{ _('template.notifications.always_send_a_full_task_report_after_the') }}</span>
-                </div>
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" name="always_send_summary" id="always_send_summary" {% if always_send_summary == '1' %}checked{% endif %}>
-                </div>
-              </div>
-              <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-                <div class="me-3">
-                  <span class="fw-bold d-block small">{{ _('template.notifications.configuration_change_notifications') }}</span>
-                  <span class="text-secondary" style="font-size: 0.75rem;">（{{ _('template.notifications.diff_rule_hint_prefix') }}diff{{ _('template.notifications.ignore_rules_when_a_device_configuration_change_is') }}</span>
-                </div>
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" name="alert_on_config_change" id="alert_on_config_change" {% if alert_on_config_change == '1' %}checked{% endif %}>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="d-flex gap-3 mb-5">
-          <button class="btn btn-primary px-5 py-2 shadow-sm fw-bold" type="submit">
-            <i class="bi bi-check2-circle me-2"></i>{{ _('template.notifications.save_settings') }}
-          </button>
-          <button class="btn btn-outline-secondary px-4 py-2" type="button" id="btn-test-email">
-            <i class="bi bi-send me-2"></i>{{ _('template.notifications.send_test_email') }}
-          </button>
-        </div>
-      </form>
-
-      <script>
-        function togglePassword(btn, id) {
-          const input = document.getElementById(id);
-          const icon = btn.querySelector('i');
-          if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.remove('bi-eye');
-            icon.classList.add('bi-eye-slash');
-          } else {
-            input.type = 'password';
-            icon.classList.remove('bi-eye-slash');
-            icon.classList.add('bi-eye');
-          }
-        }
-
-        document.getElementById('btn-test-email').addEventListener('click', async function() {
-          const btn = this;
-          const form = btn.closest('form');
-          const formData = new FormData(form);
-
-          const originalText = btn.innerHTML;
-          btn.disabled = true;
-          btn.innerHTML = ('<span class="spinner-border spinner-border-sm me-2"></span>{{ _('template.notifications.sending') }}...');
-
-          try {
-            const response = await fetch('/notifications/test', {
-              method: 'POST',
-              body: formData
-            });
-            const result = await response.json();
-
-            if (result.success) {
-              window.NB.showToast(result.message, 'success');
-            } else {
-              window.NB.showToast('{{ _('template.notifications.send_failed') }}: ' + (result && result.error && result.error.message ? result.error.message : (result.message || '')), 'error');
-            }
-          } catch (error) {
-            window.NB.showToast('{{ _('template.backups.request_failed') }}: ' + error.message, 'error');
-          } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-          }
-        });
-      </script>
-    {% else %}
-      <!-- 只读视图 -->
-      <div class="card border shadow-sm mb-4">
-        <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
-          <h6 class="card-title fw-bold text-dark mb-0">
-            <i class="bi bi-envelope-at me-2"></i>{{ _('nav.notifications') }} (SMTP)
-          </h6>
-        </div>
-        <div class="card-body">
-          <div class="row g-4">
-            <div class="col-md-6">
-              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">SMTP {{ _('template.notifications.server') }}</div>
-              <div class="text-dark">{{ smtp_host or _('template.notifications.not_configured') }} <span class="text-secondary small ms-1">:{{ smtp_port }}</span></div>
-            </div>
-            <div class="col-md-6">
-              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">{{ _('template.notifications.sender_address') }}</div>
-              <div class="text-dark">{{ smtp_from or _('template.notifications.not_configured') }}</div>
-            </div>
-            <div class="col-md-6">
-              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">SMTP {{ _('template.notifications.account') }}</div>
-              <div class="text-dark">{{ smtp_user or _('template.notifications.not_configured') }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-secondary small fw-bold mb-1 text-uppercase ls-wide">{{ _('template.notifications.default_recipients') }}</div>
-              <div class="text-dark">{{ smtp_to or _('template.notifications.not_configured') }}</div>
-            </div>
-          </div>
-        </div>
+  <section class="signal-hero mb-4" aria-labelledby="notification-console-title">
+    <div class="signal-hero-copy">
+      <div class="signal-eyebrow">{{ _('notification.console.eyebrow') }}</div>
+      <h1 id="notification-console-title">{{ _('notification.console.title') }}</h1>
+      <p>{{ _('notification.console.description') }}</p>
+    </div>
+    <div class="route-rail" aria-label="{{ _('notification.console.route_aria') }}">
+      <div class="route-stop route-stop-event">
+        <i class="bi bi-broadcast-pin"></i>
+        <span>{{ _('notification.console.events') }}</span>
       </div>
-
-      <div class="card border shadow-sm mb-4">
-        <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
-          <h6 class="card-title fw-bold text-dark mb-0">
-            <i class="bi bi-bell me-2"></i>{{ _('template.notifications.alert_rule_status') }}
-          </h6>
-        </div>
-        <div class="card-body">
-          <div class="list-group list-group-flush border rounded-3">
-            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-              <div class="me-3">
-                <span class="fw-bold d-block small">{{ _('template.notifications.backup_failure_alerts') }}</span>
-                <span class="text-secondary" style="font-size: 0.75rem;">{{ _('template.notifications.send_email_when_backup_tasks_fail') }}</span>
-              </div>
-              <span class="badge {% if alert_on_fail == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
-                {% if alert_on_fail == '1' %}{{ _('template.notifications.enabled') }}{% else %}{{ _('template.notifications.disabled') }}{% endif %}
-              </span>
-            </div>
-            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-              <div class="me-3">
-                <span class="fw-bold d-block small">{{ _('template.notifications.periodic_summary') }}</span>
-                <span class="text-secondary" style="font-size: 0.75rem;">{{ _('template.notifications.always_send_backup_result_summaries') }}</span>
-              </div>
-              <span class="badge {% if always_send_summary == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
-                {% if always_send_summary == '1' %}{{ _('template.notifications.enabled') }}{% else %}{{ _('template.notifications.disabled') }}{% endif %}
-              </span>
-            </div>
-            <div class="list-group-item d-flex align-items-center justify-content-between py-2">
-              <div class="me-3">
-                <span class="fw-bold d-block small">{{ _('template.notifications.configuration_change_notifications') }}</span>
-                <span class="text-secondary" style="font-size: 0.75rem;">{{ _('template.notifications.send_alerts_when_configuration_differences_are_detected') }}</span>
-              </div>
-              <span class="badge {% if alert_on_config_change == '1' %}bg-success{% else %}bg-secondary{% endif %} rounded-pill small">
-                {% if alert_on_config_change == '1' %}{{ _('template.notifications.enabled') }}{% else %}{{ _('template.notifications.disabled') }}{% endif %}
-              </span>
-            </div>
-          </div>
-        </div>
+      <div class="route-line"><span></span></div>
+      <div class="route-stop route-stop-policy">
+        <i class="bi bi-signpost-split"></i>
+        <span>{{ _('notification.console.policies') }}</span>
       </div>
-
-      <div class="alert alert-warning border-0 bg-warning bg-opacity-10 small text-warning-emphasis">
-        <i class="bi bi-info-circle me-2"></i>{{ _('template.notifications.read_only_account_notifications_administrator_row') }}。
-      </div>
-    {% endif %}
-  </div>
-
-  <div class="col-12 col-xl-4">
-    <div class="card border-0 bg-light-subtle shadow-sm mb-4">
-      <div class="card-body p-4">
-        <h6 class="fw-bold text-body mb-3"><i class="bi bi-lightbulb me-2 text-warning"></i>{{ _('template.notifications.configuration_notes') }}</h6>
-        <div class="vstack gap-3 small">
-          <div class="d-flex gap-3">
-            <div class="flex-shrink-0"><i class="bi bi-1-circle text-primary"></i></div>
-            <div>
-              <strong>{{ _('template.notifications.sender_settings') }}</strong><br>
-              {{ _('template.notifications.sender_address_hint_prefix') }} SMTP {{ _('template.notifications.account_orpermissions_server') }}。
-            </div>
-          </div>
-          <div class="d-flex gap-3">
-            <div class="flex-shrink-0"><i class="bi bi-2-circle text-primary"></i></div>
-            <div>
-              <strong>{{ _('template.notifications.authorization_code_and_password') }}</strong><br>
-              {{ _('template.notifications.mail_provider_hint_prefix') }} QQ、163 {{ _('template.notifications.total_use') }} <strong>{{ _('template.notifications.an_authorization_code') }}</strong> {{ _('template.notifications.instead_of_the_mailbox_login_password') }}。
-            </div>
-          </div>
-          <div class="d-flex gap-3">
-            <div class="flex-shrink-0"><i class="bi bi-3-circle text-primary"></i></div>
-            <div>
-              <strong>{{ _('template.notifications.multiple_recipients') }}</strong><br>
-              {{ _('template.notifications.items_day_send_test_emailverifyconfiguration') }}。
-            </div>
-          </div>
-        </div>
+      <div class="route-line"><span></span></div>
+      <div class="route-stop route-stop-channel">
+        <i class="bi bi-send-check"></i>
+        <span>{{ _('notification.console.channels') }}</span>
       </div>
     </div>
+  </section>
 
-    <div class="card border-0 bg-primary bg-opacity-10 shadow-sm">
-      <div class="card-body p-4 text-primary-emphasis small">
-        <h6 class="fw-bold mb-2">{{ _('template.notifications.security_note') }}</h6>
-        <p class="mb-0">{{ _('template.notifications.enable') }} SSL/TLS {{ _('template.notifications.port') }} 465 {{ _('template.notifications.or') }} 587）。{{ _('template.notifications.system_password') }}。</p>
+  <ul class="nav notification-tabs mb-4" id="notificationTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#channels-pane" type="button"><i class="bi bi-diagram-3"></i>{{ _('notification.tab.channels') }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#templates-pane" type="button"><i class="bi bi-braces-asterisk"></i>{{ _('notification.tab.templates') }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#policies-pane" type="button"><i class="bi bi-signpost-split"></i>{{ _('notification.tab.policies') }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#deliveries-pane" type="button"><i class="bi bi-clock-history"></i>{{ _('notification.tab.deliveries') }}</button></li>
+  </ul>
+
+  <div class="tab-content">
+    <section class="tab-pane fade show active" id="channels-pane">
+      <div class="section-heading">
+        <div><h2>{{ _('notification.channels.title') }}</h2><p>{{ _('notification.channels.description') }}</p></div>
+        {% if has_permission('notifications.update') %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#channelModal" data-create-channel><i class="bi bi-plus-lg me-2"></i>{{ _('notification.channels.add') }}</button>{% endif %}
       </div>
-    </div>
+      <div class="channel-grid">
+        {% for channel in notification_channels %}
+        <article class="channel-card {{ 'is-disabled' if not channel.enabled }}">
+          <div class="channel-card-top">
+            <div class="channel-mark channel-mark-{{ channel.channel_type }}"><i class="bi {{ {'smtp':'bi-envelope-at','wecom':'bi-wechat','dingtalk':'bi-bell','feishu':'bi-chat-square-dots','webhook':'bi-code-slash'}.get(channel.channel_type, 'bi-send') }}"></i></div>
+            <div class="flex-grow-1 min-w-0"><h3>{{ channel.name }}</h3><span>{{ _('notification.channel.' ~ channel.channel_type) }}</span></div>
+            <span class="status-dot {{ 'is-live' if channel.enabled }}">{{ _('notification.enabled') if channel.enabled else _('notification.disabled') }}</span>
+          </div>
+          <dl class="channel-facts">
+            {% if channel.channel_type == 'smtp' %}
+            <div><dt>{{ _('notification.field.endpoint') }}</dt><dd>{{ channel.config.host or _('notification.not_configured') }}:{{ channel.config.port or '25' }}</dd></div>
+            <div><dt>{{ _('notification.field.target') }}</dt><dd>{{ channel.config.to or _('notification.not_configured') }}</dd></div>
+            {% else %}
+            <div><dt>{{ _('notification.field.endpoint') }}</dt><dd>{{ _('notification.secret.configured') if channel.has_url else _('notification.not_configured') }}</dd></div>
+            <div><dt>{{ _('notification.field.network_scope') }}</dt><dd>{{ _('notification.network.private_allowed') if channel.config.allow_private else _('notification.network.public_only') }}</dd></div>
+            {% endif %}
+          </dl>
+          <div class="channel-actions">
+            {% if channel.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}
+            {% if has_permission('notifications.update') %}
+            <button class="btn btn-sm btn-outline-secondary" data-edit-channel data-item="{{ channel|tojson|forceescape }}">{{ _('notification.edit') }}</button>
+            <form method="post" action="/notifications/channels/{{ channel.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if channel.enabled else '1' }}"><button class="btn btn-sm btn-link {{ 'text-warning' if channel.enabled else 'text-success' }}" type="submit">{{ _('notification.action.disable') if channel.enabled else _('notification.action.enable') }}</button></form>
+            {% if not channel.builtin %}
+            <form method="post" action="/notifications/channels/{{ channel.id }}/delete" data-confirm="{{ _('notification.confirm.delete_channel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger" type="submit">{{ _('notification.delete') }}</button></form>
+            {% endif %}
+            {% endif %}
+          </div>
+        </article>
+        {% else %}
+        <div class="notification-empty"><i class="bi bi-diagram-3"></i><h3>{{ _('notification.channels.empty') }}</h3><p>{{ _('notification.channels.empty_hint') }}</p></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="tab-pane fade" id="policies-pane">
+      <div class="section-heading">
+        <div><h2>{{ _('notification.policies.title') }}</h2><p>{{ _('notification.policies.description') }}</p></div>
+        {% if has_permission('notifications.update') %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#policyModal" data-create-policy><i class="bi bi-plus-lg me-2"></i>{{ _('notification.policies.add') }}</button>{% endif %}
+      </div>
+      <div class="policy-stack">
+        {% for policy in notification_policies %}
+        <article class="policy-row {{ 'is-disabled' if not policy.enabled }}">
+          <div class="policy-priority"><span>{{ _('notification.priority') }}</span><strong>{{ policy.priority }}</strong></div>
+          <div class="policy-main">
+            <div class="d-flex gap-2 align-items-center flex-wrap"><h3>{{ _(policy.name_key) if policy.name_key else policy.name }}</h3>{% if policy.builtin %}<span class="badge text-bg-light border"><i class="bi bi-box-seam me-1"></i>{{ _('notification.builtin') }}</span>{% endif %}</div>
+            <div class="policy-tags">
+              {% for event in policy.event_types %}<span class="tag tag-event">{{ _('notification.event.' ~ event) }}</span>{% endfor %}
+              {% if 0 in policy.group_ids %}<span class="tag"><i class="bi bi-hdd-network"></i>{{ _('notification.filter.all_devices') }}</span>{% elif policy.group_ids %}<span class="tag"><i class="bi bi-folder2"></i>{{ _('notification.filter.groups') }} · {{ policy.group_ids|length }}</span>{% else %}<span class="tag"><i class="bi bi-hdd-network"></i>{{ _('notification.filter.all_devices') }}</span>{% endif %}
+              {% if policy.platforms %}<span class="tag"><i class="bi bi-router"></i>{{ policy.platforms|join(', ') }}</span>{% endif %}
+              {% if policy.failure_types %}<span class="tag"><i class="bi bi-exclamation-triangle"></i>{{ policy.failure_types|join(', ') }}</span>{% endif %}
+              <span class="tag"><i class="bi bi-send"></i>{{ policy.channel_ids|length }}</span>
+            </div>
+          </div>
+          <div class="policy-state"><span class="status-dot {{ 'is-live' if policy.enabled }}">{{ _('notification.enabled') if policy.enabled else _('notification.disabled') }}</span></div>
+          {% if has_permission('notifications.update') %}
+          <div class="policy-actions"><button class="btn btn-sm btn-outline-secondary" data-edit-policy data-item="{{ policy|tojson|forceescape }}">{{ _('notification.edit') }}</button><form method="post" action="/notifications/policies/{{ policy.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if policy.enabled else '1' }}"><button class="btn btn-sm btn-link {{ 'text-warning' if policy.enabled else 'text-success' }}">{{ _('notification.action.disable') if policy.enabled else _('notification.action.enable') }}</button></form>{% if not policy.builtin %}<form method="post" action="/notifications/policies/{{ policy.id }}/delete" data-confirm="{{ _('notification.confirm.delete_policy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger">{{ _('notification.delete') }}</button></form>{% endif %}</div>
+          {% endif %}
+        </article>
+        {% else %}<div class="notification-empty"><i class="bi bi-signpost-split"></i><h3>{{ _('notification.policies.empty') }}</h3><p>{{ _('notification.policies.empty_hint') }}</p></div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="tab-pane fade" id="templates-pane">
+      <div class="section-heading">
+        <div><h2>{{ _('notification.templates.title') }}</h2><p>{{ _('notification.templates.description') }}</p></div>
+        {% if has_permission('notifications.update') %}<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#templateModal" data-create-template><i class="bi bi-plus-lg me-2"></i>{{ _('notification.templates.add') }}</button>{% endif %}
+      </div>
+      <div class="table-responsive notification-table-wrap">
+        <table class="table align-middle mb-0"><thead><tr><th>{{ _('notification.name') }}</th><th>{{ _('notification.language') }}</th><th>{{ _('notification.format') }}</th><th>{{ _('notification.status') }}</th><th></th></tr></thead>
+        <tbody>{% for template in notification_templates %}<tr class="{{ 'system-template-row' if template.builtin }} {{ 'is-disabled' if not template.enabled }}"><td class="fw-semibold">{{ _(template.name_key) if template.name_key else template.name }}{% if template.hint_key %}<div class="system-template-note"><i class="bi bi-file-earmark-richtext"></i>{{ _(template.hint_key) }}</div>{% endif %}</td><td>{{ _('notification.template.auto_locale') if template.builtin else template.locale }}</td><td><code>{{ template.content_type }}</code></td><td><span class="status-dot {{ 'is-live' if template.enabled }}">{{ _('notification.enabled') if template.enabled else _('notification.disabled') }}</span></td><td class="text-end">{% if has_permission('notifications.update') %}<div class="d-inline-flex align-items-center gap-1">{% if template.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}<button class="btn btn-sm btn-outline-secondary" data-edit-template data-item="{{ template|tojson|forceescape }}">{{ _('notification.edit') }}</button><form method="post" action="/notifications/templates/{{ template.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if template.enabled else '1' }}"><button class="btn btn-sm btn-link {{ 'text-warning' if template.enabled else 'text-success' }}">{{ _('notification.action.disable') if template.enabled else _('notification.action.enable') }}</button></form>{% if not template.builtin %}<form method="post" action="/notifications/templates/{{ template.id }}/delete" data-confirm="{{ _('notification.confirm.delete_template') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger">{{ _('notification.delete') }}</button></form>{% endif %}</div>{% endif %}</td></tr>{% else %}<tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr>{% endfor %}</tbody></table>
+      </div>
+    </section>
+
+    <section class="tab-pane fade" id="deliveries-pane">
+      <div class="section-heading"><div><h2>{{ _('notification.deliveries.title') }}</h2><p>{{ _('notification.deliveries.description') }}</p></div></div>
+      <div class="table-responsive notification-table-wrap"><table class="table align-middle mb-0 delivery-table"><thead><tr><th>{{ _('notification.subject') }}</th><th>{{ _('notification.event') }}</th><th>{{ _('notification.channel') }}</th><th>{{ _('notification.status') }}</th><th>{{ _('notification.attempts') }}</th><th>{{ _('notification.sent_at') }}</th><th>{{ _('notification.error') }}</th></tr></thead><tbody>
+      {% for delivery in notification_deliveries %}<tr><td class="delivery-subject" title="{{ delivery.subject or '' }}">{{ delivery.subject or '—' }}</td><td>{% if delivery.event_type %}<span class="tag tag-event">{{ _('notification.event.' ~ delivery.event_type) }}</span>{% else %}—{% endif %}</td><td class="fw-semibold">{{ delivery.channel_name }}</td><td><span class="delivery-status delivery-{{ delivery.status }}">{{ _('notification.delivery.' ~ delivery.status) }}</span></td><td>{{ delivery.attempts }}</td><td>{{ delivery.sent_at or '—' }}</td><td class="delivery-error">{{ delivery.last_error or '—' }}</td></tr>{% else %}<tr><td colspan="7"><div class="notification-empty compact"><i class="bi bi-clock-history"></i><h3>{{ _('notification.deliveries.empty') }}</h3><p>{{ _('notification.deliveries.empty_hint') }}</p></div></td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+
   </div>
 </div>
+
+{% if has_permission('notifications.update') %}
+<div id="policyTemplateMessages" hidden data-select-channel="{{ _('notification.policy.select_channel_first') }}" data-filtered="{{ _('notification.policy.template_filtered') }}" data-no-compatible="{{ _('notification.policy.no_compatible_template') }}"></div>
+<div class="modal fade" id="channelModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><form method="post" action="/notifications/channels" class="modal-content" id="channelForm"><div class="modal-header"><div><div class="modal-kicker">{{ _('notification.channel.modal_kicker') }}</div><h2 class="modal-title fs-5">{{ _('notification.channel.modal_title') }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="channel_id" value="0"><div class="row g-3"><div class="col-md-7"><label class="form-label">{{ _('notification.name') }}</label><input class="form-control" name="name" required maxlength="120"></div><div class="col-md-5"><label class="form-label">{{ _('notification.channel.type') }}</label><select class="form-select" name="channel_type">{% for type in notification_channel_types %}<option value="{{ type }}">{{ _('notification.channel.' ~ type) }}</option>{% endfor %}</select></div><div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" id="channelEnabled" checked><label class="form-check-label" for="channelEnabled">{{ _('notification.enabled') }}</label></div></div></div>
+  <div data-channel-fields="smtp" class="channel-fields mt-4"><div class="row g-3"><div class="col-md-8"><label class="form-label">{{ _('notification.smtp.host') }}</label><input class="form-control" name="smtp_host"></div><div class="col-md-4"><label class="form-label">{{ _('notification.smtp.port') }}</label><input class="form-control" name="smtp_port" value="25"></div><div class="col-md-6"><label class="form-label">{{ _('notification.smtp.user') }}</label><input class="form-control" name="smtp_user"></div><div class="col-md-6"><label class="form-label">{{ _('notification.smtp.password') }}</label><input class="form-control" type="password" name="smtp_password" placeholder="{{ _('notification.secret.keep') }}"></div><div class="col-md-6"><label class="form-label">{{ _('notification.smtp.from') }}</label><input class="form-control" name="smtp_from"></div><div class="col-md-6"><label class="form-label">{{ _('notification.smtp.recipients') }}</label><input class="form-control" name="smtp_to"></div></div></div>
+  <div data-channel-fields="webhook" class="channel-fields mt-4"><div class="row g-3"><div class="col-12"><label class="form-label">{{ _('notification.webhook.url') }}</label><input class="form-control font-monospace" type="password" name="webhook_url" placeholder="{{ _('notification.secret.keep') }}"></div><div class="col-md-6"><label class="form-label">{{ _('notification.webhook.signing_secret') }}</label><input class="form-control" type="password" name="signing_secret" placeholder="{{ _('notification.secret.optional') }}"></div><div class="col-md-6"><label class="form-label">{{ _('notification.webhook.authorization') }}</label><input class="form-control" type="password" name="authorization" placeholder="{{ _('notification.secret.optional') }}"></div><div class="col-md-4"><label class="form-label">{{ _('notification.webhook.timeout') }}</label><input class="form-control" type="number" name="timeout" value="10" min="1" max="30"></div><div class="col-md-8 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="allow_private" id="allowPrivate"><label class="form-check-label" for="allowPrivate">{{ _('notification.webhook.allow_private') }}</label><div class="form-text">{{ _('notification.webhook.allow_private_hint') }}</div></div></div></div></div>
+</div><div class="modal-footer"><button class="btn btn-outline-primary me-auto" type="button" id="btn-test-channel" hidden><i class="bi bi-send-check me-2"></i>{{ _('notification.smtp.test') }}</button><button class="btn btn-light" type="button" data-bs-dismiss="modal">{{ _('notification.cancel') }}</button><button class="btn btn-primary" type="submit">{{ _('notification.save') }}</button></div></form></div></div>
+
+<div class="modal fade" id="policyModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><form method="post" action="/notifications/policies" class="modal-content" id="policyForm"><div class="modal-header"><div><div class="modal-kicker">{{ _('notification.policy.modal_kicker') }}</div><h2 class="modal-title fs-5">{{ _('notification.policy.modal_title') }}</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="policy_id" value="0">
+  <div class="row g-3"><div class="col-md-7"><label class="form-label">{{ _('notification.name') }}</label><input class="form-control" name="name" required></div><div class="col-md-2"><label class="form-label">{{ _('notification.priority') }}</label><input class="form-control" name="priority" type="number" value="100" min="0" max="9999"></div><div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input class="form-check-input" name="enabled" type="checkbox" id="policyEnabled" checked><label class="form-check-label" for="policyEnabled">{{ _('notification.enabled') }}</label></div></div></div>
+  <div class="policy-builder mt-4"><div class="builder-block"><h3>{{ _('notification.policy.when') }}</h3><div class="choice-grid">{% for event in notification_event_types %}<label class="choice-chip"><input type="checkbox" name="event_types" value="{{ event }}"><span>{{ _('notification.event.' ~ event) }}</span></label>{% endfor %}</div></div><div class="builder-arrow"><i class="bi bi-arrow-right"></i></div><div class="builder-block"><h3>{{ _('notification.policy.route_to') }}</h3><div class="choice-grid">{% for channel in notification_channels %}<label class="choice-chip {{ 'is-muted' if not channel.enabled }}"><input type="checkbox" name="channel_ids" value="{{ channel.id }}" data-channel-type="{{ channel.channel_type }}"><span>{{ channel.name }}{{ ' · ' ~ _('notification.disabled') if not channel.enabled else '' }}</span></label>{% endfor %}</div></div></div>
+  <div class="row g-3 mt-1"><div class="col-md-4"><label class="form-label">{{ _('notification.filter.groups') }}</label><select class="form-select" name="group_ids" multiple size="7"><option value="0">{{ _('notification.filter.all_devices') }}</option><option value="-1">{{ _('notification.group.ungrouped') }}</option>{% for group in notification_groups %}<option value="{{ group.id }}">{{ '—' * group.depth }} {{ group.name }}</option>{% endfor %}</select><div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="include_descendants" id="includeDescendants" checked><label class="form-check-label" for="includeDescendants">{{ _('notification.filter.include_descendants') }}</label></div></div><div class="col-md-4"><label class="form-label">{{ _('notification.filter.platforms') }}</label><select class="form-select" name="platforms" multiple size="7">{% for platform in notification_platforms %}<option value="{{ platform }}">{{ platform }}</option>{% endfor %}</select><div class="form-text">{{ _('notification.filter.empty_means_all') }}</div></div><div class="col-md-4"><label class="form-label">{{ _('notification.filter.failure_types') }}</label><select class="form-select" name="failure_types" multiple size="7">{% for failure_type in notification_failure_types %}<option value="{{ failure_type }}">{{ failure_type }}</option>{% endfor %}</select><div class="form-text">{{ _('notification.filter.empty_means_all') }}</div></div><div class="col-md-6"><label class="form-label">{{ _('notification.policy.template') }}</label><select class="form-select" name="template_id" required><option value="" selected disabled>{{ _('notification.policy.select_template') }}</option>{% for template in notification_templates if template.enabled %}<option value="{{ template.id }}" data-channel-type="{{ template.channel_type }}" data-builtin-family="{{ '1' if template.builtin_key in ['builtin_backup_detailed', 'builtin_backup_robot', 'builtin_backup_webhook_json'] else '0' }}">{{ _(template.name_key) if template.name_key else template.name }}{{ ' · ' ~ _('notification.builtin') if template.builtin else '' }}</option>{% endfor %}</select><div class="form-text" id="policyTemplateHint">{{ _('notification.policy.select_channel_first') }}</div></div><div class="col-md-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="stop_processing" id="stopProcessing"><label class="form-check-label" for="stopProcessing">{{ _('notification.policy.stop_processing') }}</label></div></div></div>
+</div><div class="modal-footer"><button class="btn btn-light" type="button" data-bs-dismiss="modal">{{ _('notification.cancel') }}</button><button class="btn btn-primary" type="submit">{{ _('notification.save') }}</button></div></form></div></div>
+
+<div class="modal fade" id="templateModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable template-workbench-dialog">
+    <form method="post" action="/notifications/templates" class="modal-content" id="templateForm">
+      <div class="modal-header">
+        <div><div class="modal-kicker">{{ _('notification.template.modal_kicker') }}</div><h2 class="modal-title fs-5">{{ _('notification.template.modal_title') }}</h2></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('notification.cancel') }}"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="template_id" value="0">
+        <div class="row g-3 template-settings">
+          <input type="hidden" name="event_type" value="*"><input type="hidden" name="channel_type" value="*">
+          <div class="col-md-8"><label class="form-label">{{ _('notification.name') }}</label><input class="form-control" name="name" required></div>
+          <div class="col-md-2"><label class="form-label">{{ _('notification.language') }}</label><select class="form-select" name="locale"><option>zh-CN</option><option>en-US</option></select></div>
+          <div class="col-md-2"><label class="form-label">{{ _('notification.format') }}</label><select class="form-select" name="content_type">{% for type in notification_content_types %}<option>{{ type }}</option>{% endfor %}</select></div>
+          <div class="col-12 template-format-lock-note" id="builtinTemplateFormatHint" hidden><i class="bi bi-lock"></i>{{ _('notification.template.builtin_format_hint') }}</div>
+          <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="enabled" id="templateEnabled" checked><label class="form-check-label" for="templateEnabled">{{ _('notification.enabled') }}</label></div></div>
+        </div>
+
+        <div class="template-workbench mt-3">
+          <section class="template-compose" aria-labelledby="template-compose-title">
+            <div class="template-pane-heading"><div><span class="template-step">01</span><h3 id="template-compose-title">{{ _('notification.template.compose') }}</h3></div><span id="templateInsertTarget" data-subject-label="{{ _('notification.template.insert_subject') }}" data-body-label="{{ _('notification.template.insert_body') }}">{{ _('notification.template.insert_body') }}</span></div>
+            <label class="form-label" for="templateSubject">{{ _('notification.template.subject') }}</label>
+            <input class="form-control font-monospace" id="templateSubject" name="subject_template" placeholder="{{ _('notification.template.subject_example') }}">
+            <label class="form-label mt-3" for="templateBody">{{ _('notification.template.body') }}</label>
+            <textarea class="form-control font-monospace template-editor" id="templateBody" name="body_template" required></textarea>
+            <p class="template-sandbox-note"><i class="bi bi-shield-lock"></i>{{ _('notification.template.sandbox_hint') }}</p>
+          </section>
+
+          <aside class="template-assistant" aria-labelledby="template-assistant-title">
+            <div class="template-pane-heading"><div><span class="template-step">02</span><h3 id="template-assistant-title">{{ _('notification.template.reference') }}</h3></div><span class="event-scope" id="templateEventScope"></span></div>
+            <div class="template-reference-tabs" role="tablist" aria-label="{{ _('notification.template.reference') }}">
+              <button class="active" type="button" data-template-reference-tab="variables" role="tab" aria-selected="true">{{ _('notification.template.variables') }}</button>
+              <button type="button" data-template-reference-tab="sample" role="tab" aria-selected="false">{{ _('notification.template.sample_data') }}</button>
+            </div>
+            <div data-template-reference-panel="variables">
+              <label class="visually-hidden" for="templateVariableSearch">{{ _('notification.template.search_variables') }}</label>
+              <div class="template-variable-search"><i class="bi bi-search"></i><input id="templateVariableSearch" type="search" placeholder="{{ _('notification.template.search_variables') }}"></div>
+              <div class="template-variable-groups" id="templateVariableGroups">
+                {% for group in notification_template_variable_groups %}
+                <details class="template-variable-group" data-variable-group data-events="{{ group.events|join(',') if group.events else '*' }}">
+                  <summary><span>{{ group.label }}</span><span class="variable-count">{{ group.variables|length }}</span></summary>
+                  {% if group.hint %}<p class="variable-group-hint">{{ group.hint }}</p>{% endif %}
+                  <div class="template-variable-list">
+                    {% for variable in group.variables %}
+                    <button class="template-variable" type="button" data-template-insert="{{ variable.insert|e }}" data-variable-search="{{ (variable.path ~ ' ' ~ variable.description)|lower }}">
+                      <span class="variable-main"><code>{{ variable.path }}</code><span class="variable-type">{{ variable.type }}</span></span>
+                      <span class="variable-description">{{ variable.description }}</span>
+                      <span class="variable-example"><span>{{ _('notification.template.example') }}</span><code>{{ variable.example|tojson }}</code></span>
+                      <span class="variable-insert"><i class="bi bi-plus-circle"></i>{{ _('notification.template.insert') }}</span>
+                    </button>
+                    {% endfor %}
+                  </div>
+                </details>
+                {% endfor %}
+              </div>
+              <div class="template-variable-empty" id="templateVariableEmpty" hidden>{{ _('notification.template.no_variables') }}</div>
+            </div>
+            <div data-template-reference-panel="sample" hidden>
+              <div class="sample-data-heading"><span>{{ _('notification.template.sample_hint') }}</span><code id="templateSampleEvent"></code></div>
+              <pre class="template-sample-data" id="templateSampleData"></pre>
+            </div>
+          </aside>
+
+          <section class="template-output" aria-labelledby="template-output-title">
+            <div class="template-pane-heading"><div><span class="template-step">03</span><h3 id="template-output-title">{{ _('notification.template.output') }}</h3></div>
+              <div class="template-preview-modes" id="templatePreviewModes" hidden>
+                <button class="active" type="button" data-preview-mode="visual">{{ _('notification.template.preview_visual') }}</button>
+                <button type="button" data-preview-mode="source">{{ _('notification.template.preview_source') }}</button>
+              </div>
+            </div>
+            <div class="template-preview" id="templatePreview"><span>{{ _('notification.template.preview_empty') }}</span></div>
+          </section>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" id="previewTemplate"><i class="bi bi-play-circle me-2"></i>{{ _('notification.template.preview') }}</button><button class="btn btn-light" type="button" data-bs-dismiss="modal">{{ _('notification.cancel') }}</button><button class="btn btn-primary" type="submit">{{ _('notification.save') }}</button></div>
+    </form>
+  </div>
+</div>
+<script type="application/json" id="templateSampleContexts">{{ notification_template_sample_contexts|tojson }}</script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/pages/notifications.js?v={{ app_version }}"></script>
 {% endblock %}

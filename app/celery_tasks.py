@@ -600,6 +600,22 @@ def bulk_reachability_task(
     }
 
 
+@celery_app.task(bind=True, base=BaseTask, name="app.deliver_notification")
+def deliver_notification_task(self, delivery_id: int):
+    """Retry one persisted notification delivery without affecting backup state."""
+    from app.models import NotificationDelivery
+    from app.services import notification_routing_service
+
+    with session_scope() as session:
+        delivery = session.get(NotificationDelivery, int(delivery_id))
+        if delivery is None:
+            if self.request.retries < 3:
+                raise self.retry(countdown=5)
+            return {"ok": False, "reason": "delivery_missing"}
+        success = notification_routing_service.retry_delivery(session, int(delivery_id))
+        return {"ok": bool(success), "delivery_id": int(delivery_id), "status": delivery.status}
+
+
 @task_failure.connect(sender=backup_record_task)
 def _on_backup_record_task_failure(
     sender=None,
@@ -671,4 +687,3 @@ def _on_backup_record_task_revoked(
             error_message=reason,
             failure_type="TASK_REVOKED",
         )
-

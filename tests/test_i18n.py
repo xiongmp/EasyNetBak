@@ -31,7 +31,15 @@ from app.main import _api_error_json, app as main_app
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
 from app.models import BackupRecord, BackupSchedule, BackupScheduleRun, Device, TaskEvent
 from app.routers.web_context import _layout_context, templates
-from app.services import alert_service, ftp_service, s3_service, schedule_service, task_realtime_service, task_state_service
+from app.services import (
+    alert_service,
+    ftp_service,
+    notification_routing_service,
+    s3_service,
+    schedule_service,
+    task_realtime_service,
+    task_state_service,
+)
 from app.services.backup_error_service import localize_backup_error_message
 
 
@@ -690,6 +698,16 @@ def test_batch_email_uses_finalizer_snapshot_for_failure_and_change_lists(monkey
 
     monkeypatch.setattr(crud, "get_schedule_run", lambda session, run_id: run)
     monkeypatch.setattr(crud, "get_setting", lambda session, key: settings.get(key))
+    monkeypatch.setattr(
+        notification_routing_service,
+        "is_builtin_policy_enabled",
+        lambda session, kind: {
+            "failure": True,
+            "config_change": True,
+            "summary": True,
+        }[kind],
+    )
+    monkeypatch.setattr(notification_routing_service, "has_custom_policy_for_event", lambda *args, **kwargs: False)
     monkeypatch.setattr(crud, "get_device", lambda session, device_id: devices.get(device_id))
     monkeypatch.setattr(
         crud,

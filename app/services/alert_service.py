@@ -11,7 +11,7 @@ from app.core.settings import settings
 from app.core.time import apply_timezone_offset, parse_timezone_offset_to_minutes
 from app.models import BackupRecord, Device
 from app.services.notification_service import send_email
-from app.services import task_state_service
+from app.services import notification_routing_service, task_state_service
 from app.services.backup_error_service import localize_backup_error_message
 from app.i18n import get_current_locale, translate
 from app.i18n.email import render_email_template
@@ -46,26 +46,41 @@ def _alert_result(
 
 
 def _send_alert_email(
+    session: Session | None,
     subject: str,
     content: str,
     *,
     mode: str,
     reason: str,
     locale: str | None = None,
+    event_type: str = "backup_summary",
+    source_key: str = "",
+    payload: dict | None = None,
 ) -> dict:
     try:
-        email_sent = send_email(
-            subject,
-            content,
-            content_type="html",
-        )
+        if session is None:
+            email_sent = send_email(subject, content, content_type="html")
+            attempted = True
+        else:
+            dispatch_result = notification_routing_service.dispatch_event(
+                session,
+                event_type=event_type,
+                source_key=source_key,
+                locale=locale or get_current_locale(),
+                payload=payload or {},
+                fallback_subject=subject,
+                fallback_body=content,
+                email_sender=send_email,
+            )
+            attempted = bool(dispatch_result["attempted"])
+            email_sent = bool(dispatch_result["sent"])
         return _alert_result(
             mode=mode,
             rule_enabled=True,
             matched=True,
-            email_attempted=True,
+            email_attempted=attempted,
             email_sent=bool(email_sent),
-            reason=reason if email_sent else "smtp_incomplete",
+            reason=reason if email_sent else ("no_channel_matched" if not attempted else "notification_send_failed"),
         )
     except Exception as exc:
         return _alert_result(
@@ -256,6 +271,29 @@ def _render_localized_change_summary_html(summary: dict, locale: str) -> str:
     )
 
 
+def _structured_change_lines(summary: dict | None) -> list[dict[str, str]]:
+    return [
+        {
+            "prefix": str(item.get("prefix") or ""),
+            "text": str(item.get("text") or ""),
+            "kind": str(item.get("kind") or "context"),
+        }
+        for item in ((summary or {}).get("sample_lines") or [])
+        if isinstance(item, dict)
+    ]
+
+
+def _structured_change_metadata(summary: dict | None) -> dict[str, int | list[dict[str, str]]]:
+    value = summary or {}
+    lines = _structured_change_lines(value)
+    return {
+        "change_lines": lines,
+        "change_context_lines": int(value.get("context_lines") or 0),
+        "change_total_rows": int(value.get("total_sample_rows") or len(lines)),
+        "change_sample_limit": int(value.get("sample_limit") or len(lines)),
+    }
+
+
 def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     检查备份记录并根据规则触发告警
@@ -265,7 +303,7 @@ def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = F
     if not device:
         return _alert_result(mode="device_missing", rule_enabled=False, skipped=True, reason="device_missing")
 
-    always_send = crud.get_setting(session, key="always_send_summary") == "1"
+    always_send = notification_routing_service.is_builtin_policy_enabled(session, "summary")
     if always_send and not skip_email:
         return _send_single_backup_summary_email(session, device, record)
 
@@ -366,13 +404,44 @@ def _send_single_backup_summary_email(session: Session, device: Device, record: 
             "summary_html": _render_localized_change_summary_html(change_summary, locale) if change_summary else "",
         },
     )
-    return _send_alert_email(subject, content, mode="single_summary", reason="always_send_summary", locale=locale)
+    event_type = (
+        "task_cancelled"
+        if str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED
+        else "backup_summary"
+    )
+    return _send_alert_email(
+        session,
+        subject,
+        content,
+        mode="single_summary",
+        reason="always_send_summary",
+        locale=locale,
+        event_type=event_type,
+        source_key=f"{event_type}:record:{record.id}",
+        payload={
+            "event_type": event_type,
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_host": device.host,
+            "group_id": device.group_id,
+            "platform": device.platform,
+            "failure_type": record.failure_type or "",
+            "error_message": status_detail,
+            "localized_error_message": status_detail,
+            "duration": duration_str,
+            "task_time": _format_datetime(record.started_at, session),
+            "success": bool(record.success),
+            "cancelled": event_type == "task_cancelled",
+            "changed": bool(change_summary),
+            **_structured_change_metadata(change_summary),
+        },
+    )
 
 def _handle_failure_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     处理备份失败告警
     """
-    alert_on_fail = crud.get_setting(session, key="alert_on_fail") == "1"
+    alert_on_fail = notification_routing_service.has_enabled_policy_for_event(session, "backup_failed")
     if skip_email:
         return _alert_result(mode="failure", rule_enabled=alert_on_fail, skipped=True, reason="skip_email")
     if not alert_on_fail:
@@ -415,13 +484,42 @@ def _handle_failure_alert(session: Session, device: Device, record: BackupRecord
             ) or translate(locale, "email.unknown_error"),
         },
     )
-    return _send_alert_email(subject, content, mode="failure", reason="failure_rule_matched", locale=locale)
+    return _send_alert_email(
+        session,
+        subject,
+        content,
+        mode="failure",
+        reason="failure_rule_matched",
+        locale=locale,
+        event_type="backup_failed",
+        source_key=f"backup_failed:record:{record.id}",
+        payload={
+            "event_type": "backup_failed",
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_host": device.host,
+            "group_id": device.group_id,
+            "platform": device.platform,
+            "failure_type": record.failure_type or "UNKNOWN",
+            "error_message": record.error_message or "",
+            "localized_error_message": localize_backup_error_message(
+                record.error_message,
+                record.failure_type,
+                locale=locale,
+            ) or translate(locale, "email.unknown_error"),
+            "duration": duration_str,
+            "task_time": _format_datetime(record.started_at, session),
+            "success": False,
+            "cancelled": False,
+            "changed": False,
+        },
+    )
 
 def _handle_config_change_alert(session: Session, device: Device, record: BackupRecord, skip_email: bool = False) -> dict:
     """
     处理配置变更告警
     """
-    alert_on_change = crud.get_setting(session, key="alert_on_config_change") == "1"
+    alert_on_change = notification_routing_service.has_enabled_policy_for_event(session, "config_changed")
     if skip_email:
         return _alert_result(mode="config_change", rule_enabled=alert_on_change, skipped=True, reason="skip_email")
     if not alert_on_change:
@@ -467,7 +565,32 @@ def _handle_config_change_alert(session: Session, device: Device, record: Backup
             locale=locale,
             context={"device": device, "record": record, "summary_html": _render_localized_change_summary_html(summary, locale)},
         )
-        return _send_alert_email(subject, content, mode="config_change", reason="config_changed", locale=locale)
+        return _send_alert_email(
+            session,
+            subject,
+            content,
+            mode="config_change",
+            reason="config_changed",
+            locale=locale,
+            event_type="config_changed",
+            source_key=f"config_changed:record:{record.id}",
+            payload={
+                "event_type": "config_changed",
+                "device_id": device.id,
+                "device_name": device.name,
+                "device_host": device.host,
+                "group_id": device.group_id,
+                "platform": device.platform,
+                "failure_type": "",
+                "error_message": "",
+                "duration": f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-",
+                "task_time": _format_datetime(record.started_at, session),
+                "success": True,
+                "cancelled": False,
+                "changed": True,
+                **_structured_change_metadata(summary),
+            },
+        )
 
     return _alert_result(
         mode="config_change",
@@ -510,9 +633,9 @@ def check_and_alert_batch(
     changed_records = []
     
     # 获取配置
-    alert_on_fail = crud.get_setting(session, key="alert_on_fail") == "1"
-    alert_on_change = crud.get_setting(session, key="alert_on_config_change") == "1"
-    always_send = crud.get_setting(session, key="always_send_summary") == "1"
+    alert_on_fail = notification_routing_service.is_builtin_policy_enabled(session, "failure")
+    alert_on_change = notification_routing_service.is_builtin_policy_enabled(session, "config_change")
+    always_send = notification_routing_service.is_builtin_policy_enabled(session, "summary")
 
     for record in records:
         device = crud.get_device(session, record.device_id)
@@ -554,7 +677,7 @@ def check_and_alert_batch(
         should_send = True
         trigger_reason = "config_changed"
 
-    if not should_send:
+    if not should_send and not notification_routing_service.has_custom_policy_for_event(session, "backup_summary"):
         any_rule_enabled = bool(always_send or alert_on_fail or alert_on_change)
         return {
             "mode": "batch_summary",
@@ -572,6 +695,8 @@ def check_and_alert_batch(
             "alert_on_fail": bool(alert_on_fail),
             "alert_on_change": bool(alert_on_change),
         }
+    if not should_send:
+        trigger_reason = "custom_policy"
 
     # 构建汇总邮件内容
     subject = f"【备份汇总报告】"
@@ -709,19 +834,83 @@ def check_and_alert_batch(
             ],
         },
     )
+    changed_ids = {record.id for _, record, _ in changed_records}
+    changed_summary_html = {
+        record.id: _render_localized_change_summary_html(summary, locale)
+        for _, record, summary in changed_records
+    }
+    changed_summary_metadata = {
+        record.id: _structured_change_metadata(summary)
+        for _, record, summary in changed_records
+    }
+    cancelled_ids = {record.id for _, record in cancelled_records}
+    batch_items = []
+    for record in records:
+        device = crud.get_device(session, record.device_id)
+        if not device:
+            continue
+        batch_items.append(
+            {
+                "device_id": device.id,
+                "device_name": device.name,
+                "device_host": device.host,
+                "group_id": device.group_id,
+                "platform": device.platform,
+                "failure_type": record.failure_type or ("CANCELLED" if record.id in cancelled_ids else ""),
+                "error_message": record.error_message or "",
+                "localized_error_message": localize_backup_error_message(
+                    record.error_message,
+                    record.failure_type,
+                    locale=locale,
+                ) or "",
+                "duration": f"{record.duration_seconds:.2f}s" if record.duration_seconds is not None else "-",
+                "finished_at": _format_datetime(record.finished_at, session) if record.finished_at else "-",
+                "success": bool(record.success),
+                "cancelled": record.id in cancelled_ids,
+                "changed": record.id in changed_ids,
+                "change_summary_html": changed_summary_html.get(record.id, ""),
+                **changed_summary_metadata.get(record.id, _structured_change_metadata(None)),
+            }
+        )
     try:
-        email_sent = send_email(subject, content, content_type="html")
-        reason = "batch_summary_sent" if email_sent else "smtp_incomplete"
+        if session is None:
+            email_sent = send_email(subject, content, content_type="html")
+            attempted = True
+        else:
+            dispatch_result = notification_routing_service.dispatch_event(
+                session,
+                event_type="backup_summary",
+                source_key=f"backup_summary:run:{run_id}",
+                locale=locale,
+                payload={
+                    "event_type": "backup_summary",
+                    "run_id": str(run_id),
+                    "task_time": _format_datetime(run.started_at, session),
+                    "total_count": len(batch_items),
+                    "success_count": sum(1 for item in batch_items if item["success"]),
+                    "failed_count": len(failed_records),
+                    "cancelled_count": len(cancelled_records),
+                    "changed_count": len(changed_records),
+                    "items": batch_items,
+                },
+                fallback_subject=subject,
+                fallback_body=content,
+                email_sender=send_email,
+            )
+            attempted = bool(dispatch_result["attempted"])
+            email_sent = bool(dispatch_result["sent"])
+        reason = "batch_summary_sent" if email_sent else ("no_channel_matched" if not attempted else "notification_send_failed")
         error = ""
     except Exception as exc:
+        attempted = True
         email_sent = False
-        reason = "email_send_failed"
+        reason = "notification_send_failed"
         error = str(exc)
     return {
         "mode": "batch_summary",
         "rule_enabled": True,
         "matched": True,
-        "email_attempted": True,
+        "email_attempted": attempted,
         "email_sent": bool(email_sent),
         "skipped": False,
         "reason": reason,
