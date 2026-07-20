@@ -307,6 +307,14 @@ def check_and_alert(session: Session, record: BackupRecord, skip_email: bool = F
     if always_send and not skip_email:
         return _send_single_backup_summary_email(session, device, record)
 
+    is_cancelled = str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED
+    if (
+        is_cancelled
+        and not skip_email
+        and notification_routing_service.has_enabled_policy_for_event(session, "task_cancelled")
+    ):
+        return _send_single_backup_summary_email(session, device, record)
+
     # 1. 备份失败告警
     if not record.success:
         return _handle_failure_alert(session, device, record, skip_email)
@@ -404,11 +412,8 @@ def _send_single_backup_summary_email(session: Session, device: Device, record: 
             "summary_html": _render_localized_change_summary_html(change_summary, locale) if change_summary else "",
         },
     )
-    event_type = (
-        "task_cancelled"
-        if str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED
-        else "backup_summary"
-    )
+    event_type = "backup_summary"
+    is_cancelled = str(record.status or "").strip() == task_state_service.BACKUP_RECORD_STATUS_CANCELLED
     return _send_alert_email(
         session,
         subject,
@@ -431,7 +436,7 @@ def _send_single_backup_summary_email(session: Session, device: Device, record: 
             "duration": duration_str,
             "task_time": _format_datetime(record.started_at, session),
             "success": bool(record.success),
-            "cancelled": event_type == "task_cancelled",
+            "cancelled": is_cancelled,
             "changed": bool(change_summary),
             **_structured_change_metadata(change_summary),
         },
@@ -635,6 +640,14 @@ def check_and_alert_batch(
     # 获取配置
     alert_on_fail = notification_routing_service.is_builtin_policy_enabled(session, "failure")
     alert_on_change = notification_routing_service.is_builtin_policy_enabled(session, "config_change")
+    if session is None:
+        failure_event_enabled = alert_on_fail
+        cancelled_event_enabled = alert_on_fail
+        change_event_enabled = alert_on_change
+    else:
+        failure_event_enabled = notification_routing_service.has_enabled_policy_for_event(session, "backup_failed")
+        cancelled_event_enabled = notification_routing_service.has_enabled_policy_for_event(session, "task_cancelled")
+        change_event_enabled = notification_routing_service.has_enabled_policy_for_event(session, "config_changed")
     always_send = (
         notification_routing_service.has_unconditional_summary_policy(session)
         if session is not None
@@ -674,15 +687,23 @@ def check_and_alert_batch(
     # 3. 如果未开启汇总，但开启了“变更提醒”且有变更，则发送
     should_send = always_send
     trigger_reason = "always_send_summary" if always_send else ""
-    if not should_send and alert_on_fail and (failed_records or cancelled_records):
+    if not should_send and (
+        (failure_event_enabled and failed_records)
+        or (cancelled_event_enabled and cancelled_records)
+    ):
         should_send = True
         trigger_reason = "failure_rule_matched"
-    if not should_send and alert_on_change and changed_records:
+    if not should_send and change_event_enabled and changed_records:
         should_send = True
         trigger_reason = "config_changed"
 
     if not should_send:
-        any_rule_enabled = bool(always_send or alert_on_fail or alert_on_change)
+        any_rule_enabled = bool(
+            always_send
+            or failure_event_enabled
+            or cancelled_event_enabled
+            or change_event_enabled
+        )
         return {
             "mode": "batch_summary",
             "rule_enabled": any_rule_enabled,

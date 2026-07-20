@@ -486,51 +486,72 @@ async def save_notification_channel(
     return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
 
 
-@router.post("/notifications/channels/test", summary="发送 SMTP 通道测试邮件")
-async def test_notification_smtp_channel(
+@router.post("/notifications/channels/test", summary="发送通知通道测试消息")
+async def test_notification_channel(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
     channel_id: int = Form(0),
+    channel_type: str = Form("smtp"),
     smtp_host: str = Form(""),
     smtp_port: str = Form("25"),
     smtp_user: str = Form(""),
     smtp_from: str = Form(""),
     smtp_to: str = Form(""),
     smtp_password: str = Form(""),
+    webhook_url: str = Form(""),
+    signing_secret: str = Form(""),
+    authorization: str = Form(""),
+    timeout: str = Form("10"),
+    allow_private: str = Form("0"),
 ):
     await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
     try:
         normalized_port = max(1, min(int(smtp_port or 25), 65535))
-        success = notification_routing_service.test_smtp_channel(
+        normalized_timeout = max(1, min(int(timeout or 10), 30))
+        success = notification_routing_service.test_channel(
             session,
             channel_id=channel_id or None,
+            channel_type=channel_type,
             config={
                 "host": smtp_host,
                 "port": str(normalized_port),
                 "user": smtp_user,
                 "from": smtp_from,
                 "to": smtp_to,
+                "timeout": normalized_timeout,
+                "allow_private": allow_private in {"1", "on"},
             },
-            password=smtp_password,
-            subject=translate(request.state.locale, "notification.test_email.subject"),
-            content=translate(request.state.locale, "notification.test_email.content"),
+            secrets={
+                "password": smtp_password,
+                "url": webhook_url,
+                "signing_secret": signing_secret,
+                "authorization": authorization,
+            },
+            subject=translate(
+                request.state.locale,
+                "notification.test_email.subject" if channel_type == "smtp" else "notification.test_channel.subject",
+            ),
+            content=translate(
+                request.state.locale,
+                "notification.test_email.content" if channel_type == "smtp" else "notification.test_channel.content",
+            ),
         )
     except (ServiceError, TypeError, ValueError):
         return {
             "success": False,
-            "error": {"code": "SMTP_TEST_FAILED", "message": translate(request.state.locale, "notification.test_email.failed")},
+            "error": {"code": "CHANNEL_TEST_FAILED", "message": translate(request.state.locale, "notification.test_channel.failed")},
         }
     except Exception:
-        logger.warning("SMTP notification channel test failed", exc_info=True)
+        logger.warning("Notification channel test failed channel_type=%s channel_id=%s", channel_type, channel_id, exc_info=True)
         return {
             "success": False,
-            "error": {"code": "SMTP_TEST_FAILED", "message": translate(request.state.locale, "notification.test_email.failed")},
+            "error": {"code": "CHANNEL_TEST_FAILED", "message": translate(request.state.locale, "notification.test_channel.failed")},
         }
     return {
         "success": bool(success),
-        "message": translate(request.state.locale, "notification.test_email.sent" if success else "notification.test_email.failed"),
+        "message": translate(request.state.locale, "notification.test_channel.sent" if success else "notification.test_channel.failed"),
     }
 
 

@@ -50,26 +50,52 @@
 
   const channelForm = document.getElementById("channelForm");
   const channelType = channelForm?.querySelector('[name="channel_type"]');
+  const channelModal = document.getElementById("channelModal");
+  let pendingChannelType = "";
 
   function updateChannelFields() {
     const isSmtp = channelType?.value === "smtp";
+    const isRobot = ["wecom", "dingtalk", "feishu"].includes(channelType?.value || "");
     document.querySelectorAll("[data-channel-fields]").forEach((section) => {
       const visible = section.dataset.channelFields === (isSmtp ? "smtp" : "webhook");
       section.hidden = !visible;
       section.querySelectorAll("input,select,textarea").forEach((input) => { input.disabled = !visible; });
     });
     const testButton = document.getElementById("btn-test-channel");
-    if (testButton) testButton.hidden = !isSmtp;
+    if (testButton) testButton.hidden = !(isSmtp || isRobot);
   }
 
-  channelType?.addEventListener("change", updateChannelFields);
+  function setChannelType(value) {
+    if (!channelType) return;
+    const normalized = String(value || "").trim().toLowerCase();
+    const options = Array.from(channelType.options);
+    let matchingIndex = options.findIndex((option) => option.value === normalized);
+    if (matchingIndex < 0) matchingIndex = options.findIndex((option) => option.value === "webhook");
+    if (matchingIndex < 0) matchingIndex = 0;
+    channelType.selectedIndex = -1;
+    options.forEach((option, index) => { option.selected = index === matchingIndex; });
+    channelType.selectedIndex = matchingIndex;
+    updateChannelFields();
+    window.NB?.refreshSelectDropdowns?.();
+  }
+
+  channelType?.addEventListener("change", () => {
+    pendingChannelType = "";
+    updateChannelFields();
+  });
+  channelModal?.addEventListener("shown.bs.modal", () => {
+    if (!pendingChannelType) return;
+    setChannelType(pendingChannelType);
+    pendingChannelType = "";
+  });
   document.querySelector("[data-create-channel]")?.addEventListener("click", () => {
     resetForm(channelForm);
     channelType.disabled = false;
+    pendingChannelType = "smtp";
+    setChannelType(pendingChannelType);
     channelForm.querySelector('[name="enabled"]').checked = true;
     channelForm.querySelector('[name="smtp_port"]').value = "25";
     channelForm.querySelector('[name="timeout"]').value = "10";
-    updateChannelFields();
   });
 
   document.querySelectorAll("[data-edit-channel]").forEach((button) => {
@@ -79,16 +105,20 @@
       resetForm(channelForm);
       channelForm.querySelector('[name="channel_id"]').value = item.id || 0;
       channelForm.querySelector('[name="name"]').value = item.name || "";
-      channelForm.querySelector('[name="channel_type"]').value = item.channel_type || "webhook";
+      pendingChannelType = String(item.channel_type || "webhook").trim().toLowerCase();
+      setChannelType(pendingChannelType);
       channelForm.querySelector('[name="enabled"]').checked = !!item.enabled;
       channelForm.querySelector('[name="smtp_host"]').value = config.host || "";
       channelForm.querySelector('[name="smtp_port"]').value = config.port || "25";
       channelForm.querySelector('[name="smtp_user"]').value = config.user || "";
       channelForm.querySelector('[name="smtp_from"]').value = config.from || "";
       channelForm.querySelector('[name="smtp_to"]').value = config.to || "";
+      channelForm.querySelector('[name="smtp_password"]').value = item.password_mask || "";
+      channelForm.querySelector('[name="webhook_url"]').value = item.url_mask || "";
+      channelForm.querySelector('[name="signing_secret"]').value = item.signing_secret_mask || "";
+      channelForm.querySelector('[name="authorization"]').value = item.authorization_mask || "";
       channelForm.querySelector('[name="timeout"]').value = config.timeout || "10";
       channelForm.querySelector('[name="allow_private"]').checked = !!config.allow_private;
-      updateChannelFields();
       openModal("channelModal");
     });
   });
@@ -191,12 +221,14 @@
   const templateInsertTarget = document.getElementById("templateInsertTarget");
   const templatePreview = document.getElementById("templatePreview");
   const templatePreviewModes = document.getElementById("templatePreviewModes");
+  const webhookPreviewLabels = document.getElementById("webhookPreviewLabels")?.dataset || {};
   let activeTemplateField = templateBody;
   let lastTemplatePreview = null;
   let sampleContexts = {};
   const builtinTemplateFormats = {
     builtin_backup_detailed: { channelType: "smtp", contentType: "html" },
     builtin_backup_robot: { channelType: "robot", contentType: "markdown" },
+    builtin_backup_feishu: { channelType: "feishu", contentType: "json" },
     builtin_backup_webhook_json: { channelType: "webhook", contentType: "json" },
   };
 
@@ -434,6 +466,180 @@
     return rendered;
   }
 
+  function renderFeishuCardPreview(source) {
+    let cardData;
+    try {
+      cardData = JSON.parse(String(source || ""));
+    } catch (_) {
+      return null;
+    }
+    if (cardData?.schema !== "2.0" || !cardData?.header || !Array.isArray(cardData?.body?.elements)) return null;
+
+    const stage = document.createElement("div");
+    stage.className = "feishu-preview-stage";
+    const card = document.createElement("article");
+    card.className = "feishu-preview-card";
+
+    const header = document.createElement("header");
+    const headerTemplate = String(cardData.header.template || "blue").toLowerCase();
+    header.className = `feishu-preview-header is-${/^(red|orange|green|blue|turquoise|purple|grey)$/.test(headerTemplate) ? headerTemplate : "blue"}`;
+    const title = document.createElement("h4");
+    title.textContent = cardData.header.title?.content || cardData.config?.summary?.content || "";
+    header.append(title);
+    card.append(header);
+
+    const body = document.createElement("div");
+    body.className = "feishu-preview-body";
+    cardData.body.elements.forEach((element) => {
+      if (element?.tag === "markdown") {
+        const markdown = renderMarkdownPreview(element.content || "");
+        markdown.classList.add("feishu-preview-markdown");
+        body.append(markdown);
+        return;
+      }
+      if (element?.tag !== "table" || !Array.isArray(element.columns) || !Array.isArray(element.rows)) return;
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "feishu-preview-table-wrap";
+      const table = document.createElement("table");
+      table.className = "feishu-preview-table";
+      const headRow = document.createElement("tr");
+      element.columns.forEach((column) => {
+        const cell = document.createElement("th");
+        cell.textContent = column.display_name || column.name || "";
+        headRow.append(cell);
+      });
+      const head = document.createElement("thead");
+      head.append(headRow);
+      table.append(head);
+      const tableBody = document.createElement("tbody");
+      element.rows.forEach((rowData) => {
+        const row = document.createElement("tr");
+        element.columns.forEach((column) => {
+          const cell = document.createElement("td");
+          cell.textContent = rowData?.[column.name] ?? "";
+          row.append(cell);
+        });
+        tableBody.append(row);
+      });
+      table.append(tableBody);
+      tableWrap.append(table);
+      body.append(tableWrap);
+    });
+    card.append(body);
+    stage.append(card);
+    return stage;
+  }
+
+  function renderWebhookPayloadPreview(source) {
+    let payload;
+    try {
+      payload = JSON.parse(String(source || ""));
+    } catch (_) {
+      return null;
+    }
+    if (!payload || Array.isArray(payload) || typeof payload !== "object"
+      || !payload.summary || typeof payload.summary !== "object" || !Array.isArray(payload.items)) return null;
+
+    const stage = document.createElement("div");
+    stage.className = "webhook-preview-stage";
+    const card = document.createElement("article");
+    card.className = "webhook-preview-card";
+
+    const header = document.createElement("header");
+    header.className = "webhook-preview-header";
+    const heading = document.createElement("div");
+    heading.className = "webhook-preview-heading";
+    const icon = document.createElement("i");
+    icon.className = "bi bi-braces";
+    const title = document.createElement("h4");
+    title.textContent = String(payload.title || "Webhook");
+    heading.append(icon, title);
+    const meta = document.createElement("div");
+    meta.className = "webhook-preview-meta";
+    const event = document.createElement("span");
+    event.textContent = `${webhookPreviewLabels.event || "Event"}: ${payload.event || "-"}`;
+    const taskTime = document.createElement("span");
+    taskTime.textContent = `${webhookPreviewLabels.taskTime || "Task time"}: ${payload.task_time || "-"}`;
+    meta.append(event, taskTime);
+    header.append(heading, meta);
+    card.append(header);
+
+    const summary = document.createElement("div");
+    summary.className = "webhook-preview-summary";
+    [
+      ["total", webhookPreviewLabels.total, payload.summary.total],
+      ["succeeded", webhookPreviewLabels.succeeded, payload.summary.succeeded],
+      ["failed", webhookPreviewLabels.failed, payload.summary.failed],
+      ["cancelled", webhookPreviewLabels.cancelled, payload.summary.cancelled],
+      ["changed", webhookPreviewLabels.changed, payload.summary.changed],
+    ].forEach(([tone, label, value]) => {
+      const stat = document.createElement("div");
+      stat.className = `webhook-preview-stat is-${tone}`;
+      const strong = document.createElement("strong");
+      strong.textContent = String(value ?? 0);
+      const caption = document.createElement("span");
+      caption.textContent = label || tone;
+      stat.append(strong, caption);
+      summary.append(stat);
+    });
+    card.append(summary);
+
+    const detail = document.createElement("section");
+    detail.className = "webhook-preview-detail";
+    const detailTitle = document.createElement("h5");
+    detailTitle.textContent = `${webhookPreviewLabels.items || "Items"} (${payload.items.length})`;
+    detail.append(detailTitle);
+    if (payload.items.length) {
+      const columns = [
+        ["device_name", webhookPreviewLabels.deviceName],
+        ["device_host", webhookPreviewLabels.deviceHost],
+        ["platform", webhookPreviewLabels.platform],
+        ["status", webhookPreviewLabels.status],
+        ["duration", webhookPreviewLabels.duration],
+        ["failure_type", webhookPreviewLabels.failureType],
+        ["error_message", webhookPreviewLabels.error],
+      ];
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "webhook-preview-table-wrap";
+      const table = document.createElement("table");
+      table.className = "webhook-preview-table";
+      const headRow = document.createElement("tr");
+      columns.forEach(([, label]) => {
+        const cell = document.createElement("th");
+        cell.textContent = label || "-";
+        headRow.append(cell);
+      });
+      const head = document.createElement("thead");
+      head.append(headRow);
+      table.append(head);
+      const body = document.createElement("tbody");
+      payload.items.forEach((item) => {
+        const record = item && typeof item === "object" ? item : {};
+        const row = document.createElement("tr");
+        columns.forEach(([key]) => {
+          const cell = document.createElement("td");
+          if (key === "status") {
+            const status = record.cancelled ? "cancelled" : !record.success ? "failed" : record.changed ? "changed" : "succeeded";
+            const badge = document.createElement("span");
+            badge.className = `webhook-preview-status is-${status}`;
+            badge.textContent = webhookPreviewLabels[status] || status;
+            cell.append(badge);
+          } else {
+            cell.textContent = String(record[key] ?? "-");
+          }
+          row.append(cell);
+        });
+        body.append(row);
+      });
+      table.append(body);
+      tableWrap.append(table);
+      detail.append(tableWrap);
+    }
+    card.append(detail);
+    stage.append(card);
+    return stage;
+  }
+
   function renderTemplatePreview(mode = "visual") {
     if (!templatePreview || !lastTemplatePreview) return;
     templatePreview.replaceChildren();
@@ -456,6 +662,19 @@
     if (mode === "visual" && lastTemplatePreview.contentType === "markdown") {
       templatePreview.append(renderMarkdownPreview(lastTemplatePreview.body));
       return;
+    }
+
+    if (mode === "visual" && lastTemplatePreview.contentType === "json") {
+      const feishuCard = renderFeishuCardPreview(lastTemplatePreview.body);
+      if (feishuCard) {
+        templatePreview.append(feishuCard);
+        return;
+      }
+      const webhookPayload = renderWebhookPayloadPreview(lastTemplatePreview.body);
+      if (webhookPayload) {
+        templatePreview.append(webhookPayload);
+        return;
+      }
     }
 
     const body = document.createElement("pre");

@@ -29,6 +29,7 @@ from app.i18n import translate
 from app.i18n.email import render_email_template
 from app.i18n.validators import normalize_locale
 from app.models import (
+    AppSetting,
     NotificationChannel,
     NotificationDelivery,
     NotificationEvent,
@@ -46,9 +47,10 @@ CHANNEL_TYPES = ("smtp", "wecom", "dingtalk", "feishu", "webhook")
 ROBOT_CHANNEL_TYPES = ("wecom", "dingtalk", "feishu")
 TEMPLATE_CHANNEL_TYPES = (*CHANNEL_TYPES, "robot")
 EVENT_TYPES = ("backup_failed", "config_changed", "backup_summary", "task_cancelled")
-LEGACY_BUILTIN_POLICY_EVENTS = {
-    "failure": {"backup_failed", "backup_summary", "task_cancelled"},
-    "config_change": {"config_changed", "backup_summary"},
+BUILTIN_POLICY_EVENT_TYPES = {
+    "failure": ("backup_failed", "task_cancelled"),
+    "config_change": ("config_changed",),
+    "summary": ("backup_summary",),
 }
 CONTENT_TYPES = ("html", "markdown", "text", "json")
 FAILURE_TYPES = (
@@ -62,31 +64,36 @@ FAILURE_TYPES = (
 MAX_TEMPLATE_SIZE = 100_000
 MAX_RENDERED_SIZE = 500_000
 FEISHU_CARD_MAX_BYTES = 30 * 1024
+FEISHU_TABLE_ROW_LIMIT = 20
 MAX_ATTEMPTS = 5
 BUILTIN_DETAILED_TEMPLATE_KEY = "legacy_detailed_email"
 BUILTIN_DETAILED_TEMPLATE_KEY_V2 = "builtin_backup_detailed"
 BUILTIN_ROBOT_TEMPLATE_KEY = "builtin_backup_robot"
+BUILTIN_FEISHU_TEMPLATE_KEY = "builtin_backup_feishu"
 BUILTIN_WEBHOOK_TEMPLATE_KEY = "builtin_backup_webhook_json"
 BUILTIN_BACKUP_TEMPLATE_KEYS = {
     BUILTIN_DETAILED_TEMPLATE_KEY_V2,
     BUILTIN_ROBOT_TEMPLATE_KEY,
+    BUILTIN_FEISHU_TEMPLATE_KEY,
     BUILTIN_WEBHOOK_TEMPLATE_KEY,
 }
 BUILTIN_TEMPLATE_CHANNEL_KEYS = {
     "smtp": BUILTIN_DETAILED_TEMPLATE_KEY_V2,
     "wecom": BUILTIN_ROBOT_TEMPLATE_KEY,
     "dingtalk": BUILTIN_ROBOT_TEMPLATE_KEY,
-    "feishu": BUILTIN_ROBOT_TEMPLATE_KEY,
+    "feishu": BUILTIN_FEISHU_TEMPLATE_KEY,
     "webhook": BUILTIN_WEBHOOK_TEMPLATE_KEY,
 }
 BUILTIN_TEMPLATE_FORMATS = {
     BUILTIN_DETAILED_TEMPLATE_KEY_V2: ("smtp", "html"),
     BUILTIN_ROBOT_TEMPLATE_KEY: ("robot", "markdown"),
+    BUILTIN_FEISHU_TEMPLATE_KEY: ("feishu", "json"),
     BUILTIN_WEBHOOK_TEMPLATE_KEY: ("webhook", "json"),
 }
 BUILTIN_TEMPLATE_HINT_KEYS = {
     BUILTIN_DETAILED_TEMPLATE_KEY_V2: "notification.template.email_detailed_hint",
     BUILTIN_ROBOT_TEMPLATE_KEY: "notification.template.robot_detailed_hint",
+    BUILTIN_FEISHU_TEMPLATE_KEY: "notification.template.feishu_compact_hint",
     BUILTIN_WEBHOOK_TEMPLATE_KEY: "notification.template.webhook_detailed_hint",
 }
 DEFAULT_SMTP_CHANNEL_KEY = "default_smtp"
@@ -95,6 +102,8 @@ BUILTIN_POLICY_KEYS = {
     "config_change": "builtin_config_change",
     "summary": "builtin_summary",
 }
+BUILTIN_NOTIFICATION_SCHEMA_SETTING = "notification_builtin_schema_version"
+BUILTIN_NOTIFICATION_SCHEMA_VERSION = "2"
 BUILTIN_NAME_SPECS = {
     ("channel", DEFAULT_SMTP_CHANNEL_KEY): ("Default SMTP", "notification.channel.builtin_smtp_name"),
     ("template", BUILTIN_DETAILED_TEMPLATE_KEY_V2): (
@@ -104,6 +113,10 @@ BUILTIN_NAME_SPECS = {
     ("template", BUILTIN_ROBOT_TEMPLATE_KEY): (
         "Markdown notification template - Detailed backup summary",
         "notification.template.robot_detailed_name",
+    ),
+    ("template", BUILTIN_FEISHU_TEMPLATE_KEY): (
+        "Feishu notification template - Compact backup summary",
+        "notification.template.feishu_compact_name",
     ),
     ("template", BUILTIN_WEBHOOK_TEMPLATE_KEY): (
         "Webhook notification template - Detailed backup summary",
@@ -157,16 +170,16 @@ DETAILED_BACKUP_BODY_TEMPLATE = """<!doctype html>
 
   {% if changed_count > 0 %}
   <h3 style="color:#d98a18">{{ labels["changed_section"] }}</h3>
-  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
-    <tr style="background:#f2f4f7"><th>{{ labels["device_name"] }}</th><th>{{ labels["device_host"] }}</th><th>{{ labels["change_summary"] }}</th></tr>
+  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1200px;border-color:#8a8f98">
+    <tr style="background:#f7f8fa"><th style="padding:12px;text-align:center;width:18%">{{ labels["device_name"] }}</th><th style="padding:12px;text-align:center;width:20%">{{ labels["device_host"] }}</th><th style="padding:12px;text-align:center">{{ labels["change_summary"] }}</th></tr>
     {% for item in items %}{% if item["changed"] %}
-    <tr><td>{{ item["device_name"] }}</td><td>{{ item["device_host"] }}</td><td>
-      <div style="font-weight:bold;margin-bottom:4px">{{ labels["diff_rules_applied"] }}</div>
-      {% if item["change_context_label"] %}<div style="font-weight:bold;margin-bottom:4px">{{ item["change_context_label"] }}</div>{% endif %}
-      {% if item["change_lines"] %}<ul style="margin:0;padding-left:18px">{% for line in item["change_lines"] %}
-      <li><code style="color:{% if line["kind"] == "add" %}#198754{% elif line["kind"] == "del" %}#dc3545{% else %}#6c757d{% endif %}">{{ line["prefix"] }} {{ line["text"] }}</code></li>
+    <tr><td style="padding:12px;vertical-align:middle;font-size:16px">{{ item["device_name"] }}</td><td style="padding:12px;vertical-align:middle;font-size:16px">{{ item["device_host"] }}</td><td style="padding:16px;vertical-align:top;line-height:1.65">
+      <div style="font-weight:700;margin-bottom:4px">{{ labels["diff_rules_applied"] }}</div>
+      {% if item["change_context_label"] %}<div style="font-weight:700;margin-bottom:6px">{{ item["change_context_label"] }}</div>{% endif %}
+      {% if item["change_lines"] %}<ul style="margin:0;padding-left:24px">{% for line in item["change_lines"] %}
+      <li style="margin:3px 0"><code style="white-space:pre-wrap;overflow-wrap:anywhere;color:{% if line["kind"] == "add" %}#198754{% elif line["kind"] == "del" %}#dc3545{% else %}#6c757d{% endif %}">{{ line["prefix"] }} {{ line["text"] }}</code></li>
       {% endfor %}</ul>{% else %}{{ labels["changed_detail"] }}{% endif %}
-      {% if item["change_truncated_label"] %}<div style="margin-top:6px;color:#6c757d;font-size:12px">{{ item["change_truncated_label"] }}</div>{% endif %}
+      {% if item["change_truncated_label"] %}<div style="margin-top:8px;color:#6c757d;font-size:12px;font-weight:600">{{ item["change_truncated_label"] }}</div>{% endif %}
     </td></tr>
     {% endif %}{% endfor %}
   </table>
@@ -178,9 +191,9 @@ MARKDOWN_BACKUP_BODY_TEMPLATE = """**{{ labels["task_time"] }}**: {{ task_time }
 **{{ labels["result"] }}**: {{ labels["total"] }} {{ total_count }} {{ labels["unit"] }} · {{ labels["succeeded"] }} **{{ success_count }}** · {{ labels["failed"] }} **{{ failed_count }}** · {{ labels["cancelled"] }} **{{ cancelled_count }}**
 
 {% if failed_count > 0 %}### {{ labels["failed_section"] }}
-| {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["duration"] }} | {{ labels["failure_type"] }} | {{ labels["error"] }} |
-| --- | --- | --- | --- | --- |
-{% for item in items %}{% if not item["success"] and not item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ item["duration"]|mdescape }} | `{{ item["failure_type"]|mdescape }}` | {{ item["error_message"]|mdescape }} |
+| {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["duration"] }} | {{ labels["failure_type"] }} |
+| --- | --- | --- | --- |
+{% for item in items %}{% if not item["success"] and not item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ item["duration"]|mdescape }} | `{{ item["failure_type"]|mdescape }}` |
 {% endif %}{% endfor %}{% endif %}
 {% if cancelled_count > 0 %}### {{ labels["cancelled_section"] }}
 | {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["details"] }} |
@@ -188,10 +201,81 @@ MARKDOWN_BACKUP_BODY_TEMPLATE = """**{{ labels["task_time"] }}**: {{ task_time }
 {% for item in items %}{% if item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ item["error_message"]|mdescape }} |
 {% endif %}{% endfor %}{% endif %}
 {% if changed_count > 0 %}### {{ labels["changed_section"] }}
-| {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["change_summary"] }} |
-| --- | --- | --- |
-{% for item in items %}{% if item["changed"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ labels["diff_rules_applied"]|mdescape }}{% if item["change_context_label"] %} · {{ item["change_context_label"]|mdescape }}{% endif %}{% for line in item["change_lines"] %} · `{{ line["prefix"]|mdescape }} {{ line["text"]|mdescape }}`{% endfor %}{% if item["change_truncated_label"] %} · {{ item["change_truncated_label"]|mdescape }}{% endif %} |
+| {{ labels["device_name"] }} | {{ labels["device_host"] }} |
+| --- | --- |
+{% for item in items %}{% if item["changed"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` |
 {% endif %}{% endfor %}{% endif %}"""
+FEISHU_BACKUP_BODY_TEMPLATE = """{
+  "schema": "2.0",
+  "config": {
+    "width_mode": "fill",
+    "summary": {"content": {{ summary_subject|tojson }}}
+  },
+  "header": {
+    "template": {{ feishu_header_template|tojson }},
+    "title": {"tag": "plain_text", "content": {{ summary_subject|tojson }}}
+  },
+  "body": {
+    "direction": "vertical",
+    "padding": "12px 12px 12px 12px",
+    "elements": [
+      {"tag": "markdown", "content": {{ feishu_summary_text|tojson }}}
+      {% if failed_count > 0 %},
+      {"tag": "markdown", "content": {{ feishu_failed_title|tojson }}},
+      {
+        "tag": "table",
+        "page_size": 10,
+        "row_height": "low",
+        "header_style": {"background_style": "grey", "bold": true, "text_align": "left", "lines": 1},
+        "columns": [
+          {"name": "device_name", "display_name": {{ labels["device_name"]|tojson }}, "data_type": "text", "width": "auto"},
+          {"name": "device_host", "display_name": {{ labels["device_host"]|tojson }}, "data_type": "text", "width": "auto"},
+          {"name": "duration", "display_name": {{ labels["duration"]|tojson }}, "data_type": "text", "width": "auto"},
+          {"name": "failure_type", "display_name": {{ labels["failure_type"]|tojson }}, "data_type": "text", "width": "auto"}
+        ],
+        "rows": {{ feishu_failed_rows_json }}
+      }
+      {% if feishu_failed_hidden_label %},
+      {"tag": "markdown", "content": {{ feishu_failed_hidden_label|tojson }}}
+      {% endif %}
+      {% endif %}
+      {% if cancelled_count > 0 %},
+      {"tag": "markdown", "content": {{ feishu_cancelled_title|tojson }}},
+      {
+        "tag": "table",
+        "page_size": 10,
+        "row_height": "low",
+        "header_style": {"background_style": "grey", "bold": true, "text_align": "left", "lines": 1},
+        "columns": [
+          {"name": "device_name", "display_name": {{ labels["device_name"]|tojson }}, "data_type": "text", "width": "auto"},
+          {"name": "device_host", "display_name": {{ labels["device_host"]|tojson }}, "data_type": "text", "width": "auto"}
+        ],
+        "rows": {{ feishu_cancelled_rows_json }}
+      }
+      {% if feishu_cancelled_hidden_label %},
+      {"tag": "markdown", "content": {{ feishu_cancelled_hidden_label|tojson }}}
+      {% endif %}
+      {% endif %}
+      {% if changed_count > 0 %},
+      {"tag": "markdown", "content": {{ feishu_changed_title|tojson }}},
+      {
+        "tag": "table",
+        "page_size": 10,
+        "row_height": "low",
+        "header_style": {"background_style": "grey", "bold": true, "text_align": "left", "lines": 1},
+        "columns": [
+          {"name": "device_name", "display_name": {{ labels["device_name"]|tojson }}, "data_type": "text", "width": "auto"},
+          {"name": "device_host", "display_name": {{ labels["device_host"]|tojson }}, "data_type": "text", "width": "auto"}
+        ],
+        "rows": {{ feishu_changed_rows_json }}
+      }
+      {% if feishu_changed_hidden_label %},
+      {"tag": "markdown", "content": {{ feishu_changed_hidden_label|tojson }}}
+      {% endif %}
+      {% endif %}
+    ]
+  }
+}"""
 WEBHOOK_BACKUP_BODY_TEMPLATE = """{
   "event": {{ event["type"]|tojson }},
   "title": {{ summary_subject|tojson }},
@@ -324,6 +408,11 @@ def _escape_markdown(value: Any) -> str:
     return re.sub(r"([\\`*_{}\[\]()#+\-.!|])", r"\\\1", text)
 
 
+def _escape_markdown_code(value: Any) -> str:
+    text = html.escape(str(value), quote=False).replace("\r", " ").replace("\n", " ")
+    return text.replace("\\", "\\\\").replace("`", "\\`").replace("|", "\\|")
+
+
 def _template_environment(content_type: str) -> SandboxedEnvironment:
     environment = _TemplateSandbox(
         undefined=StrictUndefined,
@@ -333,6 +422,7 @@ def _template_environment(content_type: str) -> SandboxedEnvironment:
     allowed = {"escape", "e", "default", "join", "length", "lower", "upper", "replace", "tojson"}
     environment.filters = {key: value for key, value in environment.filters.items() if key in allowed}
     environment.filters["mdescape"] = _escape_markdown
+    environment.filters["mdcode"] = _escape_markdown_code
     environment.globals = {}
     environment.tests = {}
     return environment
@@ -367,6 +457,8 @@ def _legacy_channel_config(session: Session) -> tuple[dict[str, Any], str | None
 
 
 def ensure_builtin_defaults(session: Session) -> NotificationChannel:
+    schema_setting = session.get(AppSetting, BUILTIN_NOTIFICATION_SCHEMA_SETTING)
+    upgrade_builtins = not schema_setting or schema_setting.value != BUILTIN_NOTIFICATION_SCHEMA_VERSION
     channel = session.exec(
         select(NotificationChannel).where(NotificationChannel.builtin_key.in_([DEFAULT_SMTP_CHANNEL_KEY, "legacy_smtp"]))
     ).first()
@@ -414,6 +506,9 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
         email_template.channel_type = "smtp"
         email_template.content_type = "html"
         email_template.renderer_key = None
+        if upgrade_builtins:
+            email_template.body_template = DETAILED_BACKUP_BODY_TEMPLATE
+            email_template.updated_at = datetime.utcnow()
     session.add(email_template)
     session.flush()
 
@@ -424,6 +519,13 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
             "robot",
             "markdown",
             MARKDOWN_BACKUP_BODY_TEMPLATE,
+        ),
+        (
+            BUILTIN_FEISHU_TEMPLATE_KEY,
+            "Feishu notification template - Compact backup summary",
+            "feishu",
+            "json",
+            FEISHU_BACKUP_BODY_TEMPLATE,
         ),
         (
             BUILTIN_WEBHOOK_TEMPLATE_KEY,
@@ -454,16 +556,16 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
             builtin_template.channel_type = channel_type
             builtin_template.content_type = content_type
             builtin_template.renderer_key = None
-            if builtin_key == BUILTIN_ROBOT_TEMPLATE_KEY:
-                builtin_template.body_template = MARKDOWN_BACKUP_BODY_TEMPLATE
+            if builtin_key in {BUILTIN_ROBOT_TEMPLATE_KEY, BUILTIN_FEISHU_TEMPLATE_KEY}:
+                builtin_template.body_template = body_template
                 builtin_template.updated_at = datetime.utcnow()
         session.add(builtin_template)
     session.flush()
 
     definitions = (
-        (BUILTIN_POLICY_KEYS["failure"], "Backup failures", ["backup_failed", "backup_summary", "task_cancelled"], "alert_on_fail", "legacy_failure"),
-        (BUILTIN_POLICY_KEYS["config_change"], "Configuration changes", ["config_changed", "backup_summary"], "alert_on_config_change", "legacy_config_change"),
-        (BUILTIN_POLICY_KEYS["summary"], "Backup summaries", ["backup_summary", "task_cancelled"], "always_send_summary", "legacy_summary"),
+        (BUILTIN_POLICY_KEYS["failure"], "Backup failures", list(BUILTIN_POLICY_EVENT_TYPES["failure"]), "alert_on_fail", "legacy_failure"),
+        (BUILTIN_POLICY_KEYS["config_change"], "Configuration changes", list(BUILTIN_POLICY_EVENT_TYPES["config_change"]), "alert_on_config_change", "legacy_config_change"),
+        (BUILTIN_POLICY_KEYS["summary"], "Backup summaries", list(BUILTIN_POLICY_EVENT_TYPES["summary"]), "always_send_summary", "legacy_summary"),
     )
     for priority, (builtin_key, name, event_types, setting_key, old_key) in enumerate(definitions, start=900):
         policy = session.exec(
@@ -481,8 +583,17 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
             )
         else:
             policy.builtin_key = builtin_key
+            if upgrade_builtins:
+                policy.event_types_json = _dump(event_types)
+                policy.updated_at = datetime.utcnow()
         session.add(policy)
     session.flush()
+    if upgrade_builtins:
+        crud.set_setting(
+            session,
+            key=BUILTIN_NOTIFICATION_SCHEMA_SETTING,
+            value=BUILTIN_NOTIFICATION_SCHEMA_VERSION,
+        )
     return channel
 
 
@@ -511,29 +622,8 @@ def has_custom_policy_for_event(session: Session, event_type: str) -> bool:
 
 
 def has_unconditional_summary_policy(session: Session) -> bool:
-    """Return whether a completed backup should always emit a summary.
-
-    Untouched legacy failure/configuration policies include ``backup_summary``
-    only so they can aggregate matching batch details. Once their event set is
-    edited, the choices shown in the policy editor become literal.
-    """
-    ensure_builtin_defaults(session)
-    for policy in list_policies(session):
-        event_types = set(_json_list(policy.event_types_json))
-        if not policy.enabled or "backup_summary" not in event_types:
-            continue
-        if (
-            policy.builtin_key == BUILTIN_POLICY_KEYS["failure"]
-            and event_types == LEGACY_BUILTIN_POLICY_EVENTS["failure"]
-        ):
-            continue
-        if (
-            policy.builtin_key == BUILTIN_POLICY_KEYS["config_change"]
-            and event_types == LEGACY_BUILTIN_POLICY_EVENTS["config_change"]
-        ):
-            continue
-        return True
-    return False
+    """Return whether a completed backup should always emit a summary."""
+    return has_enabled_policy_for_event(session, "backup_summary")
 
 
 def has_enabled_policy_for_event(session: Session, event_type: str) -> bool:
@@ -656,6 +746,67 @@ def test_smtp_channel(
     if not all(smtp_config.values()):
         raise ServiceError("SMTP configuration is incomplete", code="NOTIFICATION_CHANNEL_SMTP_INCOMPLETE")
     return bool(email_sender(subject, content, content_type="html", smtp_config=smtp_config))
+
+
+def test_channel(
+    session: Session,
+    *,
+    channel_id: int | None,
+    channel_type: str,
+    config: dict[str, Any],
+    secrets: dict[str, Any],
+    subject: str,
+    content: str,
+    email_sender=send_email,
+) -> bool:
+    normalized_type = str(channel_type or "").strip().lower()
+    existing = session.get(NotificationChannel, channel_id) if channel_id else None
+    if channel_id and existing is None:
+        raise ServiceError("Notification channel not found", code="NOTIFICATION_CHANNEL_NOT_FOUND", status_code=404)
+    if existing and existing.channel_type != normalized_type:
+        raise ServiceError("Notification channel type mismatch", code="NOTIFICATION_CHANNEL_TYPE_MISMATCH")
+    if normalized_type == "smtp":
+        return test_smtp_channel(
+            session,
+            channel_id=channel_id,
+            config=config,
+            password=str(secrets.get("password") or ""),
+            subject=subject,
+            content=content,
+            email_sender=email_sender,
+        )
+    if normalized_type not in ROBOT_CHANNEL_TYPES:
+        raise ServiceError("Channel testing is not supported", code="NOTIFICATION_CHANNEL_TEST_UNSUPPORTED")
+
+    merged_secrets = _channel_secrets(existing) if existing else {}
+    for key in ("url", "signing_secret", "authorization"):
+        value = str(secrets.get(key) or "").strip()
+        if value and set(value) != {"*"}:
+            merged_secrets[key] = value
+    if not str(merged_secrets.get("url") or "").strip():
+        raise ServiceError("Webhook URL is required", code="NOTIFICATION_CHANNEL_WEBHOOK_REQUIRED")
+
+    test_config = dict(_json_dict(existing.config_json) if existing else {})
+    test_config.update({
+        "timeout": max(1, min(int(config.get("timeout") or 10), 30)),
+        "allow_private": bool(config.get("allow_private")),
+    })
+    test_channel = NotificationChannel(
+        name=existing.name if existing else "Notification channel test",
+        channel_type=normalized_type,
+        enabled=True,
+        config_json=_dump(test_config),
+        secret_encrypted=encrypt_secret(_dump(merged_secrets)),
+    )
+    _send_channel(
+        test_channel,
+        subject=subject,
+        body=content,
+        content_type="markdown",
+        payload={"event_type": "channel_test"},
+        email_sender=email_sender,
+    )
+    return True
 
 
 def delete_channel(session: Session, channel_id: int) -> None:
@@ -918,6 +1069,36 @@ def _render_detailed_batch_fallback(payload: dict[str, Any]) -> tuple[str, str]:
     return subject, body
 
 
+def _payload_with_items(payload: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any]:
+    result = dict(payload)
+    result["items"] = items
+    result["total_count"] = len(items)
+    result["failed_count"] = sum(1 for item in items if not item.get("success") and not item.get("cancelled"))
+    result["cancelled_count"] = sum(1 for item in items if item.get("cancelled"))
+    result["changed_count"] = sum(1 for item in items if item.get("changed"))
+    result["success_count"] = sum(1 for item in items if item.get("success"))
+    return result
+
+
+def _batch_matching_event_types(payload: dict[str, Any]) -> set[str]:
+    event_types = {"backup_summary"}
+    if int(payload.get("failed_count") or 0):
+        event_types.add("backup_failed")
+    if int(payload.get("cancelled_count") or 0):
+        event_types.add("task_cancelled")
+    if int(payload.get("changed_count") or 0):
+        event_types.add("config_changed")
+    return event_types
+
+
+def _batch_item_matches_events(item: dict[str, Any], event_types: set[str]) -> bool:
+    return bool(
+        ("backup_failed" in event_types and not item.get("success") and not item.get("cancelled"))
+        or ("task_cancelled" in event_types and item.get("cancelled"))
+        or ("config_changed" in event_types and item.get("changed"))
+    )
+
+
 def _subset_payload(session: Session, policy: NotificationPolicy, payload: dict[str, Any]) -> dict[str, Any] | None:
     items = payload.get("items")
     if not isinstance(items, list):
@@ -925,39 +1106,11 @@ def _subset_payload(session: Session, policy: NotificationPolicy, payload: dict[
     matched = [item for item in items if isinstance(item, dict) and _policy_matches(session, policy, item)]
     if not matched:
         return None
-    result = dict(payload)
-    result["items"] = matched
-    result["total_count"] = len(matched)
-    result["failed_count"] = sum(1 for item in matched if not item.get("success") and not item.get("cancelled"))
-    result["cancelled_count"] = sum(1 for item in matched if item.get("cancelled"))
-    result["changed_count"] = sum(1 for item in matched if item.get("changed"))
-    result["success_count"] = sum(1 for item in matched if item.get("success"))
+    result = _payload_with_items(payload, matched)
     if len(matched) != len(items):
         result["fallback_subject"], result["fallback_body"] = _render_detailed_batch_fallback(result)
         result["_is_subset"] = True
     return result
-
-
-def _builtin_policy_matches(policy: NotificationPolicy, event_type: str, payload: dict[str, Any]) -> bool:
-    event_types = set(_json_list(policy.event_types_json))
-    if (
-        policy.builtin_key == BUILTIN_POLICY_KEYS["failure"]
-        and event_types == LEGACY_BUILTIN_POLICY_EVENTS["failure"]
-        and event_type in {"backup_summary", "task_cancelled"}
-    ):
-        return bool(
-            int(payload.get("failed_count") or 0)
-            or int(payload.get("cancelled_count") or 0)
-            or payload.get("success") is False
-            or payload.get("cancelled")
-        )
-    if (
-        policy.builtin_key == BUILTIN_POLICY_KEYS["config_change"]
-        and event_types == LEGACY_BUILTIN_POLICY_EVENTS["config_change"]
-        and event_type == "backup_summary"
-    ):
-        return bool(int(payload.get("changed_count") or 0) or payload.get("changed"))
-    return True
 
 
 def _template_matches_channel(template: NotificationTemplate, channel_type: str) -> bool:
@@ -988,6 +1141,7 @@ def _resolve_template_for_channel(
 def _report_labels(locale: str) -> dict[str, str]:
     keys = (
         "title", "task_time", "result", "total", "unit", "succeeded", "failed", "cancelled",
+        "changed",
         "failed_section", "cancelled_section", "changed_section", "device_name", "device_host",
         "duration", "failure_type", "error", "details", "change_summary", "changed_detail",
     )
@@ -997,6 +1151,75 @@ def _report_labels(locale: str) -> dict[str, str]:
     }
     labels["diff_rules_applied"] = translate(locale, "email.diff_rules_applied")
     return labels
+
+
+def _feishu_cell(value: Any, *, limit: int = 120) -> str:
+    text = re.sub(r"\s+", " ", str(value or "-")).strip() or "-"
+    return text if len(text) <= limit else f"{text[: limit - 1]}…"
+
+
+def _feishu_table_context(payload: dict[str, Any]) -> dict[str, Any]:
+    locale = normalize_locale(str(payload.get("_locale") or payload.get("locale") or "zh-CN"))
+    labels = payload.get("labels") if isinstance(payload.get("labels"), dict) else _report_labels(locale)
+    items = [item for item in (payload.get("items") or []) if isinstance(item, dict)]
+    failed = [item for item in items if not item.get("success") and not item.get("cancelled")]
+    cancelled = [item for item in items if item.get("cancelled")]
+    changed = [item for item in items if item.get("changed")]
+
+    def compact(source: list[dict[str, Any]]) -> list[dict[str, str]]:
+        return [
+            {
+                "device_name": _feishu_cell(item.get("device_name")),
+                "device_host": _feishu_cell(item.get("device_host")),
+                "duration": _feishu_cell(item.get("duration"), limit=64),
+                "failure_type": _feishu_cell(item.get("failure_type"), limit=64),
+            }
+            for item in source[:FEISHU_TABLE_ROW_LIMIT]
+        ]
+
+    def hidden_label(source: list[dict[str, Any]]) -> str:
+        hidden_count = max(0, len(source) - FEISHU_TABLE_ROW_LIMIT)
+        return (
+            translate(locale, "notification.template.feishu_hidden_notice", {"count": hidden_count})
+            if hidden_count else ""
+        )
+
+    unit = str(labels.get("unit") or "")
+    result = (
+        f"{labels.get('total')} {int(payload.get('total_count') or len(items))} {unit} · "
+        f"{labels.get('succeeded')} {int(payload.get('success_count') or 0)} {unit} · "
+        f"{labels.get('failed')} {int(payload.get('failed_count') or len(failed))} {unit} · "
+        f"{labels.get('cancelled')} {int(payload.get('cancelled_count') or len(cancelled))} {unit} · "
+        f"{labels.get('changed')} {int(payload.get('changed_count') or len(changed))} {unit}"
+    )
+    failed_items = compact(failed)
+    cancelled_items = compact(cancelled)
+    changed_items = compact(changed)
+    return {
+        "feishu_header_template": "red" if failed else "orange" if cancelled or changed else "green",
+        "feishu_summary_text": (
+            f"**{labels.get('task_time')}**: {_feishu_cell(payload.get('task_time'), limit=255)}\n"
+            f"**{labels.get('result')}**: {result}"
+        ),
+        "feishu_failed_title": f"**{labels.get('failed_section')} ({len(failed)} {unit})**",
+        "feishu_cancelled_title": f"**{labels.get('cancelled_section')} ({len(cancelled)} {unit})**",
+        "feishu_changed_title": f"**{labels.get('changed_section')} ({len(changed)} {unit})**",
+        "feishu_failed_items": failed_items,
+        "feishu_cancelled_items": cancelled_items,
+        "feishu_changed_items": changed_items,
+        "feishu_failed_rows_json": _dump(failed_items),
+        "feishu_cancelled_rows_json": _dump([
+            {"device_name": item["device_name"], "device_host": item["device_host"]}
+            for item in cancelled_items
+        ]),
+        "feishu_changed_rows_json": _dump([
+            {"device_name": item["device_name"], "device_host": item["device_host"]}
+            for item in changed_items
+        ]),
+        "feishu_failed_hidden_label": hidden_label(failed),
+        "feishu_cancelled_hidden_label": hidden_label(cancelled),
+        "feishu_changed_hidden_label": hidden_label(changed),
+    }
 
 
 def normalize_backup_payload(payload: dict[str, Any], locale: str, fallback_subject: str = "") -> dict[str, Any]:
@@ -1117,30 +1340,55 @@ def dispatch_event(
     session.flush()
 
     deliveries: list[NotificationDelivery] = []
-    policies = [item for item in list_policies(session) if item.enabled and event_type in _json_list(item.event_types_json)]
+    matching_event_types = (
+        _batch_matching_event_types(stored_payload)
+        if event_type == "backup_summary"
+        else {event_type}
+    )
+    policies = [
+        item
+        for item in list_policies(session)
+        if item.enabled and matching_event_types.intersection(_json_list(item.event_types_json))
+    ]
     channels = {item.id: item for item in session.exec(select(NotificationChannel).where(NotificationChannel.enabled == True))}  # noqa: E712
-    seen_builtin_channels: set[int] = set()
     original_items = stored_payload.get("items") if isinstance(stored_payload.get("items"), list) else None
     stopped_item_ids: set[int] = set()
     for policy in policies:
+        policy_event_types = set(_json_list(policy.event_types_json))
         selected_template = None
         if policy.template_id:
             selected_template = session.get(NotificationTemplate, policy.template_id)
             if selected_template is None:
                 continue
-        if not _builtin_policy_matches(policy, event_type, stored_payload):
-            continue
         candidate_payload = stored_payload
+        if event_type == "backup_summary" and original_items is not None and "backup_summary" not in policy_event_types:
+            event_items = [
+                item
+                for item in original_items
+                if isinstance(item, dict) and _batch_item_matches_events(item, policy_event_types)
+            ]
+            if not event_items:
+                continue
+            candidate_payload = _payload_with_items(stored_payload, event_items)
+            if len(event_items) != len(original_items):
+                candidate_payload["fallback_subject"], candidate_payload["fallback_body"] = (
+                    _render_detailed_batch_fallback(candidate_payload)
+                )
+                candidate_payload["_is_subset"] = True
         if original_items is not None and stopped_item_ids:
-            candidate_payload = dict(stored_payload)
-            candidate_payload["items"] = [item for item in original_items if id(item) not in stopped_item_ids]
+            candidate_items = [
+                item
+                for item in candidate_payload.get("items", [])
+                if id(item) not in stopped_item_ids
+            ]
+            if not candidate_items:
+                continue
+            candidate_payload = _payload_with_items(candidate_payload, candidate_items)
         routed_payload = _subset_payload(session, policy, candidate_payload)
         if routed_payload is None:
             continue
         for channel_id in _clean_ints(_json_list(policy.channel_ids_json)):
             if channel_id not in channels:
-                continue
-            if policy.builtin_key and channel_id in seen_builtin_channels:
                 continue
             resolved_template = _resolve_template_for_channel(
                 session,
@@ -1162,8 +1410,6 @@ def dispatch_event(
             session.flush()
             deliver_notification(session, delivery, email_sender=email_sender)
             deliveries.append(delivery)
-            if policy.builtin_key:
-                seen_builtin_channels.add(channel_id)
         if policy.stop_processing and original_items is not None:
             stopped_item_ids.update(id(item) for item in routed_payload.get("items", []))
         elif policy.stop_processing:
@@ -1202,6 +1448,8 @@ def _render_delivery(session: Session, delivery: NotificationDelivery, channel: 
             raise ServiceError("Notification template is disabled", code="NOTIFICATION_TEMPLATE_DISABLED")
         if not _template_matches_channel(template, channel.channel_type):
             raise ServiceError("Template does not match channel", code="NOTIFICATION_TEMPLATE_MISMATCH")
+        if template.builtin_key == BUILTIN_FEISHU_TEMPLATE_KEY:
+            context.update(_feishu_table_context(context))
         subject = render_custom_template(template.subject_template or payload.get("fallback_subject", ""), context, content_type="text")
         body = render_custom_template(template.body_template, context, content_type=template.content_type)
         return subject.replace("\r", " ").replace("\n", " ")[:255], body, template.content_type
@@ -1335,19 +1583,29 @@ def _send_channel(
     elif channel.channel_type == "dingtalk":
         data = {"msgtype": "markdown", "markdown": {"title": subject, "text": f"### {subject}\n{body}"}}
     elif channel.channel_type == "feishu":
-        data = {
-            "msg_type": "interactive",
-            "card": {
-                "config": {"wide_screen_mode": True},
-                "header": {
-                    "template": "blue",
-                    "title": {"tag": "plain_text", "content": subject},
+        if content_type == "json":
+            card = json.loads(body)
+            if not isinstance(card, dict) or card.get("schema") != "2.0":
+                raise RuntimeError("Feishu JSON template must render a JSON 2.0 card object")
+            header = card.setdefault("header", {})
+            if not isinstance(header, dict):
+                raise RuntimeError("Feishu JSON template header must be an object")
+            header["title"] = {"tag": "plain_text", "content": subject}
+            data = {"msg_type": "interactive", "card": card}
+        else:
+            data = {
+                "msg_type": "interactive",
+                "card": {
+                    "config": {"wide_screen_mode": True},
+                    "header": {
+                        "template": "blue",
+                        "title": {"tag": "plain_text", "content": subject},
+                    },
+                    "elements": [
+                        {"tag": "div", "text": {"tag": "lark_md", "content": body}},
+                    ],
                 },
-                "elements": [
-                    {"tag": "div", "text": {"tag": "lark_md", "content": body}},
-                ],
-            },
-        }
+            }
         if secrets.get("signing_secret"):
             timestamp = str(int(time.time()))
             string_to_sign = f"{timestamp}\n{secrets['signing_secret']}"
@@ -1437,6 +1695,7 @@ def sample_template_context(*, locale: str = "zh-CN", event_type: str = "*") -> 
         {"task_time": "2026-07-17 10:00:00", "items": selected_items},
         locale,
     )
+    context.update(_feishu_table_context(context))
     context["event"] = {
         "id": "sample",
         "type": "backup_summary" if event_type == "*" else event_type,
@@ -1577,6 +1836,13 @@ def serialize_channel(channel: NotificationChannel, *, locale: str = "zh-CN") ->
         "enabled": channel.enabled,
         "config": config,
         "has_url": bool(secrets.get("url")),
+        "has_password": bool(secrets.get("password")),
+        "has_signing_secret": bool(secrets.get("signing_secret")),
+        "has_authorization": bool(secrets.get("authorization")),
+        "url_mask": "*" * len(str(secrets.get("url") or "")),
+        "password_mask": "*" * len(str(secrets.get("password") or "")),
+        "signing_secret_mask": "*" * len(str(secrets.get("signing_secret") or "")),
+        "authorization_mask": "*" * len(str(secrets.get("authorization") or "")),
         "has_secret": bool(secrets.get("signing_secret") or secrets.get("password") or secrets.get("authorization")),
         "builtin": bool(channel.builtin_key),
         "name_key": name_key,
