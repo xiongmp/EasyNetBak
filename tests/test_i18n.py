@@ -582,6 +582,43 @@ def test_task_events_return_localized_message_and_stable_payload():
     assert item["message_params"] == {"command": "show running-config"}
 
 
+def test_all_supported_task_log_events_have_bilingual_messages():
+    source = (Path(__file__).parents[1] / "app" / "services" / "task_realtime_service.py").read_text(
+        encoding="utf-8-sig"
+    )
+    supported_events = set(re.findall(r'event_name == "([a-z0-9_]+)"', source))
+    assert supported_events
+    for locale in ("zh-CN", "en-US"):
+        messages = get_messages(locale)
+        missing = sorted(event for event in supported_events if f"task.event.{event}" not in messages)
+        assert missing == []
+
+
+def test_task_log_events_do_not_expose_internal_event_identifiers():
+    cases = [
+        (
+            "backup_record_alert_check_started",
+            {},
+            "开始检查告警与通知条件",
+        ),
+        (
+            "schedule_run_finalizer_scheduled",
+            {"backup_count": 24, "poll_seconds": 5},
+            "已安排批次收尾检查，跟踪 24 个任务，每 5 秒检查一次",
+        ),
+        (
+            "schedule_run_alert_check_completed",
+            {"success_count": 3, "fail_count": 7},
+            "批次汇总通知条件检查完成",
+        ),
+    ]
+    for event_name, details, expected in cases:
+        event = TaskEvent(event=event_name, details=json.dumps(details))
+        item = task_realtime_service._serialize_task_event(event, offset_minutes=0, locale="zh-CN")
+        assert item["message"] == expected
+        assert event_name not in item["message"]
+
+
 def test_task_events_keep_operational_details_after_localization():
     collection = TaskEvent(
         event="backup_record_collection_completed",
