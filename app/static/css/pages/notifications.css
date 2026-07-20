@@ -6,6 +6,14 @@
   --signal-amber: #d98918;
   --signal-line: #dfe5ef;
   --signal-paper: #f7f9fc;
+  --state-live: #147a50;
+  --state-live-surface: #e9f7f0;
+  --state-paused: #566278;
+  --state-paused-line: #9aa5b8;
+  --state-paused-surface: #eef1f5;
+  --state-disabled-surface: #f8f9fb;
+  --state-warning: #a25c00;
+  --state-warning-contrast: #fff;
   --notification-content-gutter: .9rem;
   color: var(--signal-ink);
 }
@@ -123,8 +131,12 @@
 }
 .channel-card { display: flex; flex-direction: column; min-height: 208px; padding: 1.1rem 1.2rem; }
 .channel-card.is-disabled,
-.policy-row.is-disabled,
-.notification-table-wrap tr.is-disabled { opacity: .68; }
+.policy-row.is-disabled { border-color: var(--state-paused-line); background: var(--state-disabled-surface); box-shadow: none; }
+.channel-card.is-disabled .channel-mark { filter: grayscale(.65); opacity: .62; }
+.channel-card.is-disabled h3,
+.policy-row.is-disabled h3 { color: var(--signal-muted); }
+.channel-card.is-disabled .channel-facts,
+.policy-row.is-disabled .policy-tags { opacity: .76; }
 .channel-card-top { display: flex; align-items: center; gap: .8rem; }
 .channel-mark { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; border: 1px solid rgba(36, 87, 214, .12); border-radius: .5rem; background: rgba(36, 87, 214, .08); color: var(--signal-blue); font-size: 1.05rem; }
 .channel-mark-wecom,
@@ -132,17 +144,24 @@
 .channel-mark-dingtalk { background: rgba(217, 137, 24, .12); color: var(--signal-amber); }
 .channel-card h3,
 .policy-row h3 { overflow: hidden; margin: 0; font-size: .98rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.channel-card-top span:not(.status-dot) { color: var(--signal-muted); font-size: .75rem; }
-.status-dot { display: inline-flex; align-items: center; gap: .35rem; color: var(--signal-muted); font-size: .72rem; font-weight: 700; white-space: nowrap; }
-.status-dot::before { width: .48rem; height: .48rem; border-radius: 50%; background: #9aa4b7; content: ""; }
-.status-dot.is-live::before { background: #20a36b; box-shadow: 0 0 0 4px rgba(32, 163, 107, .11); }
+.channel-card-top span:not(.status-badge) { color: var(--signal-muted); font-size: .75rem; }
+.status-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .5rem; border: 1px solid transparent; border-radius: .38rem; font-size: .72rem; font-weight: 750; line-height: 1; white-space: nowrap; }
+.status-badge i { font-size: .7rem; }
+.status-badge.is-live { border-color: rgba(40, 166, 111, .24); background: var(--state-live-surface); color: var(--state-live); }
+.status-badge.is-paused { border-color: rgba(154, 165, 184, .34); background: var(--state-paused-surface); color: var(--state-paused); }
 .channel-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; margin: 1.05rem 0; padding-top: .9rem; border-top: 1px solid var(--signal-line); }
 .channel-facts div { min-width: 0; }
 .channel-facts dt { color: var(--signal-muted); font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .channel-facts dd { overflow: hidden; margin: .1rem 0 0; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
-.channel-actions { display: flex; align-items: center; gap: .4rem; min-height: 32px; margin-top: auto; }
+.channel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-height: 32px; margin-top: auto; }
 .channel-actions form,
 .policy-actions form { margin: 0; }
+.state-action { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid currentColor; background: transparent; font-weight: 700; }
+.state-action.is-enable { color: var(--state-live); }
+.state-action.is-disable { color: var(--state-warning); }
+.state-action.is-enable:hover { border-color: var(--state-live); background: var(--state-live); color: #fff; }
+.state-action.is-disable:hover { border-color: var(--state-warning); background: var(--state-warning); color: var(--state-warning-contrast); }
+.state-action:focus-visible { outline: 3px solid rgba(36, 87, 214, .2); outline-offset: 2px; box-shadow: none; }
 .builtin-label { display: inline-flex; gap: .35rem; align-items: center; color: var(--signal-muted); font-size: .73rem; }
 
 .policy-stack { display: grid; gap: .65rem; }
@@ -153,11 +172,13 @@
 .policy-tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .55rem; }
 .tag { display: inline-flex; align-items: center; gap: .3rem; padding: .22rem .5rem; border: 1px solid var(--signal-line); border-radius: 999px; color: var(--signal-muted); font-size: .68rem; }
 .tag-event { border-color: rgba(36, 87, 214, .18); background: rgba(36, 87, 214, .06); color: var(--signal-blue); }
-.policy-actions { display: flex; align-items: center; gap: .25rem; }
+.policy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
 
 .notification-table-wrap { overflow: hidden; }
 .notification-table-wrap thead th { padding: .8rem 1rem; border-bottom-color: var(--signal-line); background: var(--signal-paper); color: var(--signal-muted); font-size: .7rem; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
 .notification-table-wrap tbody td { padding: .85rem 1rem; border-color: var(--signal-line); font-size: .82rem; }
+.notification-table-wrap tbody tr.is-disabled { background: var(--state-disabled-surface); }
+.notification-table-wrap tbody tr.is-disabled td:not(:last-child) { color: var(--signal-muted); }
 .system-template-note { display: flex; gap: .35rem; align-items: center; margin-top: .28rem; color: var(--signal-muted); font-size: .7rem; font-weight: 500; }
 .system-template-note i { color: var(--signal-blue); }
 .delivery-status { display: inline-flex; padding: .2rem .48rem; border-radius: 999px; background: #edf0f5; color: #687286; font-size: .7rem; font-weight: 750; }
@@ -379,6 +400,14 @@
   --signal-muted: #a9b4c9;
   --signal-line: #35405a;
   --signal-paper: #20283a;
+  --state-live: #78d5aa;
+  --state-live-surface: #173c31;
+  --state-paused: #c1cada;
+  --state-paused-line: #77839a;
+  --state-paused-surface: #30394b;
+  --state-disabled-surface: #242c3d;
+  --state-warning: #efb04f;
+  --state-warning-contrast: #172033;
 }
 [data-bs-theme="dark"] #templateModal {
   --signal-ink: #edf2ff;

@@ -549,9 +549,13 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
         running_records = int(details.get("running_records") or 0)
         skipped_records = int(details.get("skipped_records") or 0)
         retried_records = int(details.get("retried_records") or 0)
+        selected_records = int(details.get("selected_records") or 0)
         backup_count = int(details.get("backup_count") or 0)
+        poll_seconds = int(details.get("poll_seconds") or 0)
         success_count = int(details.get("success_count") or 0)
         fail_count = int(details.get("fail_count") or 0)
+        cancelled_count = int(details.get("cancelled_count") or 0)
+        changed_count = int(details.get("changed_count") or 0)
         duration_text = str(details.get("duration_text") or "").strip()
         if not duration_text and duration_seconds is not None:
             duration_text = str(duration_seconds)
@@ -607,11 +611,18 @@ def _task_event_message(event: TaskEvent, details: dict[str, Any], *, locale: st
                 "running_records": running_records,
                 "skipped_records": skipped_records,
                 "retried_records": retried_records,
+                "selected_records": selected_records,
+                "backup_count": backup_count,
+                "poll_interval_suffix": (
+                    event_text("poll_interval_suffix", {"value": poll_seconds}) if poll_seconds else ""
+                ),
                 "backup_count_suffix": (
                     event_text("backup_count_suffix", {"value": backup_count}) if backup_count else ""
                 ),
                 "success_count": success_count,
                 "fail_count": fail_count,
+                "cancelled_count": cancelled_count,
+                "changed_count": changed_count,
                 "total_duration_suffix": (
                     event_text("total_duration_suffix", {"value": duration_text}) if duration_text else ""
                 ),

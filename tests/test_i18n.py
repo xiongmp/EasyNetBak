@@ -979,7 +979,7 @@ def test_notification_channel_modal_exposes_robot_test_button():
     assert 'option.value === "webhook"' in script_source
     assert "channelType.selectedIndex = -1" in script_source
     assert "window.NB?.refreshSelectDropdowns?.()" in script_source
-    assert "notifications-ui-5" in template_source
+    assert "notifications-ui-6" in template_source
 
 
 def test_notification_page_renders_feishu_cards_without_gradient_styling():
@@ -993,7 +993,9 @@ def test_notification_page_renders_feishu_cards_without_gradient_styling():
     assert "renderWebhookPayloadPreview" in script_source
     assert "webhook-preview-summary" in script_source
     assert "webhook-preview-table" in script_source
-    assert "notifications-ui-5" in (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
+    assert "status-badge" in style_source
+    assert "state-action" in style_source
+    assert "notifications-ui-6" in (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
     assert "linear-gradient" not in style_source
 
 
