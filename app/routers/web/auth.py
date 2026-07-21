@@ -6,7 +6,7 @@ import hmac
 import io
 import json
 import time
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -37,6 +37,20 @@ from app.services.auth import (
 
 router = APIRouter(tags=["认证授权 (Auth)"])
 _PENDING_2FA_COOKIE = "pending_2fa"
+
+
+def _safe_next_url(value: str | None, *, default: str = "/dashboard") -> str:
+    """Return a local redirect target or a safe default."""
+    candidate = unquote((value or "").strip())
+    if not candidate or any(ord(char) < 32 or ord(char) == 127 for char in candidate):
+        return default
+    if "\\" in candidate or not candidate.startswith("/") or candidate.startswith("//"):
+        return default
+
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default
+    return candidate
 
 
 def _sign_mfa_secret(secret: str) -> str:
@@ -136,7 +150,7 @@ def login_page(request: Request, csrf_protect: CsrfProtect = Depends()):
     user = _current_user(request)
     if user is not None:
         return RedirectResponse(url="/dashboard", status_code=303)
-    next_raw = request.query_params.get("next") or "/dashboard"
+    next_raw = _safe_next_url(request.query_params.get("next"))
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
         request=request,
@@ -201,15 +215,16 @@ def login_submit(
         )
     
     # 如果密码已过期，强制跳转到修改密码页面
+    safe_next = _safe_next_url(next)
     if password_expired:
         resp = RedirectResponse(url="/change-password", status_code=303)
     elif require_mfa_setup:
         resp = RedirectResponse(url="/mfa-setup", status_code=303)
     elif require_mfa_verify:
-        nxt = quote(next or "/dashboard")
+        nxt = quote(safe_next)
         resp = RedirectResponse(url=f"/mfa-verify?next={nxt}", status_code=303)
     else:
-        resp = RedirectResponse(url=unquote(next or "/dashboard"), status_code=303)
+        resp = RedirectResponse(url=safe_next, status_code=303)
 
     if require_mfa_verify:
         pending_token = _create_pending_token(user_id=int(user_id), ttl_seconds=300)
@@ -319,7 +334,7 @@ def mfa_verify_page(request: Request, csrf_protect: CsrfProtect = Depends(), ses
         and user.recovery_codes
     ):
         allow_recovery = True
-    next_raw = request.query_params.get("next") or "/dashboard"
+    next_raw = _safe_next_url(request.query_params.get("next"))
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     response = templates.TemplateResponse(
         request=request,
@@ -400,7 +415,7 @@ def mfa_verify_submit(
     )
 
     auth_token = create_session_token(user_id=int(user_id), ttl_seconds=settings.session_ttl_seconds)
-    resp = RedirectResponse(url=unquote(next or "/dashboard"), status_code=303)
+    resp = RedirectResponse(url=_safe_next_url(next), status_code=303)
     max_age = settings.session_ttl_seconds if settings.auth_cookie_persistent else None
     resp.set_cookie(
         settings.auth_cookie_name,

@@ -30,6 +30,7 @@ from app.i18n.openapi import build_openapi_schema
 from app.i18n.render import is_frontend_message_key, javascript_messages
 from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
+from app.routers.web.auth import _safe_next_url
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
 from app.models import (
     BackupRecord,
@@ -254,6 +255,32 @@ def test_redirect_error_messages_use_catalog_keys():
     root = Path(__file__).resolve().parents[1]
     source = (root / "app" / "routers" / "web" / "auth.py").read_text(encoding="utf-8-sig")
     assert not re.search(r"[?&](?:err|msg)=[^\"']*[\u3400-\u9fff]", source)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, "/dashboard"),
+        ("", "/dashboard"),
+        ("/devices", "/devices"),
+        ("/backups?page=2#latest", "/backups?page=2#latest"),
+        ("https://evil.example/path", "/dashboard"),
+        ("//evil.example/path", "/dashboard"),
+        ("///evil.example/path", "/dashboard"),
+        (r"\evil.example\path", "/dashboard"),
+        (r"/\evil.example/path", "/dashboard"),
+        ("%2F%2Fevil.example/path", "/dashboard"),
+        ("/%5Cevil.example/path", "/dashboard"),
+        ("/dashboard%0d%0aLocation:%20https://evil.example", "/dashboard"),
+        ("dashboard", "/dashboard"),
+    ],
+)
+def test_safe_next_url_only_allows_local_paths(value: str | None, expected: str) -> None:
+    assert _safe_next_url(value) == expected
+
+
+def test_safe_next_url_supports_a_custom_default() -> None:
+    assert _safe_next_url("https://evil.example", default="/") == "/"
 
 
 def test_user_visible_message_sinks_do_not_hardcode_chinese():
