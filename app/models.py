@@ -5,7 +5,7 @@ import json
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import Boolean, Column, Index, Text, UniqueConstraint, true
 from sqlmodel import Field, SQLModel
 
 from app.services.crypto import decrypt_secret, encrypt_secret
@@ -137,6 +137,106 @@ class DeviceGroup(SQLModel, table=True):
 class AppSetting(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class NotificationChannel(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_notification_channel_name"),
+        UniqueConstraint("builtin_key", name="uq_notification_channel_builtin_key"),
+        Index("ix_notification_channel_type_enabled", "channel_type", "enabled"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    channel_type: str = Field(index=True, max_length=32)
+    enabled: bool = Field(default=True, index=True)
+    config_json: str = Field(default="{}", sa_column=Column(Text, nullable=False))
+    secret_encrypted: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    builtin_key: Optional[str] = Field(default=None, max_length=64)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class NotificationTemplate(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_notification_template_name"),
+        UniqueConstraint("builtin_key", name="uq_notification_template_builtin_key"),
+        Index("ix_notification_template_event_channel", "event_type", "channel_type"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=true(), index=True),
+    )
+    event_type: str = Field(default="*", index=True, max_length=64)
+    channel_type: str = Field(default="*", index=True, max_length=32)
+    locale: str = Field(default="zh-CN", index=True, max_length=16)
+    subject_template: str = Field(default="", sa_column=Column(Text, nullable=False))
+    body_template: str = Field(sa_column=Column(Text, nullable=False))
+    content_type: str = Field(default="html", max_length=16)
+    builtin_key: Optional[str] = Field(default=None, max_length=64)
+    renderer_key: Optional[str] = Field(default=None, max_length=64)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class NotificationPolicy(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_notification_policy_name"),
+        UniqueConstraint("builtin_key", name="uq_notification_policy_builtin_key"),
+        Index("ix_notification_policy_enabled_priority", "enabled", "priority"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    enabled: bool = Field(default=True, index=True)
+    priority: int = Field(default=100, index=True)
+    event_types_json: str = Field(default="[]", sa_column=Column(Text, nullable=False))
+    group_ids_json: str = Field(default="[]", sa_column=Column(Text, nullable=False))
+    include_descendants: bool = True
+    platforms_json: str = Field(default="[]", sa_column=Column(Text, nullable=False))
+    failure_types_json: str = Field(default="[]", sa_column=Column(Text, nullable=False))
+    channel_ids_json: str = Field(default="[]", sa_column=Column(Text, nullable=False))
+    template_id: Optional[int] = Field(default=None, foreign_key="notificationtemplate.id", index=True)
+    stop_processing: bool = False
+    builtin_key: Optional[str] = Field(default=None, max_length=64)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class NotificationEvent(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("source_key", name="uq_notification_event_source_key"),
+        Index("ix_notification_event_type_created_at", "event_type", "created_at"),
+    )
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    event_type: str = Field(index=True, max_length=64)
+    source_key: str = Field(max_length=255)
+    locale: str = Field(default_factory=default_locale, max_length=16)
+    payload_json: str = Field(default="{}", sa_column=Column(Text, nullable=False))
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class NotificationDelivery(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("dedupe_key", name="uq_notification_delivery_dedupe_key"),
+        Index("ix_notification_delivery_status_next_attempt", "status", "next_attempt_at"),
+        Index("ix_notification_delivery_event_channel", "event_id", "channel_id"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    event_id: UUID = Field(foreign_key="notificationevent.id", index=True)
+    policy_id: Optional[int] = Field(default=None, foreign_key="notificationpolicy.id", index=True)
+    channel_id: int = Field(foreign_key="notificationchannel.id", index=True)
+    template_id: Optional[int] = Field(default=None, foreign_key="notificationtemplate.id", index=True)
+    payload_json: str = Field(default="{}", sa_column=Column(Text, nullable=False))
+    dedupe_key: str = Field(max_length=64)
+    status: str = Field(default="pending", index=True, max_length=24)
+    attempts: int = 0
+    next_attempt_at: Optional[datetime] = Field(default=None, index=True)
+    subject: Optional[str] = Field(default=None, max_length=255)
+    last_error: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    sent_at: Optional[datetime] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 

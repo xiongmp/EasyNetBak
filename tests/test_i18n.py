@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app import crud
 from app.core.settings import settings
@@ -28,10 +30,30 @@ from app.i18n.openapi import build_openapi_schema
 from app.i18n.render import is_frontend_message_key, javascript_messages
 from app.i18n.validators import locale_from_accept_language, normalize_locale, validate_locale
 from app.main import _api_error_json, app as main_app
+from app.routers.web.auth import _safe_next_url
 from app.services.audit_service import translate_audit_action, translate_audit_resource, translate_login_fail_reason
-from app.models import BackupRecord, BackupSchedule, BackupScheduleRun, Device, TaskEvent
+from app.models import (
+    BackupRecord,
+    BackupSchedule,
+    BackupScheduleRun,
+    Device,
+    NotificationChannel,
+    NotificationDelivery,
+    NotificationEvent,
+    NotificationPolicy,
+    NotificationTemplate,
+    TaskEvent,
+)
 from app.routers.web_context import _layout_context, templates
-from app.services import alert_service, ftp_service, s3_service, schedule_service, task_realtime_service, task_state_service
+from app.services import (
+    alert_service,
+    ftp_service,
+    notification_routing_service,
+    s3_service,
+    schedule_service,
+    task_realtime_service,
+    task_state_service,
+)
 from app.services.backup_error_service import localize_backup_error_message
 
 
@@ -233,6 +255,32 @@ def test_redirect_error_messages_use_catalog_keys():
     root = Path(__file__).resolve().parents[1]
     source = (root / "app" / "routers" / "web" / "auth.py").read_text(encoding="utf-8-sig")
     assert not re.search(r"[?&](?:err|msg)=[^\"']*[\u3400-\u9fff]", source)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, "/dashboard"),
+        ("", "/dashboard"),
+        ("/devices", "/devices"),
+        ("/backups?page=2#latest", "/backups?page=2#latest"),
+        ("https://evil.example/path", "/dashboard"),
+        ("//evil.example/path", "/dashboard"),
+        ("///evil.example/path", "/dashboard"),
+        (r"\evil.example\path", "/dashboard"),
+        (r"/\evil.example/path", "/dashboard"),
+        ("%2F%2Fevil.example/path", "/dashboard"),
+        ("/%5Cevil.example/path", "/dashboard"),
+        ("/dashboard%0d%0aLocation:%20https://evil.example", "/dashboard"),
+        ("dashboard", "/dashboard"),
+    ],
+)
+def test_safe_next_url_only_allows_local_paths(value: str | None, expected: str) -> None:
+    assert _safe_next_url(value) == expected
+
+
+def test_safe_next_url_supports_a_custom_default() -> None:
+    assert _safe_next_url("https://evil.example", default="/") == "/"
 
 
 def test_user_visible_message_sinks_do_not_hardcode_chinese():
@@ -561,6 +609,43 @@ def test_task_events_return_localized_message_and_stable_payload():
     assert item["message_params"] == {"command": "show running-config"}
 
 
+def test_all_supported_task_log_events_have_bilingual_messages():
+    source = (Path(__file__).parents[1] / "app" / "services" / "task_realtime_service.py").read_text(
+        encoding="utf-8-sig"
+    )
+    supported_events = set(re.findall(r'event_name == "([a-z0-9_]+)"', source))
+    assert supported_events
+    for locale in ("zh-CN", "en-US"):
+        messages = get_messages(locale)
+        missing = sorted(event for event in supported_events if f"task.event.{event}" not in messages)
+        assert missing == []
+
+
+def test_task_log_events_do_not_expose_internal_event_identifiers():
+    cases = [
+        (
+            "backup_record_alert_check_started",
+            {},
+            "开始检查告警与通知条件",
+        ),
+        (
+            "schedule_run_finalizer_scheduled",
+            {"backup_count": 24, "poll_seconds": 5},
+            "已安排批次收尾检查，跟踪 24 个任务，每 5 秒检查一次",
+        ),
+        (
+            "schedule_run_alert_check_completed",
+            {"success_count": 3, "fail_count": 7},
+            "批次汇总通知条件检查完成",
+        ),
+    ]
+    for event_name, details, expected in cases:
+        event = TaskEvent(event=event_name, details=json.dumps(details))
+        item = task_realtime_service._serialize_task_event(event, offset_minutes=0, locale="zh-CN")
+        assert item["message"] == expected
+        assert event_name not in item["message"]
+
+
 def test_task_events_keep_operational_details_after_localization():
     collection = TaskEvent(
         event="backup_record_collection_completed",
@@ -690,6 +775,16 @@ def test_batch_email_uses_finalizer_snapshot_for_failure_and_change_lists(monkey
 
     monkeypatch.setattr(crud, "get_schedule_run", lambda session, run_id: run)
     monkeypatch.setattr(crud, "get_setting", lambda session, key: settings.get(key))
+    monkeypatch.setattr(
+        notification_routing_service,
+        "is_builtin_policy_enabled",
+        lambda session, kind: {
+            "failure": True,
+            "config_change": True,
+            "summary": True,
+        }[kind],
+    )
+    monkeypatch.setattr(notification_routing_service, "has_custom_policy_for_event", lambda *args, **kwargs: False)
     monkeypatch.setattr(crud, "get_device", lambda session, device_id: devices.get(device_id))
     monkeypatch.setattr(
         crud,
@@ -748,3 +843,333 @@ def test_batch_email_uses_finalizer_snapshot_for_failure_and_change_lists(monkey
     assert "Connection timed out: the device is unreachable or the port is unavailable" in captured["content"]
     assert "TCP connection to device failed. Wrong TCP port." in captured["content"]
     assert "连接超时" not in captured["content"]
+
+
+def test_builtin_notification_policies_use_literal_events_and_match_batch_details(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    values = {
+        "smtp_host": "smtp.example.invalid",
+        "smtp_port": "587",
+        "smtp_user": "backup@example.invalid",
+        "smtp_pass": "encrypted-value",
+        "smtp_from": "backup@example.invalid",
+        "smtp_to": "ops@example.invalid",
+        "alert_on_fail": "1",
+        "alert_on_config_change": "1",
+        "always_send_summary": "1",
+    }
+    monkeypatch.setattr(crud, "get_setting", lambda session, key: values.get(key))
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        notification_routing_service,
+        "_send_channel",
+        lambda channel, **kwargs: sent.append(kwargs),
+    )
+
+    with Session(engine) as session:
+        notification_routing_service.ensure_builtin_defaults(session)
+        policies = {
+            policy.builtin_key: policy
+            for policy in session.exec(select(NotificationPolicy)).all()
+            if policy.builtin_key
+        }
+        assert json.loads(policies["builtin_failure"].event_types_json) == ["backup_failed", "task_cancelled"]
+        assert json.loads(policies["builtin_config_change"].event_types_json) == ["config_changed"]
+        assert json.loads(policies["builtin_summary"].event_types_json) == ["backup_summary"]
+        assert notification_routing_service.has_unconditional_summary_policy(session) is True
+
+        result = notification_routing_service.dispatch_event(
+            session,
+            event_type="backup_summary",
+            source_key="test:literal-batch-events:1",
+            locale="zh-CN",
+            payload={
+                "items": [
+                    {"device_name": "edge-failed", "success": False, "cancelled": False},
+                    {"device_name": "edge-cancelled", "success": False, "cancelled": True},
+                    {"device_name": "edge-changed", "success": True, "cancelled": False, "changed": True},
+                    {"device_name": "edge-ok", "success": True, "cancelled": False},
+                ],
+            },
+            fallback_subject="备份批次结果",
+            fallback_body="<html><body>batch</body></html>",
+        )
+        deliveries = session.exec(select(NotificationDelivery)).all()
+        routed_by_policy = {
+            session.get(NotificationPolicy, delivery.policy_id).builtin_key: json.loads(delivery.payload_json)
+            for delivery in deliveries
+        }
+
+    assert result["sent"] == 3
+    assert len(sent) == 3
+    assert [item["device_name"] for item in routed_by_policy["builtin_failure"]["items"]] == [
+        "edge-failed",
+        "edge-cancelled",
+    ]
+    assert [item["device_name"] for item in routed_by_policy["builtin_config_change"]["items"]] == [
+        "edge-changed"
+    ]
+    assert len(routed_by_policy["builtin_summary"]["items"]) == 4
+
+
+def test_notification_delivery_times_use_system_timezone(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(
+        crud,
+        "get_setting",
+        lambda session, key: "+08:00" if key == "timezone_offset" else None,
+    )
+
+    with Session(engine) as session:
+        channel = NotificationChannel(name="SMTP", channel_type="smtp", enabled=True)
+        event = NotificationEvent(event_type="backup_summary", source_key="test:timezone:1", locale="zh-CN")
+        session.add(channel)
+        session.add(event)
+        session.flush()
+        session.add(
+            NotificationDelivery(
+                event_id=event.id,
+                channel_id=channel.id,
+                dedupe_key="timezone-delivery",
+                status="sent",
+                created_at=datetime(2026, 7, 17, 1, 2, 3),
+                sent_at=datetime(2026, 7, 17, 1, 3, 4),
+            )
+        )
+        session.flush()
+
+        row = notification_routing_service.list_deliveries(session)[0]
+
+    assert row["created_at"] == "2026-07-17 09:02:03"
+    assert row["sent_at"] == "2026-07-17 09:03:04"
+
+
+def test_builtin_robot_markdown_keeps_lists_without_error_or_change_detail_columns():
+    context = notification_routing_service.sample_template_context(
+        locale="zh-CN",
+        event_type="backup_summary",
+    )
+    html_body = notification_routing_service.render_custom_template(
+        notification_routing_service.DETAILED_BACKUP_BODY_TEMPLATE,
+        context,
+        content_type="html",
+    )
+    markdown_body = notification_routing_service.render_custom_template(
+        notification_routing_service.MARKDOWN_BACKUP_BODY_TEMPLATE,
+        context,
+        content_type="markdown",
+    )
+
+    assert "max-width:1200px" in html_body
+    assert "vertical-align:middle" in html_body
+    assert "#198754" in html_body
+    assert "#dc3545" in html_body
+    labels = context["labels"]
+    assert labels["failed_section"] in markdown_body
+    assert labels["changed_section"] in markdown_body
+    assert labels["error"] not in markdown_body
+    assert labels["change_summary"] not in markdown_body
+    assert f'| {labels["device_name"]} | {labels["device_host"]} | {labels["duration"]} | {labels["failure_type"]} |' in markdown_body
+    assert f'### {labels["changed_section"]}\n| {labels["device_name"]} | {labels["device_host"]} |' in markdown_body
+    failed_item = next(item for item in context["items"] if not item["success"] and not item["cancelled"])
+    changed_item = next(item for item in context["items"] if item["changed"])
+    assert failed_item["error_message"] not in markdown_body
+    assert changed_item["change_context_label"] not in markdown_body
+    assert "`+ logging host 192.0.2.200`" not in markdown_body
+
+
+@pytest.mark.parametrize(
+    ("channel_type", "expected_message_type"),
+    [("wecom", "markdown"), ("dingtalk", "markdown"), ("feishu", "interactive")],
+)
+def test_robot_channels_can_reuse_saved_secrets_for_test_messages(
+    monkeypatch,
+    channel_type,
+    expected_message_type,
+):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    posted: list[dict] = []
+    monkeypatch.setattr(
+        notification_routing_service,
+        "_post_json",
+        lambda url, data, **kwargs: posted.append({"url": url, "data": data, **kwargs}),
+    )
+
+    with Session(engine) as session:
+        channel = notification_routing_service.save_channel(
+            session,
+            channel_id=None,
+            name=f"Test {channel_type}",
+            channel_type=channel_type,
+            enabled=True,
+            config={"timeout": 10, "allow_private": False},
+            secrets={
+                "url": f"https://{channel_type}.example.invalid/hook",
+                "signing_secret": "saved-signing-secret",
+            },
+        )
+        success = notification_routing_service.test_channel(
+            session,
+            channel_id=channel.id,
+            channel_type=channel_type,
+            config={"timeout": 10, "allow_private": False},
+            secrets={"url": "", "signing_secret": "", "authorization": ""},
+            subject="EasyNetBak test",
+            content="Channel test message",
+        )
+
+    assert success is True
+    assert len(posted) == 1
+    assert posted[0]["data"]["msgtype" if channel_type != "feishu" else "msg_type"] == expected_message_type
+
+
+def test_notification_channel_modal_exposes_robot_test_button():
+    root = Path(__file__).resolve().parents[1]
+    template_source = (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
+    script_source = (root / "app" / "static" / "js" / "pages" / "notifications.js").read_text(encoding="utf-8-sig")
+
+    assert "notification.channel.test" in template_source
+    assert '["wecom", "dingtalk", "feishu"]' in script_source
+    assert "isSmtp || isRobot" in script_source
+    assert 'item.password_mask || ""' in script_source
+    assert 'item.url_mask || ""' in script_source
+    assert 'item.signing_secret_mask || ""' in script_source
+    assert 'item.authorization_mask || ""' in script_source
+    assert "function setChannelType(value)" in script_source
+    assert 'channelModal?.addEventListener("shown.bs.modal"' in script_source
+    assert 'option.value === "webhook"' in script_source
+    assert "channelType.selectedIndex = -1" in script_source
+    assert "window.NB?.refreshSelectDropdowns?.()" in script_source
+    assert "notifications-ui-6" in template_source
+
+
+def test_notification_page_renders_feishu_cards_without_gradient_styling():
+    root = Path(__file__).resolve().parents[1]
+    script_source = (root / "app" / "static" / "js" / "pages" / "notifications.js").read_text(encoding="utf-8-sig")
+    style_source = (root / "app" / "static" / "css" / "pages" / "notifications.css").read_text(encoding="utf-8-sig")
+
+    assert "renderFeishuCardPreview" in script_source
+    assert 'cardData?.schema !== "2.0"' in script_source
+    assert "feishu-preview-table" in script_source
+    assert "renderWebhookPayloadPreview" in script_source
+    assert "webhook-preview-summary" in script_source
+    assert "webhook-preview-table" in script_source
+    assert "status-badge" in style_source
+    assert "state-action" in style_source
+    assert "notifications-ui-6" in (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
+    assert "linear-gradient" not in style_source
+
+
+def test_feishu_builtin_template_uses_compact_native_tables_with_row_limits(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(crud, "get_setting", lambda session, key: None)
+    posted: list[dict] = []
+    monkeypatch.setattr(
+        notification_routing_service,
+        "_post_json",
+        lambda url, data, **kwargs: posted.append({"url": url, "data": data, **kwargs}),
+    )
+
+    failed = [
+        {
+            "device_name": f"failed-{index}",
+            "device_host": f"192.0.2.{index}",
+            "duration": f"{index}s",
+            "failure_type": "TIMEOUT",
+            "error_message": "failure detail must not be displayed",
+            "success": False,
+            "cancelled": False,
+            "changed": False,
+        }
+        for index in range(21)
+    ]
+    cancelled = [
+        {
+            "device_name": f"cancelled-{index}",
+            "device_host": f"198.51.100.{index}",
+            "duration": f"{index}s",
+            "failure_type": "CANCELLED",
+            "error_message": "cancellation detail must not be displayed",
+            "success": False,
+            "cancelled": True,
+            "changed": False,
+        }
+        for index in range(21)
+    ]
+    changed = [
+        {
+            "device_name": f"changed-{index}",
+            "device_host": f"203.0.113.{index}",
+            "duration": f"{index}s",
+            "success": True,
+            "cancelled": False,
+            "changed": True,
+            "change_lines": [{"prefix": "+", "text": "change summary must not be displayed", "kind": "add"}],
+        }
+        for index in range(21)
+    ]
+    context = notification_routing_service.normalize_backup_payload(
+        {"task_time": "2026-07-20 10:00:00", "items": [*failed, *cancelled, *changed]},
+        "zh-CN",
+    )
+    context.update(notification_routing_service._feishu_table_context(context))
+    body = notification_routing_service.render_custom_template(
+        notification_routing_service.FEISHU_BACKUP_BODY_TEMPLATE,
+        context,
+        content_type="json",
+    )
+
+    with Session(engine) as session:
+        notification_routing_service.ensure_builtin_defaults(session)
+        templates_by_key = {
+            template.builtin_key: template
+            for template in session.exec(select(NotificationTemplate)).all()
+            if template.builtin_key
+        }
+        assert templates_by_key[notification_routing_service.BUILTIN_FEISHU_TEMPLATE_KEY].channel_type == "feishu"
+        assert templates_by_key[notification_routing_service.BUILTIN_FEISHU_TEMPLATE_KEY].content_type == "json"
+        assert notification_routing_service._resolve_template_for_channel(
+            session,
+            templates_by_key[notification_routing_service.BUILTIN_DETAILED_TEMPLATE_KEY_V2],
+            "feishu",
+        ).builtin_key == notification_routing_service.BUILTIN_FEISHU_TEMPLATE_KEY
+
+        channel = notification_routing_service.save_channel(
+            session,
+            channel_id=None,
+            name="Feishu",
+            channel_type="feishu",
+            enabled=True,
+            config={"timeout": 10, "allow_private": False},
+            secrets={"url": "https://feishu.example.invalid/hook"},
+        )
+        notification_routing_service._send_channel(
+            channel,
+            subject="飞书备份汇总",
+            body=body,
+            content_type="json",
+            payload=context,
+        )
+
+    card = posted[0]["data"]["card"]
+    tables = [element for element in card["body"]["elements"] if element["tag"] == "table"]
+    serialized = json.dumps(card, ensure_ascii=False)
+    assert card["schema"] == "2.0"
+    assert card["header"]["title"]["content"] == "飞书备份汇总"
+    assert len(tables) == 3
+    assert [len(table["rows"]) for table in tables] == [20, 20, 20]
+    assert [table["page_size"] for table in tables] == [10, 10, 10]
+    assert [[column["name"] for column in table["columns"]] for table in tables] == [
+        ["device_name", "device_host", "duration", "failure_type"],
+        ["device_name", "device_host"],
+        ["device_name", "device_host"],
+    ]
+    assert serialized.count("另有 1 台未展示，详情登录系统查看") == 3
+    assert "failure detail must not be displayed" not in serialized
+    assert "cancellation detail must not be displayed" not in serialized
+    assert "change summary must not be displayed" not in serialized
+    assert len(json.dumps(posted[0]["data"], ensure_ascii=False).encode("utf-8")) < notification_routing_service.FEISHU_CARD_MAX_BYTES

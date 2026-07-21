@@ -122,7 +122,7 @@ def _is_internal_json_api_request(request: Request) -> bool:
     path = request.url.path
     return (
         (path.startswith("/api/") and not path.startswith("/api/v1/"))
-        or path in {"/notifications/test", "/settings/test-s3", "/settings/test-ftp"}
+        or path in {"/notifications/channels/test", "/notifications/template-preview", "/settings/test-s3", "/settings/test-ftp"}
     )
 
 
