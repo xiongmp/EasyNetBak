@@ -1046,6 +1046,17 @@ def test_notification_channel_modal_exposes_robot_test_button():
     assert "notifications-ui-6" in template_source
 
 
+def test_notification_smtp_modal_documents_multiple_recipients_and_starttls():
+    root = Path(__file__).resolve().parents[1]
+    template_source = (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
+
+    assert 'name="smtp_to" multiple' in template_source
+    assert "notification.smtp.recipients_hint" in template_source
+    assert "notification.smtp.guidance.sender.body" in template_source
+    assert "notification.smtp.guidance.authorization.body" in template_source
+    assert "notification.smtp.security.body" in template_source
+
+
 def test_notification_page_renders_feishu_cards_without_gradient_styling():
     root = Path(__file__).resolve().parents[1]
     script_source = (root / "app" / "static" / "js" / "pages" / "notifications.js").read_text(encoding="utf-8-sig")
