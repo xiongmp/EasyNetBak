@@ -1442,6 +1442,7 @@
   "notification.deliveries.description": "查看最近 30 次投递的状态、尝试次数和脱敏错误摘要。",
   "notification.deliveries.empty": "还没有投递记录",
   "notification.deliveries.empty_hint": "命中策略并尝试发送后，记录会显示在这里。",
+  "notification.deliveries.total_label": "条投递记录",
   "notification.smtp.title": "现有 SMTP 与规则开关",
   "notification.smtp.description": "保留原有配置和行为，并自动映射为内置通道及内置策略。",
   "notification.smtp.host": "SMTP 服务器",

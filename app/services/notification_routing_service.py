@@ -19,6 +19,7 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_ope
 
 from jinja2 import StrictUndefined, TemplateError, select_autoescape
 from jinja2.sandbox import SandboxedEnvironment
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -598,7 +599,7 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
 
 
 def list_channels(session: Session) -> list[NotificationChannel]:
-    return list(session.exec(select(NotificationChannel).order_by(NotificationChannel.builtin_key.desc(), NotificationChannel.id)))
+    return list(session.exec(select(NotificationChannel).order_by(NotificationChannel.created_at)))
 
 
 def list_templates(session: Session) -> list[NotificationTemplate]:
@@ -643,9 +644,18 @@ def is_builtin_policy_enabled(session: Session, kind: str) -> bool:
     return bool(policy and policy.enabled)
 
 
-def list_deliveries(session: Session, *, limit: int = 30, locale: str = "zh-CN") -> list[dict[str, Any]]:
+def count_deliveries(session: Session) -> int:
+    return int(session.exec(select(func.count()).select_from(NotificationDelivery)).one())
+
+
+def list_deliveries(session: Session, *, limit: int = 30, offset: int = 0, locale: str = "zh-CN") -> list[dict[str, Any]]:
     deliveries = list(
-        session.exec(select(NotificationDelivery).order_by(NotificationDelivery.created_at.desc()).limit(max(1, min(limit, 100))))
+        session.exec(
+            select(NotificationDelivery)
+            .order_by(NotificationDelivery.created_at.desc())
+            .offset(max(0, int(offset)))
+            .limit(max(1, min(int(limit), 100)))
+        )
     )
     channels = {item.id: item for item in session.exec(select(NotificationChannel))}
     events = {item.id: item for item in session.exec(

@@ -1442,6 +1442,7 @@
   "notification.deliveries.description": "Review status, attempt count, and redacted errors for the latest 30 deliveries.",
   "notification.deliveries.empty": "No delivery records",
   "notification.deliveries.empty_hint": "Records appear here after an event matches a policy and delivery is attempted.",
+  "notification.deliveries.total_label": "delivery records",
   "notification.smtp.title": "Existing SMTP and rule switches",
   "notification.smtp.description": "The existing configuration and behavior remain available and map to built-in channels and policies.",
   "notification.smtp.host": "SMTP server",

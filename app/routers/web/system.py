@@ -387,6 +387,37 @@ def notifications_page(
     groups = crud.list_groups(session)
     platforms = sorted({str(item.platform).strip() for item in crud.list_devices(session) if str(item.platform or "").strip()})
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+
+    list_query = BaseListQueryInput.from_query_params(request.query_params, default_limit=10)
+    delivery_pagination_params = pagination_service.normalize_pagination_params(
+        page=list_query.page,
+        limit=list_query.limit,
+        limit_in_query=list_query.include_limit_param,
+        default_limit=10,
+        max_limit=100,
+    )
+    delivery_total = notification_routing_service.count_deliveries(session)
+    delivery_rows = notification_routing_service.list_deliveries(
+        session,
+        limit=delivery_pagination_params.limit,
+        offset=delivery_pagination_params.offset,
+        locale=locale,
+    )
+    delivery_pagination = pagination_service.build_pagination_data(
+        page=delivery_pagination_params.page,
+        limit=delivery_pagination_params.limit,
+        total=delivery_total,
+    )
+    delivery_pagination_base = pagination_service.build_pagination_base(
+        path="/notifications",
+        params={},
+        page_param="page",
+        limit=delivery_pagination_params.limit,
+        default_limit=10,
+        limit_explicit=delivery_pagination_params.limit_explicit,
+        limit_param="limit",
+    )
+
     response = templates.TemplateResponse(
         request=request,
         name="notifications.html",
@@ -396,7 +427,9 @@ def notifications_page(
             "notification_channels": channel_rows,
             "notification_templates": template_rows,
             "notification_policies": policy_rows,
-            "notification_deliveries": notification_routing_service.list_deliveries(session, locale=locale),
+            "notification_deliveries": delivery_rows,
+            "delivery_pagination": delivery_pagination.as_dict(),
+            "delivery_pagination_base": delivery_pagination_base,
             "notification_event_types": notification_routing_service.EVENT_TYPES,
             "notification_channel_types": notification_routing_service.CHANNEL_TYPES,
             "notification_template_channel_types": notification_routing_service.TEMPLATE_CHANNEL_TYPES,
@@ -568,9 +601,9 @@ async def set_notification_channel_enabled(
     try:
         item = notification_routing_service.set_channel_enabled(session, channel_id, enabled in {"1", "on"})
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.channel")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_channel", item.id, f"Set channel enabled={item.enabled}")
-    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+    return {"success": True, "enabled": item.enabled}
 
 
 @router.post("/notifications/channels/{channel_id}/delete", summary="删除通知通道")
@@ -585,9 +618,9 @@ async def delete_notification_channel(
     try:
         notification_routing_service.delete_channel(session, channel_id)
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.channel")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_channel", channel_id, "Deleted notification channel")
-    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
+    return {"success": True, "deleted": channel_id}
 
 
 @router.post("/notifications/templates", summary="保存通知模板")
@@ -639,9 +672,9 @@ async def set_notification_template_enabled(
     try:
         item = notification_routing_service.set_template_enabled(session, template_id, enabled in {"1", "on"})
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.template")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_template", item.id, f"Set template enabled={item.enabled}")
-    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+    return {"success": True, "enabled": item.enabled}
 
 
 @router.post("/notifications/templates/{template_id}/delete", summary="删除通知模板")
@@ -656,9 +689,9 @@ async def delete_notification_template(
     try:
         notification_routing_service.delete_template(session, template_id)
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.template")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_template", template_id, "Deleted notification template")
-    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
+    return {"success": True, "deleted": template_id}
 
 
 @router.post("/notifications/template-preview", summary="预览通知模板")
@@ -750,9 +783,9 @@ async def set_notification_policy_enabled(
     try:
         item = notification_routing_service.set_policy_enabled(session, policy_id, enabled in {"1", "on"})
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.policy")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", item.id, f"Set policy enabled={item.enabled}")
-    return RedirectResponse(url="/notifications?msg=message.saved", status_code=303)
+    return {"success": True, "enabled": item.enabled}
 
 
 @router.post("/notifications/policies/{policy_id}/delete", summary="删除通知策略")
@@ -767,9 +800,9 @@ async def delete_notification_policy(
     try:
         notification_routing_service.delete_policy(session, policy_id)
     except ServiceError as exc:
-        return _notification_redirect_error(request, exc)
+        return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.policy")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", policy_id, "Deleted notification policy")
-    return RedirectResponse(url="/notifications?msg=message.deleted", status_code=303)
+    return {"success": True, "deleted": policy_id}
 
 
 @router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")

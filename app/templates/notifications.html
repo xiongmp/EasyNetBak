@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import render_pagination with context %}
 {% set page_title = _('nav.notifications') %}
 {% set page_subtitle = _('page.notifications.subtitle') %}
 
@@ -9,6 +10,15 @@
 {% block content %}
 <div class="notification-console" data-can-update="{{ '1' if has_permission('notifications.update') else '0' }}" data-preview-failed="{{ _('notification.error.template') }}" data-request-failed="{{ _('notification.error.operation') }}">
   <input type="hidden" id="notification-csrf-token" value="{{ csrf_token }}" />
+
+  <div id="notificationMessages" hidden
+    data-enabled="{{ _('notification.enabled') }}"
+    data-disabled="{{ _('notification.disabled') }}"
+    data-deleted="{{ _('message.deleted') }}"
+    data-confirm-delete-channel="{{ _('notification.confirm.delete_channel') }}"
+    data-confirm-delete-policy="{{ _('notification.confirm.delete_policy') }}"
+    data-confirm-delete-template="{{ _('notification.confirm.delete_template') }}"
+  ></div>
 
   {% if not has_permission('notifications.update') %}
   <div class="alert alert-info mb-4" role="status"><i class="bi bi-eye me-2"></i>{{ _('notification.read_only') }}</div>
@@ -72,9 +82,9 @@
             {% if channel.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}
             {% if has_permission('notifications.update') %}
             <button class="btn btn-sm btn-outline-secondary" data-edit-channel data-item="{{ channel|tojson|forceescape }}">{{ _('notification.edit') }}</button>
-            <form method="post" action="/notifications/channels/{{ channel.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if channel.enabled else '1' }}"><button class="btn btn-sm state-action {{ 'is-disable' if channel.enabled else 'is-enable' }}" type="submit"><i class="bi {{ 'bi-pause-circle' if channel.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if channel.enabled else _('notification.action.enable') }}</button></form>
+            <button class="btn btn-sm state-action {{ 'is-disable' if channel.enabled else 'is-enable' }}" data-toggle-channel="{{ channel.id }}" data-enabled="{{ '0' if channel.enabled else '1' }}" type="button"><i class="bi {{ 'bi-pause-circle' if channel.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if channel.enabled else _('notification.action.enable') }}</button>
             {% if not channel.builtin %}
-            <form method="post" action="/notifications/channels/{{ channel.id }}/delete" data-confirm="{{ _('notification.confirm.delete_channel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger" type="submit">{{ _('notification.delete') }}</button></form>
+            <button class="btn btn-sm btn-link text-danger" data-delete-channel="{{ channel.id }}" data-confirm-msg="{{ _('notification.confirm.delete_channel') }}" type="button">{{ _('notification.delete') }}</button>
             {% endif %}
             {% endif %}
           </div>
@@ -106,7 +116,7 @@
           </div>
           <div class="policy-state"><span class="status-badge {{ 'is-live' if policy.enabled else 'is-paused' }}"><i class="bi {{ 'bi-check-circle-fill' if policy.enabled else 'bi-pause-circle-fill' }}" aria-hidden="true"></i>{{ _('notification.enabled') if policy.enabled else _('notification.disabled') }}</span></div>
           {% if has_permission('notifications.update') %}
-          <div class="policy-actions"><button class="btn btn-sm btn-outline-secondary" data-edit-policy data-item="{{ policy|tojson|forceescape }}">{{ _('notification.edit') }}</button><form method="post" action="/notifications/policies/{{ policy.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if policy.enabled else '1' }}"><button class="btn btn-sm state-action {{ 'is-disable' if policy.enabled else 'is-enable' }}" type="submit"><i class="bi {{ 'bi-pause-circle' if policy.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if policy.enabled else _('notification.action.enable') }}</button></form>{% if not policy.builtin %}<form method="post" action="/notifications/policies/{{ policy.id }}/delete" data-confirm="{{ _('notification.confirm.delete_policy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger">{{ _('notification.delete') }}</button></form>{% endif %}</div>
+          <div class="policy-actions"><button class="btn btn-sm btn-outline-secondary" data-edit-policy data-item="{{ policy|tojson|forceescape }}">{{ _('notification.edit') }}</button><button class="btn btn-sm state-action {{ 'is-disable' if policy.enabled else 'is-enable' }}" data-toggle-policy="{{ policy.id }}" data-enabled="{{ '0' if policy.enabled else '1' }}" type="button"><i class="bi {{ 'bi-pause-circle' if policy.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if policy.enabled else _('notification.action.enable') }}</button>{% if not policy.builtin %}<button class="btn btn-sm btn-link text-danger" data-delete-policy="{{ policy.id }}" data-confirm-msg="{{ _('notification.confirm.delete_policy') }}" type="button">{{ _('notification.delete') }}</button>{% endif %}</div>
           {% endif %}
         </article>
         {% else %}<div class="notification-empty"><i class="bi bi-signpost-split"></i><h3>{{ _('notification.policies.empty') }}</h3><p>{{ _('notification.policies.empty_hint') }}</p></div>{% endfor %}
@@ -120,7 +130,7 @@
       </div>
       <div class="table-responsive notification-table-wrap">
         <table class="table align-middle mb-0"><thead><tr><th>{{ _('notification.name') }}</th><th>{{ _('notification.language') }}</th><th>{{ _('notification.format') }}</th><th>{{ _('notification.status') }}</th><th></th></tr></thead>
-        <tbody>{% for template in notification_templates %}<tr class="{{ 'system-template-row' if template.builtin }} {{ 'is-disabled' if not template.enabled }}"><td class="fw-semibold">{{ _(template.name_key) if template.name_key else template.name }}{% if template.hint_key %}<div class="system-template-note"><i class="bi bi-file-earmark-richtext"></i>{{ _(template.hint_key) }}</div>{% endif %}</td><td>{{ _('notification.template.auto_locale') if template.builtin else template.locale }}</td><td><code>{{ template.content_type }}</code></td><td><span class="status-badge {{ 'is-live' if template.enabled else 'is-paused' }}"><i class="bi {{ 'bi-check-circle-fill' if template.enabled else 'bi-pause-circle-fill' }}" aria-hidden="true"></i>{{ _('notification.enabled') if template.enabled else _('notification.disabled') }}</span></td><td class="text-end">{% if has_permission('notifications.update') %}<div class="d-inline-flex align-items-center gap-1">{% if template.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}<button class="btn btn-sm btn-outline-secondary" data-edit-template data-item="{{ template|tojson|forceescape }}">{{ _('notification.edit') }}</button><form method="post" action="/notifications/templates/{{ template.id }}/enabled"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="enabled" value="{{ '0' if template.enabled else '1' }}"><button class="btn btn-sm state-action {{ 'is-disable' if template.enabled else 'is-enable' }}" type="submit"><i class="bi {{ 'bi-pause-circle' if template.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if template.enabled else _('notification.action.enable') }}</button></form>{% if not template.builtin %}<form method="post" action="/notifications/templates/{{ template.id }}/delete" data-confirm="{{ _('notification.confirm.delete_template') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-link text-danger">{{ _('notification.delete') }}</button></form>{% endif %}</div>{% endif %}</td></tr>{% else %}<tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr>{% endfor %}</tbody></table>
+        <tbody>{% for template in notification_templates %}<tr class="{{ 'system-template-row' if template.builtin }} {{ 'is-disabled' if not template.enabled }}"><td class="fw-semibold">{{ _(template.name_key) if template.name_key else template.name }}{% if template.hint_key %}<div class="system-template-note"><i class="bi bi-file-earmark-richtext"></i>{{ _(template.hint_key) }}</div>{% endif %}</td><td>{{ _('notification.template.auto_locale') if template.builtin else template.locale }}</td><td><code>{{ template.content_type }}</code></td><td><span class="status-badge {{ 'is-live' if template.enabled else 'is-paused' }}"><i class="bi {{ 'bi-check-circle-fill' if template.enabled else 'bi-pause-circle-fill' }}" aria-hidden="true"></i>{{ _('notification.enabled') if template.enabled else _('notification.disabled') }}</span></td><td class="text-end">{% if has_permission('notifications.update') %}<div class="d-inline-flex align-items-center gap-1">{% if template.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}<button class="btn btn-sm btn-outline-secondary" data-edit-template data-item="{{ template|tojson|forceescape }}">{{ _('notification.edit') }}</button><button class="btn btn-sm state-action {{ 'is-disable' if template.enabled else 'is-enable' }}" data-toggle-template="{{ template.id }}" data-enabled="{{ '0' if template.enabled else '1' }}" type="button"><i class="bi {{ 'bi-pause-circle' if template.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if template.enabled else _('notification.action.enable') }}</button>{% if not template.builtin %}<button class="btn btn-sm btn-link text-danger" data-delete-template="{{ template.id }}" data-confirm-msg="{{ _('notification.confirm.delete_template') }}" type="button">{{ _('notification.delete') }}</button>{% endif %}</div>{% endif %}</td></tr>{% else %}<tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr>{% endfor %}</tbody></table>
       </div>
     </section>
 
@@ -129,6 +139,7 @@
       <div class="table-responsive notification-table-wrap"><table class="table align-middle mb-0 delivery-table"><thead><tr><th>{{ _('notification.subject') }}</th><th>{{ _('notification.event') }}</th><th>{{ _('notification.channel') }}</th><th>{{ _('notification.status') }}</th><th>{{ _('notification.attempts') }}</th><th>{{ _('notification.sent_at') }}</th><th>{{ _('notification.error') }}</th></tr></thead><tbody>
       {% for delivery in notification_deliveries %}<tr><td class="delivery-subject" title="{{ delivery.subject or '' }}">{{ delivery.subject or '—' }}</td><td>{% if delivery.event_type %}<span class="tag tag-event">{{ _('notification.event.' ~ delivery.event_type) }}</span>{% else %}—{% endif %}</td><td class="fw-semibold">{{ delivery.channel_name }}</td><td><span class="delivery-status delivery-{{ delivery.status }}">{{ _('notification.delivery.' ~ delivery.status) }}</span></td><td>{{ delivery.attempts }}</td><td>{{ delivery.sent_at or '—' }}</td><td class="delivery-error">{{ delivery.last_error or '—' }}</td></tr>{% else %}<tr><td colspan="7"><div class="notification-empty compact"><i class="bi bi-clock-history"></i><h3>{{ _('notification.deliveries.empty') }}</h3><p>{{ _('notification.deliveries.empty_hint') }}</p></div></td></tr>{% endfor %}
       </tbody></table></div>
+      {{ render_pagination(delivery_pagination, delivery_pagination_base, _('notification.deliveries.total_label')) }}
     </section>
 
   </div>
@@ -269,5 +280,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/pages/notifications.js?v={{ app_version }}-notifications-ui-6"></script>
+<script src="/static/js/pages/notifications.js?v={{ app_version }}-notifications-ui-7"></script>
 {% endblock %}

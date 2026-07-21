@@ -751,9 +751,119 @@
     }
   });
 
-  document.querySelectorAll("form[data-confirm]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      if (!window.confirm(form.dataset.confirm || "")) event.preventDefault();
+  const messages = document.getElementById("notificationMessages")?.dataset || {};
+
+  function updateStatusBadge(container, enabled) {
+    const badge = container.querySelector(".status-badge");
+    if (!badge) return;
+    const msg = enabled ? messages.enabled : messages.disabled;
+    badge.className = `status-badge ${enabled ? "is-live" : "is-paused"}`;
+    badge.innerHTML = `<i class="bi ${enabled ? "bi-check-circle-fill" : "bi-pause-circle-fill"}" aria-hidden="true"></i>${msg || ""}`;
+  }
+
+  function updateToggleButton(button, enabled) {
+    const msg = enabled ? messages.disabled : messages.enabled;
+    const icon = enabled ? "bi-pause-circle" : "bi-play-circle";
+    button.dataset.enabled = enabled ? "0" : "1";
+    button.className = `btn btn-sm state-action ${enabled ? "is-disable" : "is-enable"}`;
+    button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>${msg || ""}`;
+    window.NB.showToast(enabled ? messages.enabled : messages.disabled, "success");
+  }
+
+  async function ajaxToggle(url, enabled, button, container) {
+    const formData = new FormData();
+    formData.set("csrf_token", csrfToken);
+    formData.set("enabled", enabled);
+    try {
+      const result = await window.NB.api.request(url, { method: "POST", body: formData });
+      if (result.ok && result.data?.success) {
+        const nowEnabled = result.data.enabled;
+        if (container) container.classList.toggle("is-disabled", !nowEnabled);
+        updateStatusBadge(container, nowEnabled);
+        updateToggleButton(button, nowEnabled);
+      } else {
+        window.NB.showToast(result.data?.error?.message || requestFailed, "error");
+      }
+    } catch (error) {
+      window.NB.showToast(error.message || requestFailed, "error");
+    }
+  }
+
+  async function ajaxDelete(url, button, container, emptySelector, emptyHTML) {
+    const formData = new FormData();
+    formData.set("csrf_token", csrfToken);
+    try {
+      const result = await window.NB.api.request(url, { method: "POST", body: formData });
+      if (result.ok && result.data?.success) {
+        if (container) container.remove();
+        const parent = document.querySelector(emptySelector);
+        if (parent && !parent.querySelector(container?.tagName || "")) {
+          parent.innerHTML = emptyHTML;
+        }
+        window.NB.showToast(messages.deleted || "已删除", "success");
+      } else {
+        window.NB.showToast(result.data?.error?.message || requestFailed, "error");
+      }
+    } catch (error) {
+      window.NB.showToast(error.message || requestFailed, "error");
+    }
+  }
+
+  document.querySelectorAll("[data-toggle-channel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const channelId = button.dataset.toggleChannel;
+      const card = button.closest(".channel-card");
+      ajaxToggle(`/notifications/channels/${channelId}/enabled`, button.dataset.enabled, button, card);
+    });
+  });
+
+  document.querySelectorAll("[data-delete-channel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const channelId = button.dataset.deleteChannel;
+      const card = button.closest(".channel-card");
+      const grid = document.querySelector(".channel-grid");
+      const emptyHTML = grid?.querySelector(".notification-empty")?.outerHTML || "";
+      window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
+        ajaxDelete(`/notifications/channels/${channelId}/delete`, button, card, ".channel-grid", emptyHTML);
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-toggle-policy]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const policyId = button.dataset.togglePolicy;
+      const row = button.closest(".policy-row");
+      ajaxToggle(`/notifications/policies/${policyId}/enabled`, button.dataset.enabled, button, row);
+    });
+  });
+
+  document.querySelectorAll("[data-delete-policy]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const policyId = button.dataset.deletePolicy;
+      const row = button.closest(".policy-row");
+      const stack = document.querySelector(".policy-stack");
+      const emptyHTML = stack?.querySelector(".notification-empty")?.outerHTML || "";
+      window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
+        ajaxDelete(`/notifications/policies/${policyId}/delete`, button, row, ".policy-stack", emptyHTML);
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-toggle-template]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const templateId = button.dataset.toggleTemplate;
+      const row = button.closest("tr");
+      ajaxToggle(`/notifications/templates/${templateId}/enabled`, button.dataset.enabled, button, row);
+    });
+  });
+
+  document.querySelectorAll("[data-delete-template]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const templateId = button.dataset.deleteTemplate;
+      const row = button.closest("tr");
+      window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
+        ajaxDelete(`/notifications/templates/${templateId}/delete`, button, row);
+      });
     });
   });
 
