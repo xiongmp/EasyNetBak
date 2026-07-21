@@ -66,6 +66,9 @@ AUDIT_RESOURCE_MAP = {
     "settings": "系统设置",
     "storage_settings": "存储设置",
     "notifications": "通知设置",
+    "notification_channel": "通知通道",
+    "notification_template": "通知模板",
+    "notification_policy": "通知策略",
     "user": "用户",
     "role": "角色",
 }

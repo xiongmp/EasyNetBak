@@ -43,7 +43,9 @@
     });
   });
   try {
-    const savedTarget = window.sessionStorage.getItem(tabStorageKey);
+    const query = new URLSearchParams(window.location.search);
+    const hasDeliveryQuery = Array.from(query.keys()).some((key) => key === "page" || key === "limit" || key.startsWith("delivery_"));
+    const savedTarget = hasDeliveryQuery ? "#deliveries-pane" : window.sessionStorage.getItem(tabStorageKey);
     const savedTab = notificationTabs.find((tab) => tab.dataset.bsTarget === savedTarget);
     if (savedTab && window.bootstrap) window.bootstrap.Tab.getOrCreateInstance(savedTab).show();
   } catch (_) { /* Keep the default tab when storage is unavailable. */ }
@@ -752,6 +754,82 @@
   });
 
   const messages = document.getElementById("notificationMessages")?.dataset || {};
+  const liveRegion = document.getElementById("notificationLiveRegion");
+
+  function announce(message) {
+    if (!liveRegion) return;
+    liveRegion.textContent = "";
+    window.setTimeout(() => { liveRegion.textContent = message || ""; }, 10);
+  }
+
+  document.querySelectorAll(".policy-tags").forEach((tags) => {
+    const tagItems = Array.from(tags.children);
+    if (tagItems.length <= 6) return;
+    tags.classList.add("is-collapsed");
+    const toggle = document.createElement("button");
+    toggle.className = "policy-tags-toggle";
+    toggle.type = "button";
+    toggle.textContent = messages.showMore || "";
+    toggle.addEventListener("click", () => {
+      const collapsed = tags.classList.toggle("is-collapsed");
+      toggle.textContent = collapsed ? messages.showMore : messages.showLess;
+      toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    });
+    tags.after(toggle);
+  });
+
+  const simulatorForm = document.getElementById("policySimulatorForm");
+  const simulatorResult = document.getElementById("policySimulatorResult");
+  simulatorForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = simulatorForm.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    simulatorResult.textContent = messages.working || "";
+    const data = new FormData(simulatorForm);
+    data.set("csrf_token", csrfToken);
+    try {
+      const result = await window.NB.api.request("/notifications/policies/simulate", { method: "POST", body: data });
+      simulatorResult.replaceChildren();
+      if (!result.ok || !result.data?.success) throw new Error(result.data?.error?.message || messages.simulatorError);
+      if (!result.data.matches?.length) {
+        simulatorResult.textContent = messages.simulatorEmpty || "";
+        return;
+      }
+      result.data.matches.forEach((match) => {
+        const card = document.createElement("article");
+        card.className = "simulator-match";
+        const heading = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = match.policy_name;
+        const priority = document.createElement("span");
+        priority.textContent = `#${match.priority}`;
+        heading.append(title, priority);
+        card.appendChild(heading);
+        const routes = document.createElement("div");
+        routes.className = "simulator-routes";
+        if (!match.routes.length) routes.textContent = messages.simulatorNoRoute || "";
+        match.routes.forEach((route) => {
+          const routeItem = document.createElement("span");
+          routeItem.textContent = route.template_name ? `${route.channel_name} · ${route.template_name}` : route.channel_name;
+          routes.appendChild(routeItem);
+        });
+        card.appendChild(routes);
+        if (match.stop_processing) {
+          const stop = document.createElement("small");
+          stop.textContent = messages.simulatorStops || "";
+          card.appendChild(stop);
+        }
+        simulatorResult.appendChild(card);
+      });
+      announce(`${messages.simulatorRoutes || ""} ${result.data.route_count}`);
+    } catch (error) {
+      simulatorResult.textContent = error.message || messages.simulatorError || requestFailed;
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+  });
 
   function updateStatusBadge(container, enabled) {
     const badge = container.querySelector(".status-badge");
@@ -774,6 +852,8 @@
     const formData = new FormData();
     formData.set("csrf_token", csrfToken);
     formData.set("enabled", enabled);
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     try {
       const result = await window.NB.api.request(url, { method: "POST", body: formData });
       if (result.ok && result.data?.success) {
@@ -781,31 +861,43 @@
         if (container) container.classList.toggle("is-disabled", !nowEnabled);
         updateStatusBadge(container, nowEnabled);
         updateToggleButton(button, nowEnabled);
+        announce(nowEnabled ? messages.enabled : messages.disabled);
       } else {
         window.NB.showToast(result.data?.error?.message || requestFailed, "error");
       }
     } catch (error) {
       window.NB.showToast(error.message || requestFailed, "error");
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
     }
   }
 
-  async function ajaxDelete(url, button, container, emptySelector, emptyHTML) {
+  async function ajaxDelete(url, button, container, parentSelector, emptyTemplateId) {
     const formData = new FormData();
     formData.set("csrf_token", csrfToken);
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     try {
       const result = await window.NB.api.request(url, { method: "POST", body: formData });
       if (result.ok && result.data?.success) {
         if (container) container.remove();
-        const parent = document.querySelector(emptySelector);
-        if (parent && !parent.querySelector(container?.tagName || "")) {
-          parent.innerHTML = emptyHTML;
+        const parent = document.querySelector(parentSelector);
+        if (parent && !parent.children.length) {
+          const template = document.getElementById(emptyTemplateId);
+          if (template?.content) parent.appendChild(template.content.cloneNode(true));
         }
-        window.NB.showToast(messages.deleted || "已删除", "success");
+        window.NB.showToast(messages.deleted || "", "success");
+        announce(messages.deleted || "");
       } else {
         window.NB.showToast(result.data?.error?.message || requestFailed, "error");
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
       }
     } catch (error) {
       window.NB.showToast(error.message || requestFailed, "error");
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
     }
   }
 
@@ -821,10 +913,8 @@
     button.addEventListener("click", () => {
       const channelId = button.dataset.deleteChannel;
       const card = button.closest(".channel-card");
-      const grid = document.querySelector(".channel-grid");
-      const emptyHTML = grid?.querySelector(".notification-empty")?.outerHTML || "";
       window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
-        ajaxDelete(`/notifications/channels/${channelId}/delete`, button, card, ".channel-grid", emptyHTML);
+        ajaxDelete(`/notifications/channels/${channelId}/delete`, button, card, ".channel-grid", "channelEmptyTemplate");
       });
     });
   });
@@ -841,10 +931,8 @@
     button.addEventListener("click", () => {
       const policyId = button.dataset.deletePolicy;
       const row = button.closest(".policy-row");
-      const stack = document.querySelector(".policy-stack");
-      const emptyHTML = stack?.querySelector(".notification-empty")?.outerHTML || "";
       window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
-        ajaxDelete(`/notifications/policies/${policyId}/delete`, button, row, ".policy-stack", emptyHTML);
+        ajaxDelete(`/notifications/policies/${policyId}/delete`, button, row, ".policy-stack", "policyEmptyTemplate");
       });
     });
   });
@@ -862,8 +950,69 @@
       const templateId = button.dataset.deleteTemplate;
       const row = button.closest("tr");
       window.NB.confirmDelete(button.dataset.confirmMsg || "", () => {
-        ajaxDelete(`/notifications/templates/${templateId}/delete`, button, row);
+        ajaxDelete(`/notifications/templates/${templateId}/delete`, button, row, "#templates-pane tbody", "templateEmptyTemplate");
       });
+    });
+  });
+
+  const deliveryModal = document.getElementById("deliveryDetailModal");
+  let activeDelivery = null;
+
+  function showDeliveryDetail(row) {
+    const item = itemFrom(row);
+    activeDelivery = item;
+    deliveryModal?.querySelectorAll("[data-delivery-detail]").forEach((field) => {
+      const key = field.dataset.deliveryDetail;
+      let value = item[key];
+      if (key === "status") value = row.querySelector(".delivery-status")?.textContent.trim() || value;
+      if (key === "event_type") value = row.querySelector(".tag-event")?.textContent.trim() || value;
+      field.textContent = value === null || value === undefined || value === "" ? "—" : String(value);
+    });
+    openModal("deliveryDetailModal");
+  }
+
+  document.querySelectorAll("[data-view-delivery]").forEach((row) => {
+    row.addEventListener("click", () => showDeliveryDetail(row));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showDeliveryDetail(row);
+      }
+    });
+  });
+
+  document.querySelector("[data-copy-delivery-error]")?.addEventListener("click", async () => {
+    const value = activeDelivery?.last_error || "";
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      window.NB.showToast(messages.copySuccess || "", "success");
+      announce(messages.copySuccess || "");
+    } catch (_) {
+      const errorField = deliveryModal?.querySelector('[data-delivery-detail="last_error"]');
+      const selection = window.getSelection();
+      if (errorField && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(errorField);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  });
+
+  document.querySelector("[data-delivery-refresh]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    window.location.reload();
+  });
+
+  [channelForm, policyForm, templateForm].forEach((form) => {
+    form?.addEventListener("submit", () => {
+      const submit = form.querySelector('[type="submit"]');
+      if (!submit || submit.disabled) return;
+      submit.disabled = true;
+      submit.setAttribute("aria-busy", "true");
+      submit.dataset.originalText = submit.textContent;
+      submit.textContent = messages.working || submit.textContent;
     });
   });
 

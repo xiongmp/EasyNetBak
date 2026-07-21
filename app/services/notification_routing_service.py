@@ -644,14 +644,81 @@ def is_builtin_policy_enabled(session: Session, kind: str) -> bool:
     return bool(policy and policy.enabled)
 
 
-def count_deliveries(session: Session) -> int:
-    return int(session.exec(select(func.count()).select_from(NotificationDelivery)).one())
+def _filtered_delivery_statement(
+    *,
+    q: str = "",
+    status: str = "",
+    channel_id: int | None = None,
+    event_type: str = "",
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+):
+    statement = select(NotificationDelivery)
+    normalized_query = q.strip()
+    if normalized_query:
+        pattern = f"%{normalized_query}%"
+        statement = statement.where(
+            (NotificationDelivery.subject.ilike(pattern))
+            | (NotificationDelivery.last_error.ilike(pattern))
+        )
+    if status:
+        statement = statement.where(NotificationDelivery.status == status)
+    if channel_id is not None:
+        statement = statement.where(NotificationDelivery.channel_id == channel_id)
+    if event_type:
+        event_ids = select(NotificationEvent.id).where(NotificationEvent.event_type == event_type)
+        statement = statement.where(NotificationDelivery.event_id.in_(event_ids))
+    if created_from is not None:
+        statement = statement.where(NotificationDelivery.created_at >= created_from)
+    if created_to is not None:
+        statement = statement.where(NotificationDelivery.created_at < created_to)
+    return statement
 
 
-def list_deliveries(session: Session, *, limit: int = 30, offset: int = 0, locale: str = "zh-CN") -> list[dict[str, Any]]:
+def count_deliveries(
+    session: Session,
+    *,
+    q: str = "",
+    status: str = "",
+    channel_id: int | None = None,
+    event_type: str = "",
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+) -> int:
+    filtered = _filtered_delivery_statement(
+        q=q,
+        status=status,
+        channel_id=channel_id,
+        event_type=event_type,
+        created_from=created_from,
+        created_to=created_to,
+    ).subquery()
+    return int(session.exec(select(func.count()).select_from(filtered)).one())
+
+
+def list_deliveries(
+    session: Session,
+    *,
+    limit: int = 30,
+    offset: int = 0,
+    locale: str = "zh-CN",
+    q: str = "",
+    status: str = "",
+    channel_id: int | None = None,
+    event_type: str = "",
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+) -> list[dict[str, Any]]:
     deliveries = list(
         session.exec(
-            select(NotificationDelivery)
+            _filtered_delivery_statement(
+                q=q,
+                status=status,
+                channel_id=channel_id,
+                event_type=event_type,
+                created_from=created_from,
+                created_to=created_to,
+            )
             .order_by(NotificationDelivery.created_at.desc())
             .offset(max(0, int(offset)))
             .limit(max(1, min(int(limit), 100)))
@@ -1876,6 +1943,81 @@ def serialize_template(template: NotificationTemplate, *, locale: str = "zh-CN")
         "hint_key": BUILTIN_TEMPLATE_HINT_KEYS.get(template.builtin_key or "", ""),
         "renderer_key": template.renderer_key or "",
         "name_key": name_key,
+    }
+
+
+def simulate_policy_routes(
+    session: Session,
+    *,
+    event_type: str,
+    group_id: int = 0,
+    platform: str = "",
+    failure_type: str = "",
+    locale: str = "zh-CN",
+) -> dict[str, Any]:
+    if event_type not in EVENT_TYPES:
+        raise ServiceError("Unsupported notification event type", code="NOTIFICATION_EVENT_TYPE_INVALID")
+
+    payload = {
+        "group_id": int(group_id),
+        "platform": platform.strip(),
+        "failure_type": failure_type.strip() or "UNKNOWN",
+    }
+    matching_event_types = {"backup_summary"}
+    if event_type != "backup_summary":
+        matching_event_types.add(event_type)
+    enabled_channels = {
+        int(item.id): item
+        for item in session.exec(select(NotificationChannel).where(NotificationChannel.enabled == True))  # noqa: E712
+        if item.id is not None
+    }
+    matches: list[dict[str, Any]] = []
+    stopped = False
+    for policy in list_policies(session):
+        if not policy.enabled or not matching_event_types.intersection(_json_list(policy.event_types_json)):
+            continue
+        if not _policy_matches(session, policy, payload):
+            continue
+
+        selected_template = session.get(NotificationTemplate, policy.template_id) if policy.template_id else None
+        routes: list[dict[str, Any]] = []
+        for raw_channel_id in _clean_ints(_json_list(policy.channel_ids_json)):
+            channel = enabled_channels.get(raw_channel_id)
+            if channel is None:
+                continue
+            resolved_template = _resolve_template_for_channel(session, selected_template, channel.channel_type)
+            if selected_template is not None and resolved_template is None:
+                continue
+            channel_name, _ = _localized_builtin_name("channel", channel.builtin_key, channel.name, locale)
+            template_name = ""
+            if resolved_template is not None:
+                template_name, _ = _localized_builtin_name(
+                    "template", resolved_template.builtin_key, resolved_template.name, locale
+                )
+            routes.append({
+                "channel_id": channel.id,
+                "channel_name": channel_name,
+                "channel_type": channel.channel_type,
+                "template_id": resolved_template.id if resolved_template else None,
+                "template_name": template_name,
+            })
+
+        policy_name, _ = _localized_builtin_name("policy", policy.builtin_key, policy.name, locale)
+        matches.append({
+            "policy_id": policy.id,
+            "policy_name": policy_name,
+            "priority": policy.priority,
+            "stop_processing": policy.stop_processing,
+            "routes": routes,
+        })
+        if policy.stop_processing:
+            stopped = True
+            break
+
+    return {
+        "matches": matches,
+        "route_count": sum(len(item["routes"]) for item in matches),
+        "stopped": stopped,
     }
 
 

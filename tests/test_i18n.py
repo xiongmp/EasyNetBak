@@ -500,6 +500,12 @@ def test_openapi_and_audit_translation():
     assert not [summary for summary in public_summaries if re.search(r"[\u4e00-\u9fff]", summary)]
     assert translate_audit_action("CREATE_DEVICE", "en-US") == "Create device"
     assert translate_audit_resource("device", "en-US") == "Device"
+    assert translate_audit_resource("notification_channel", "zh-CN") == "通知通道"
+    assert translate_audit_resource("notification_template", "zh-CN") == "通知模板"
+    assert translate_audit_resource("notification_policy", "zh-CN") == "通知策略"
+    assert translate_audit_resource("notification_channel", "en-US") == "Notification channel"
+    assert translate_audit_resource("notification_template", "en-US") == "Notification template"
+    assert translate_audit_resource("notification_policy", "en-US") == "Notification policy"
     assert translate_login_fail_reason("invalid_mfa", "en-US") == "Invalid verification code"
 
 
@@ -946,6 +952,153 @@ def test_notification_delivery_times_use_system_timezone(monkeypatch):
     assert row["sent_at"] == "2026-07-17 09:03:04"
 
 
+def test_notification_delivery_filters_apply_before_pagination(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(crud, "get_setting", lambda session, key: "+00:00" if key == "timezone_offset" else None)
+
+    with Session(engine) as session:
+        smtp = NotificationChannel(name="SMTP", channel_type="smtp", enabled=True)
+        robot = NotificationChannel(name="Robot", channel_type="wecom", enabled=True)
+        failed_event = NotificationEvent(event_type="backup_failed", source_key="test:filters:failed")
+        summary_event = NotificationEvent(event_type="backup_summary", source_key="test:filters:summary")
+        session.add_all([smtp, robot, failed_event, summary_event])
+        session.flush()
+        session.add_all([
+            NotificationDelivery(
+                event_id=failed_event.id,
+                channel_id=smtp.id,
+                dedupe_key="filter-failed",
+                subject="Edge backup failed",
+                status="failed",
+                last_error="Connection timeout",
+                created_at=datetime(2026, 7, 18, 1, 0, 0),
+            ),
+            NotificationDelivery(
+                event_id=summary_event.id,
+                channel_id=robot.id,
+                dedupe_key="filter-summary",
+                subject="Daily summary",
+                status="sent",
+                created_at=datetime(2026, 7, 19, 1, 0, 0),
+            ),
+        ])
+        session.flush()
+
+        filters = {
+            "q": "timeout",
+            "status": "failed",
+            "channel_id": smtp.id,
+            "event_type": "backup_failed",
+            "created_from": datetime(2026, 7, 18, 0, 0, 0),
+            "created_to": datetime(2026, 7, 19, 0, 0, 0),
+        }
+        rows = notification_routing_service.list_deliveries(session, limit=1, offset=0, **filters)
+        total = notification_routing_service.count_deliveries(session, **filters)
+
+    assert total == 1
+    assert [row["subject"] for row in rows] == ["Edge backup failed"]
+
+
+def test_notification_policy_simulator_reuses_matching_and_stop_processing_rules():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        channel = NotificationChannel(name="Ops SMTP", channel_type="smtp", enabled=True)
+        template = NotificationTemplate(
+            name="Failure mail",
+            event_type="*",
+            channel_type="smtp",
+            body_template="Failure",
+        )
+        session.add_all([channel, template])
+        session.flush()
+        session.add_all([
+            NotificationPolicy(
+                name="Junos only",
+                priority=10,
+                event_types_json='["backup_failed"]',
+                platforms_json='["junos"]',
+                channel_ids_json=f"[{channel.id}]",
+                template_id=template.id,
+            ),
+            NotificationPolicy(
+                name="Cisco failures",
+                priority=20,
+                event_types_json='["backup_failed"]',
+                platforms_json='["cisco_ios"]',
+                failure_types_json='["TIMEOUT"]',
+                channel_ids_json=f"[{channel.id}]",
+                template_id=template.id,
+                stop_processing=True,
+            ),
+            NotificationPolicy(
+                name="Should not run",
+                priority=30,
+                event_types_json='["backup_failed"]',
+                channel_ids_json=f"[{channel.id}]",
+                template_id=template.id,
+            ),
+        ])
+        session.flush()
+
+        result = notification_routing_service.simulate_policy_routes(
+            session,
+            event_type="backup_failed",
+            platform="cisco_ios",
+            failure_type="TIMEOUT",
+        )
+
+    assert result["route_count"] == 1
+    assert result["stopped"] is True
+    assert [item["policy_name"] for item in result["matches"]] == ["Cisco failures"]
+    assert result["matches"][0]["routes"][0]["channel_name"] == "Ops SMTP"
+
+
+def test_notification_policy_simulator_always_includes_backup_summary_policy():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        channel = NotificationChannel(name="Summary SMTP", channel_type="smtp", enabled=True)
+        template = NotificationTemplate(
+            name="Summary mail",
+            event_type="*",
+            channel_type="smtp",
+            body_template="Summary",
+        )
+        session.add_all([channel, template])
+        session.flush()
+        session.add(
+            NotificationPolicy(
+                name="Backup summary report",
+                priority=902,
+                event_types_json='["backup_summary"]',
+                group_ids_json="[0]",
+                channel_ids_json=f"[{channel.id}]",
+                template_id=template.id,
+            )
+        )
+        session.flush()
+
+        results = {
+            event_type: notification_routing_service.simulate_policy_routes(
+                session,
+                event_type=event_type,
+                platform="cisco_ios",
+                failure_type="TIMEOUT" if event_type == "backup_failed" else "",
+            )
+            for event_type in notification_routing_service.EVENT_TYPES
+        }
+
+    assert all(result["route_count"] == 1 for result in results.values())
+    assert all(
+        [item["policy_name"] for item in result["matches"]] == ["Backup summary report"]
+        for result in results.values()
+    )
+
+
 def test_builtin_robot_markdown_keeps_lists_without_error_or_change_detail_columns():
     context = notification_routing_service.sample_template_context(
         locale="zh-CN",
@@ -1043,7 +1196,7 @@ def test_notification_channel_modal_exposes_robot_test_button():
     assert 'option.value === "webhook"' in script_source
     assert "channelType.selectedIndex = -1" in script_source
     assert "window.NB?.refreshSelectDropdowns?.()" in script_source
-    assert "notifications-ui-7" in template_source
+    assert "notifications-ui-8" in template_source
 
 
 def test_notification_smtp_modal_documents_multiple_recipients_and_starttls():
@@ -1070,7 +1223,7 @@ def test_notification_page_renders_feishu_cards_without_gradient_styling():
     assert "webhook-preview-table" in script_source
     assert "status-badge" in style_source
     assert "state-action" in style_source
-    assert "notifications-ui-7" in (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
+    assert "notifications-ui-8" in (root / "app" / "templates" / "notifications.html").read_text(encoding="utf-8-sig")
     assert "linear-gradient" not in style_source
 
 

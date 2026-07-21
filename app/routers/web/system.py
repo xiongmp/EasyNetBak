@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request
@@ -11,7 +12,7 @@ from sqlmodel import Session, select
 
 from app import crud
 from app.core.settings import settings
-from app.core.time import normalize_timezone_offset
+from app.core.time import normalize_timezone_offset, parse_timezone_offset_to_minutes
 from app.db import get_session
 from app.i18n import translate
 from app.models import BackupSchedule, WebshellRecord
@@ -389,6 +390,46 @@ def notifications_page(
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
 
     list_query = BaseListQueryInput.from_query_params(request.query_params, default_limit=10)
+    delivery_q = str(request.query_params.get("delivery_q") or "").strip()[:255]
+    delivery_status = str(request.query_params.get("delivery_status") or "").strip()
+    if delivery_status not in {"pending", "sending", "sent", "retrying", "failed"}:
+        delivery_status = ""
+    delivery_event = str(request.query_params.get("delivery_event") or "").strip()
+    if delivery_event not in notification_routing_service.EVENT_TYPES:
+        delivery_event = ""
+    try:
+        delivery_channel_id = int(request.query_params.get("delivery_channel") or 0) or None
+    except (TypeError, ValueError):
+        delivery_channel_id = None
+    delivery_from = str(request.query_params.get("delivery_from") or "").strip()
+    delivery_to = str(request.query_params.get("delivery_to") or "").strip()
+    offset_minutes = parse_timezone_offset_to_minutes(
+        crud.get_setting(session, key="timezone_offset") or settings.timezone_offset
+    ) or 0
+
+    def _utc_boundary(value: str, *, end: bool = False):
+        try:
+            boundary = datetime.strptime(value, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            return None
+        if end:
+            boundary += timedelta(days=1)
+        return boundary - timedelta(minutes=offset_minutes)
+
+    delivery_created_from = _utc_boundary(delivery_from)
+    delivery_created_to = _utc_boundary(delivery_to, end=True)
+    if delivery_created_from is None:
+        delivery_from = ""
+    if delivery_created_to is None:
+        delivery_to = ""
+    delivery_filter_kwargs = {
+        "q": delivery_q,
+        "status": delivery_status,
+        "channel_id": delivery_channel_id,
+        "event_type": delivery_event,
+        "created_from": delivery_created_from,
+        "created_to": delivery_created_to,
+    }
     delivery_pagination_params = pagination_service.normalize_pagination_params(
         page=list_query.page,
         limit=list_query.limit,
@@ -396,12 +437,13 @@ def notifications_page(
         default_limit=10,
         max_limit=100,
     )
-    delivery_total = notification_routing_service.count_deliveries(session)
+    delivery_total = notification_routing_service.count_deliveries(session, **delivery_filter_kwargs)
     delivery_rows = notification_routing_service.list_deliveries(
         session,
         limit=delivery_pagination_params.limit,
         offset=delivery_pagination_params.offset,
         locale=locale,
+        **delivery_filter_kwargs,
     )
     delivery_pagination = pagination_service.build_pagination_data(
         page=delivery_pagination_params.page,
@@ -410,7 +452,14 @@ def notifications_page(
     )
     delivery_pagination_base = pagination_service.build_pagination_base(
         path="/notifications",
-        params={},
+        params={
+            "delivery_q": delivery_q,
+            "delivery_status": delivery_status,
+            "delivery_event": delivery_event,
+            "delivery_channel": delivery_channel_id or "",
+            "delivery_from": delivery_from,
+            "delivery_to": delivery_to,
+        },
         page_param="page",
         limit=delivery_pagination_params.limit,
         default_limit=10,
@@ -430,6 +479,16 @@ def notifications_page(
             "notification_deliveries": delivery_rows,
             "delivery_pagination": delivery_pagination.as_dict(),
             "delivery_pagination_base": delivery_pagination_base,
+            "delivery_filters": {
+                "q": delivery_q,
+                "status": delivery_status,
+                "event": delivery_event,
+                "channel_id": delivery_channel_id,
+                "from": delivery_from,
+                "to": delivery_to,
+                "active": any((delivery_q, delivery_status, delivery_event, delivery_channel_id, delivery_from, delivery_to)),
+            },
+            "notification_delivery_statuses": ("pending", "sending", "sent", "retrying", "failed"),
             "notification_event_types": notification_routing_service.EVENT_TYPES,
             "notification_channel_types": notification_routing_service.CHANNEL_TYPES,
             "notification_template_channel_types": notification_routing_service.TEMPLATE_CHANNEL_TYPES,
@@ -803,6 +862,38 @@ async def delete_notification_policy(
         return {"success": False, "error": {"code": exc.code, "message": translate(request.state.locale, "notification.error.policy")}}
     _log_action(request, session, "UPDATE_NOTIFICATIONS", "notification_policy", policy_id, "Deleted notification policy")
     return {"success": True, "deleted": policy_id}
+
+
+@router.post("/notifications/policies/simulate", summary="试算通知策略路由")
+async def simulate_notification_policy_routes(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),
+    session: Session = Depends(get_session),
+    event_type: str = Form(""),
+    group_id: int = Form(0),
+    platform: str = Form(""),
+    failure_type: str = Form(""),
+):
+    await csrf_protect.validate_csrf(request)
+    _require_any_permission(request, ["notifications.view", "notifications.update"])
+    try:
+        result = notification_routing_service.simulate_policy_routes(
+            session,
+            event_type=event_type,
+            group_id=group_id,
+            platform=platform,
+            failure_type=failure_type,
+            locale=request.state.locale,
+        )
+    except ServiceError as exc:
+        return {
+            "success": False,
+            "error": {
+                "code": exc.code,
+                "message": translate(request.state.locale, "notification.simulator.error"),
+            },
+        }
+    return {"success": True, **result}
 
 
 @router.get("/storage-settings", summary="存储配置页面", description="查看远程存储设置")
