@@ -193,6 +193,10 @@ window.NB.ready(function initTaskPanel() {
           const backupViewLoading = document.getElementById("backup-view-loading");
           const backupViewError = document.getElementById("backup-view-error");
           const backupViewRender = document.getElementById("backup-view-render");
+          const backupCommandView = document.getElementById("backup-command-view");
+          const backupCommandList = document.getElementById("backup-command-list");
+          const backupCommandCount = document.getElementById("backup-command-count");
+          const backupViewCopy = document.getElementById("backup-view-copy");
           const backupViewDownload = document.getElementById("backup-view-download");
           const backupViewFullscreen = document.getElementById("backup-view-fullscreen");
           const backupViewFullscreenIcon = document.getElementById("backup-view-fullscreen-icon");
@@ -204,6 +208,9 @@ window.NB.ready(function initTaskPanel() {
           const backupLogList = document.getElementById("backup-log-list");
           let backupViewModal = null;
           let backupViewIsFullscreen = false;
+          let backupViewSections = [];
+          let backupViewActiveSection = 0;
+          let backupViewRawText = "";
           let backupLogModal = null;
 
           if (!panel || !tbody || !summary) return;
@@ -1177,6 +1184,101 @@ window.NB.ready(function initTaskPanel() {
             backupViewRender.appendChild(pre);
           }
 
+          function selectBackupCommand(index) {
+            if (!backupViewSections.length || index < 0 || index >= backupViewSections.length) return;
+            backupViewActiveSection = index;
+            if (backupCommandList) {
+              backupCommandList.querySelectorAll(".backup-command-item").forEach((button, buttonIndex) => {
+                const active = buttonIndex === index;
+                button.classList.toggle("active", active);
+                button.setAttribute("aria-selected", active ? "true" : "false");
+                button.tabIndex = active ? 0 : -1;
+              });
+            }
+            renderBackupText(backupViewSections[index].output || "");
+          }
+
+          function renderBackupCommandSections(sections, fallbackText) {
+            backupViewSections = Array.isArray(sections)
+              ? sections.filter((item) => item && typeof item.command === "string" && typeof item.output === "string")
+              : [];
+            backupViewActiveSection = 0;
+            backupViewRawText = fallbackText || "";
+            if (backupCommandView) backupCommandView.classList.toggle("has-command-list", backupViewSections.length > 0);
+            if (backupCommandList) {
+              backupCommandList.innerHTML = "";
+              backupCommandList.closest(".backup-command-sidebar")?.classList.toggle("d-none", !backupViewSections.length);
+            }
+            if (backupCommandCount) backupCommandCount.textContent = backupViewSections.length ? `(${backupViewSections.length})` : "";
+            if (backupViewCopy) backupViewCopy.classList.toggle("d-none", !backupViewRawText && !backupViewSections.length);
+
+            if (!backupViewSections.length) {
+              renderBackupText(backupViewRawText);
+              return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            backupViewSections.forEach((section, index) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "backup-command-item";
+              button.setAttribute("role", "tab");
+              button.setAttribute("aria-selected", index === 0 ? "true" : "false");
+              button.tabIndex = index === 0 ? 0 : -1;
+
+              const number = document.createElement("span");
+              number.className = "backup-command-number";
+              number.textContent = String(index + 1);
+              const command = document.createElement("code");
+              command.textContent = section.command;
+              button.append(number, command);
+              button.addEventListener("click", () => selectBackupCommand(index));
+              button.addEventListener("keydown", (event) => {
+                if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                let next = index;
+                if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % backupViewSections.length;
+                if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index - 1 + backupViewSections.length) % backupViewSections.length;
+                if (event.key === 'Home') next = 0;
+                if (event.key === 'End') next = backupViewSections.length - 1;
+                selectBackupCommand(next);
+                backupCommandList?.querySelectorAll(".backup-command-item")[next]?.focus();
+              });
+              fragment.appendChild(button);
+            });
+            backupCommandList?.appendChild(fragment);
+            selectBackupCommand(0);
+          }
+
+          async function copyBackupCommandOutput() {
+            const selected = backupViewSections[backupViewActiveSection];
+            const text = selected ? selected.output : backupViewRawText;
+            if (!text) return;
+            let copied = false;
+            if (navigator.clipboard && window.isSecureContext) {
+              try {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+              } catch (e) {
+                copied = false;
+              }
+            }
+            if (!copied) {
+              const textarea = document.createElement("textarea");
+              textarea.value = text;
+              textarea.setAttribute("readonly", "");
+              textarea.style.position = "fixed";
+              textarea.style.opacity = "0";
+              document.body.appendChild(textarea);
+              textarea.select();
+              copied = Boolean(document.execCommand?.("copy"));
+              textarea.remove();
+            }
+            if (window.NB && typeof window.NB.showToast === "function") {
+              window.NB.showToast(NB.t(copied ? "template.backups.copy_succeeded" : "template.backups.copy_failed"), copied ? "success" : "error");
+            }
+          }
+
           function setBackupViewFullscreen(next) {
             if (!backupViewModalEl) return;
             const dialog = backupViewModalEl.querySelector(".modal-dialog");
@@ -1218,7 +1320,14 @@ window.NB.ready(function initTaskPanel() {
               backupViewError.classList.add("d-none");
               backupViewError.textContent = "";
             }
+            backupViewSections = [];
+            backupViewRawText = "";
             if (backupViewRender) backupViewRender.innerHTML = "";
+            if (backupCommandList) backupCommandList.innerHTML = "";
+            if (backupCommandCount) backupCommandCount.textContent = "";
+            if (backupCommandView) backupCommandView.classList.remove("has-command-list");
+            backupCommandList?.closest(".backup-command-sidebar")?.classList.add("d-none");
+            if (backupViewCopy) backupViewCopy.classList.add("d-none");
             if (backupViewLoading) backupViewLoading.classList.remove("d-none");
             if (backupViewDownload) {
               backupViewDownload.classList.add("d-none");
@@ -1262,7 +1371,7 @@ window.NB.ready(function initTaskPanel() {
               backupViewDownload.classList.remove("d-none");
             }
 
-            renderBackupText(record.config_text || "");
+            renderBackupCommandSections(record.command_sections, record.config_text || "");
           }
 
           function renderBackupLogItems(items) {
@@ -1895,6 +2004,10 @@ window.NB.ready(function initTaskPanel() {
             backupViewFullscreen.addEventListener("click", () => {
               setBackupViewFullscreen(!backupViewIsFullscreen);
             });
+          }
+
+          if (backupViewCopy) {
+            backupViewCopy.addEventListener("click", copyBackupCommandOutput);
           }
 
           if (backupViewModalEl) {

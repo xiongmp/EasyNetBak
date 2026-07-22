@@ -194,17 +194,17 @@ MARKDOWN_BACKUP_BODY_TEMPLATE = """**{{ labels["task_time"] }}**: {{ task_time }
 {% if failed_count > 0 %}### {{ labels["failed_section"] }}
 | {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["duration"] }} | {{ labels["failure_type"] }} |
 | --- | --- | --- | --- |
-{% for item in items %}{% if not item["success"] and not item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ item["duration"]|mdescape }} | `{{ item["failure_type"]|mdescape }}` |
+{% for item in items %}{% if not item["success"] and not item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdcode }}` | {{ item["duration"]|mdescape }} | `{{ item["failure_type"]|mdcode }}` |
 {% endif %}{% endfor %}{% endif %}
 {% if cancelled_count > 0 %}### {{ labels["cancelled_section"] }}
 | {{ labels["device_name"] }} | {{ labels["device_host"] }} | {{ labels["details"] }} |
 | --- | --- | --- |
-{% for item in items %}{% if item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` | {{ item["error_message"]|mdescape }} |
+{% for item in items %}{% if item["cancelled"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdcode }}` | {{ item["error_message"]|mdescape }} |
 {% endif %}{% endfor %}{% endif %}
 {% if changed_count > 0 %}### {{ labels["changed_section"] }}
 | {{ labels["device_name"] }} | {{ labels["device_host"] }} |
 | --- | --- |
-{% for item in items %}{% if item["changed"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdescape }}` |
+{% for item in items %}{% if item["changed"] %}| **{{ item["device_name"]|mdescape }}** | `{{ item["device_host"]|mdcode }}` |
 {% endif %}{% endfor %}{% endif %}"""
 FEISHU_BACKUP_BODY_TEMPLATE = """{
   "schema": "2.0",

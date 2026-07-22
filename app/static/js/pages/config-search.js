@@ -129,12 +129,18 @@ window.NB.ready(function initConfigSearchPage() {
             const errorEl = document.getElementById('backup-view-error');
             const downloadBtn = document.getElementById('backup-view-download');
             const oldFullscreenBtn = document.getElementById('backup-view-fullscreen');
+            const commandView = document.getElementById('backup-command-view');
+            const commandSidebar = commandView ? commandView.querySelector('.backup-command-sidebar') : null;
+            const copyBtn = document.getElementById('backup-view-copy');
             
             // Clone the button to remove any existing event listeners from base.html
             const fullscreenBtn = oldFullscreenBtn.cloneNode(true);
             oldFullscreenBtn.parentNode.replaceChild(fullscreenBtn, oldFullscreenBtn);
             
             renderEl.innerHTML = '';
+            if (commandView) commandView.classList.remove('has-command-list');
+            if (commandSidebar) commandSidebar.classList.add('d-none');
+            if (copyBtn) copyBtn.classList.add('d-none');
             loadingEl.classList.remove('d-none');
             errorEl.classList.add('d-none');
             downloadBtn.classList.add('d-none');

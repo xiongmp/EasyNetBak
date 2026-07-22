@@ -109,6 +109,93 @@ def normalize_commands(commands_text: str) -> list[str]:
     return commands
 
 
+def _commands_from_backup_events(session: Session, record_id: UUID) -> list[str]:
+    """Return the commands from the last execution attempt for a backup record."""
+    events = session.exec(
+        select(TaskEvent)
+        .where(
+            TaskEvent.record_id == str(record_id),
+            TaskEvent.event == "backup_record_command_started",
+        )
+        .order_by(TaskEvent.id.asc())
+    ).all()
+    attempts: list[list[str]] = []
+    current: list[str] = []
+    for event in events:
+        try:
+            details = json.loads(event.details or "{}")
+        except (TypeError, ValueError):
+            continue
+        command = str(details.get("command") or "").strip()
+        if not command:
+            continue
+        try:
+            command_index = int(details.get("command_index") or 0)
+        except (TypeError, ValueError):
+            command_index = 0
+        if command_index == 1 and current:
+            attempts.append(current)
+            current = []
+        current.append(command)
+    if current:
+        attempts.append(current)
+    return attempts[-1] if attempts else []
+
+
+def _backup_commands(session: Session, record: BackupRecord, device: Device | None) -> list[str]:
+    commands = _commands_from_backup_events(session, record.id)
+    if commands:
+        return commands
+    template = crud.get_template(session, record.template_id) if record.template_id else None
+    if template is not None:
+        return normalize_commands(template.commands)
+    platform = normalize_platform_id(device.platform) if device is not None else ""
+    return normalize_commands(DEFAULT_COMMANDS.get(platform, ""))
+
+
+def split_backup_command_output(config_text: str, commands: list[str]) -> list[dict[str, str]]:
+    """Split console output only when every multi-command boundary is reliable."""
+    normalized = (config_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    clean_commands = [str(command or "").strip() for command in commands if str(command or "").strip()]
+    if not clean_commands:
+        return []
+    if len(clean_commands) == 1:
+        return [{"command": clean_commands[0], "output": normalized.strip("\n")}]
+
+    lines = normalized.split("\n")
+    boundaries: list[int] = []
+    search_from = 0
+    for index, command in enumerate(clean_commands):
+        found = next(
+            (line_index for line_index in range(search_from, len(lines)) if _is_command_echo(lines[line_index], command)),
+            None,
+        )
+        if found is None:
+            if index == 0:
+                boundaries.append(-1)
+                continue
+            return []
+        boundaries.append(found)
+        search_from = found + 1
+
+    sections: list[dict[str, str]] = []
+    for index, command in enumerate(clean_commands):
+        start = boundaries[index] if boundaries[index] >= 0 else 0
+        end = boundaries[index + 1] if index + 1 < len(boundaries) else len(lines)
+        sections.append({"command": command, "output": "\n".join(lines[start:end]).strip("\n")})
+    return sections
+
+
+def _is_command_echo(line: str, command: str) -> bool:
+    value = (line or "").strip()
+    if value == command:
+        return True
+    if not value.endswith(command):
+        return False
+    prompt = value[: -len(command)].rstrip()
+    return bool(prompt) and prompt[-1:] in {">", "#", "]", "$"}
+
+
 def backup_device(
     *,
     host: str,
@@ -215,6 +302,8 @@ def get_backup_view_payload(
     )
     record = detail.record
     device = detail.device
+    commands = _backup_commands(session, record, device)
+    config_text = record.config_text or ""
     return {
         "device": _serialize_device(device, fallback_device_id=int(record.device_id)),
         "record": {
@@ -231,7 +320,9 @@ def get_backup_view_payload(
                 record.failure_type,
                 locale=locale,
             ),
-            "config_text": record.config_text or "",
+            "config_text": config_text,
+            "commands": commands,
+            "command_sections": split_backup_command_output(config_text, commands),
         },
     }
 

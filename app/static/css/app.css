@@ -5952,3 +5952,187 @@ mark {
   border-radius: 4px;
   letter-spacing: 0.02em;
 }
+
+/* Backup command viewer */
+#backup-view-modal .modal-dialog.modal-xl {
+  --bs-modal-width: min(1280px, calc(100vw - 2rem));
+}
+
+.backup-command-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: min(68vh, 760px);
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 12px;
+  background: var(--bs-body-bg);
+}
+
+.backup-command-view.has-command-list {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.backup-command-sidebar {
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.backup-command-sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--bs-border-color);
+  color: var(--bs-body-color);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.backup-command-sidebar-title i {
+  color: var(--bs-primary);
+  font-size: 0.72rem;
+}
+
+.backup-command-count {
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--bs-secondary-color);
+  background: var(--bs-secondary-bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.backup-command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(min(68vh, 760px) - 52px);
+  padding: 10px;
+  overflow: auto;
+}
+
+.backup-command-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--bs-secondary-color);
+  background: transparent;
+  text-align: left;
+}
+
+.backup-command-item:hover {
+  color: var(--bs-body-color);
+  background: var(--bs-secondary-bg);
+}
+
+.backup-command-item.active {
+  color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), 0.12);
+}
+
+.backup-command-item:focus-visible {
+  outline: 3px solid rgba(var(--bs-primary-rgb), 0.3);
+  outline-offset: -2px;
+}
+
+.backup-command-item code {
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.backup-command-number {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--bs-secondary-color);
+  background: var(--bs-secondary-bg);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.backup-command-item.active .backup-command-number {
+  color: #fff;
+  background: var(--bs-primary);
+}
+
+#backup-view-modal .backup-command-output {
+  min-width: 0;
+  min-height: 0;
+  max-height: min(68vh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #475569 transparent;
+  scrollbar-width: thin;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Keep the output pane as the modal's only scroll container. Config search
+   previously scrolled this child <pre>, which bypassed the viewer scrollbar
+   styling and left a wide native scrollbar along the right edge. */
+#backup-view-modal .backup-command-output > .config-view-pre {
+  min-height: 100%;
+  max-height: none;
+  overflow: visible;
+  border-radius: 0 !important;
+}
+
+#backup-view-modal .modal-dialog.modal-fullscreen .backup-command-view {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+#backup-view-modal .modal-dialog.modal-fullscreen .backup-command-list,
+#backup-view-modal .modal-dialog.modal-fullscreen .backup-command-output {
+  max-height: none;
+}
+
+@media (max-width: 767.98px) {
+  #backup-view-modal .modal-header {
+    align-items: flex-start;
+  }
+
+  .backup-command-view.has-command-list {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .backup-command-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  .backup-command-sidebar-title {
+    min-height: 44px;
+  }
+
+  .backup-command-list {
+    flex-direction: row;
+    max-height: none;
+    padding: 8px;
+  }
+
+  .backup-command-item {
+    flex: 0 0 auto;
+    width: min(78vw, 280px);
+  }
+}

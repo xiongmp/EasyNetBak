@@ -4,6 +4,8 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import Mock
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI, Request
@@ -47,6 +49,7 @@ from app.models import (
 from app.routers.web_context import _layout_context, templates
 from app.services import (
     alert_service,
+    backup_service,
     ftp_service,
     notification_routing_service,
     s3_service,
@@ -55,6 +58,68 @@ from app.services import (
     task_state_service,
 )
 from app.services.backup_error_service import localize_backup_error_message
+
+
+def test_backup_command_sections_split_single_command_and_keep_prompt():
+    assert backup_service.split_backup_command_output(
+        "switch-01#show running-config\ninterface Vlan1\n ip address 10.0.0.1\n",
+        ["show running-config"],
+    ) == [
+        {
+            "command": "show running-config",
+            "output": "switch-01#show running-config\ninterface Vlan1\n ip address 10.0.0.1",
+        }
+    ]
+
+
+def test_backup_command_sections_use_ordered_prompt_boundaries():
+    sections = backup_service.split_backup_command_output(
+        "Total: 2\n\nedge-sw#show running-config\nhostname edge-sw\ninterface Vlan1\n",
+        ["show mac-address", "show running-config"],
+    )
+
+    assert sections == [
+        {"command": "show mac-address", "output": "Total: 2"},
+        {
+            "command": "show running-config",
+            "output": "edge-sw#show running-config\nhostname edge-sw\ninterface Vlan1",
+        },
+    ]
+
+
+def test_backup_command_sections_support_huawei_prompts():
+    sections = backup_service.split_backup_command_output(
+        "<core-sw>display mac-address\nMAC Address  VLAN\n"
+        "[core-sw]display current-configuration\nsysname core-sw",
+        ["display mac-address", "display current-configuration"],
+    )
+
+    assert [section["output"] for section in sections] == [
+        "<core-sw>display mac-address\nMAC Address  VLAN",
+        "[core-sw]display current-configuration\nsysname core-sw",
+    ]
+
+
+def test_backup_command_sections_refuse_ambiguous_multi_command_output():
+    assert backup_service.split_backup_command_output(
+        "Total: 2\n\nhostname edge-sw\ninterface Vlan1\n",
+        ["show mac-address", "show running-config"],
+    ) == []
+
+
+def test_backup_command_list_uses_last_recorded_execution_attempt():
+    session = Mock()
+    session.exec.return_value.all.return_value = [
+        TaskEvent(details=json.dumps({"command": "show version", "command_index": 1})),
+        TaskEvent(details=json.dumps({"command": "show interfaces", "command_index": 2})),
+        TaskEvent(details=json.dumps({"command": "show version", "command_index": 1})),
+        TaskEvent(details=json.dumps({"command": "show interfaces", "command_index": 2})),
+    ]
+
+    assert backup_service._commands_from_backup_events(session, uuid4()) == [
+        "show version",
+        "show interfaces",
+    ]
 
 
 def test_catalog_translation_params_and_fallback():
@@ -227,6 +292,23 @@ def test_global_toast_layer_stays_above_drawers_and_bypasses_stale_css():
     assert toast_layer_rule is not None
     assert toast_layer_rule.start() > css_source.rfind(".toast-container {")
     assert toast_layer_rule.start() > css_source.rfind(".offcanvas.show")
+
+
+def test_backup_view_uses_one_styled_scroll_container():
+    root = Path(__file__).resolve().parents[1]
+    css_source = (root / "app" / "static" / "css" / "app.css").read_text(encoding="utf-8-sig")
+
+    assert re.search(
+        r"#backup-view-modal \.backup-command-output\s*\{[^}]*overflow:\s*auto;",
+        css_source,
+        re.DOTALL,
+    )
+    assert re.search(
+        r"#backup-view-modal \.backup-command-output > \.config-view-pre\s*\{"
+        r"[^}]*max-height:\s*none;[^}]*overflow:\s*visible;",
+        css_source,
+        re.DOTALL,
+    )
 
 
 def test_frontend_source_references_match_explicit_message_contract():
@@ -1128,6 +1210,10 @@ def test_builtin_robot_markdown_keeps_lists_without_error_or_change_detail_colum
     assert f'### {labels["changed_section"]}\n| {labels["device_name"]} | {labels["device_host"]} |' in markdown_body
     failed_item = next(item for item in context["items"] if not item["success"] and not item["cancelled"])
     changed_item = next(item for item in context["items"] if item["changed"])
+    for item in context["items"]:
+        assert f'`{item["device_host"]}`' in markdown_body
+        escaped_host = item["device_host"].replace(".", "\\.")
+        assert f"`{escaped_host}`" not in markdown_body
     assert failed_item["error_message"] not in markdown_body
     assert changed_item["change_context_label"] not in markdown_body
     assert "`+ logging host 192.0.2.200`" not in markdown_body

@@ -7,7 +7,7 @@
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/static/css/tokens.css?v={{ app_version }}-frontend-foundation-1" rel="stylesheet" />
-    <link href="/static/css/app.css?v={{ app_version }}-toast-layer-1" rel="stylesheet" />
+    <link href="/static/css/app.css?v={{ app_version }}-backup-command-view-6" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
     {% block head %}{% endblock %}
     <script>
@@ -470,6 +470,9 @@
                 <div class="text-secondary small" id="backup-view-meta"></div>
               </div>
               <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-copy">
+                  <i class="bi bi-copy me-1"></i>{{ _('template.base.copy') }}
+                </button>
                 <a class="btn btn-outline-success btn-sm d-none" id="backup-view-download" href="#">{{ _('template.base.download') }}</a>
                 <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="backup-view-fullscreen" aria-label="{{ _('template.base.enter_full_screen') }}">
                   <i class="bi bi-arrows-fullscreen" id="backup-view-fullscreen-icon"></i>
@@ -477,10 +480,19 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
               </div>
             </div>
-            <div class="modal-body">
+            <div class="modal-body backup-view-modal-body">
               <div class="text-secondary small d-none" id="backup-view-loading">{{ _('template.backups.loading') }}...</div>
               <div class="alert alert-danger d-none mb-3" id="backup-view-error"></div>
-              <div class="diff-render" id="backup-view-render"></div>
+              <div class="backup-command-view" id="backup-command-view">
+                <aside class="backup-command-sidebar d-none" aria-label="{{ _('template.backups.command_list') }}">
+                  <div class="backup-command-sidebar-title">
+                    <span><i class="bi bi-terminal me-2"></i>{{ _('template.backups.command_list') }}</span>
+                    <span class="backup-command-count" id="backup-command-count"></span>
+                  </div>
+                  <div class="backup-command-list" id="backup-command-list" role="tablist"></div>
+                </aside>
+                <div class="diff-render backup-command-output" id="backup-view-render" role="tabpanel"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -547,7 +559,7 @@
         "canTerminateTaskRuns": has_permission('schedules.update'),
         "canRetryTaskRuns": has_permission('devices.backup')
       } | tojson }}</script>
-      <script src="/static/js/core/nb-common.js?v={{ app_version }}-i18n-confirm-3"></script>
+      <script src="/static/js/core/nb-common.js?v={{ app_version }}-backup-command-view-1"></script>
     {% endif %}
     <script src="/static/js/core/select-enhance.js?v={{ app_version }}-i18n-confirm-3"></script>
 
