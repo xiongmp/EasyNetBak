@@ -4,7 +4,7 @@
 {% set page_subtitle = _('page.notifications.subtitle') %}
 
 {% block head %}
-<link href="/static/css/pages/notifications.css?v={{ app_version }}" rel="stylesheet" />
+<link href="/static/css/pages/notifications.css?v={{ app_version }}-notification-panels-1" rel="stylesheet" />
 {% endblock %}
 
 {% block content %}
@@ -34,41 +34,42 @@
   <template id="templateEmptyTemplate"><tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr></template>
 
   {% if not has_permission('notifications.update') %}
-  <div class="alert alert-info mb-4" role="status"><i class="bi bi-eye me-2"></i>{{ _('notification.read_only') }}</div>
+  <div class="alert alert-info mb-3" role="status"><i class="bi bi-eye me-2"></i>{{ _('notification.read_only') }}</div>
   {% endif %}
 
-  <section class="signal-hero mb-4" aria-labelledby="notification-console-title">
-    <div class="signal-hero-copy">
-      <div class="signal-eyebrow">{{ _('notification.console.eyebrow') }}</div>
-      <h1 id="notification-console-title">{{ _('notification.console.title') }}</h1>
-      <p>{{ _('notification.console.description') }}</p>
-    </div>
-    <div class="route-rail" aria-label="{{ _('notification.console.route_aria') }}">
-      <div class="route-stop route-stop-event">
-        <i class="bi bi-broadcast-pin"></i>
-        <span>{{ _('notification.console.events') }}</span>
-      </div>
-      <div class="route-line"><span></span></div>
-      <div class="route-stop route-stop-policy">
-        <i class="bi bi-signpost-split"></i>
-        <span>{{ _('notification.console.policies') }}</span>
-      </div>
-      <div class="route-line"><span></span></div>
-      <div class="route-stop route-stop-channel">
-        <i class="bi bi-send-check"></i>
-        <span>{{ _('notification.console.channels') }}</span>
-      </div>
-    </div>
+  <section class="card border shadow-sm signal-hero" aria-labelledby="notification-console-title">
+        <div class="signal-hero-copy">
+          <div class="signal-eyebrow">{{ _('notification.console.eyebrow') }}</div>
+          <h1 id="notification-console-title">{{ _('notification.console.title') }}</h1>
+        </div>
+        <div class="route-rail" aria-label="{{ _('notification.console.route_aria') }}">
+          <div class="route-stop route-stop-event">
+            <i class="bi bi-broadcast-pin"></i>
+            <span>{{ _('notification.console.events') }}</span>
+          </div>
+          <div class="route-line"><span></span></div>
+          <div class="route-stop route-stop-policy">
+            <i class="bi bi-signpost-split"></i>
+            <span>{{ _('notification.console.policies') }}</span>
+          </div>
+          <div class="route-line"><span></span></div>
+          <div class="route-stop route-stop-channel">
+            <i class="bi bi-send-check"></i>
+            <span>{{ _('notification.console.channels') }}</span>
+          </div>
+        </div>
   </section>
 
-  <ul class="nav notification-tabs mb-4" id="notificationTabs" role="tablist">
+  <div class="card border shadow-sm notification-shell">
+    <div class="card-body p-0">
+      <ul class="nav nav-tabs notification-tabs" id="notificationTabs" role="tablist">
     <li class="nav-item" role="presentation"><button class="nav-link active" id="channels-tab" data-bs-toggle="tab" data-bs-target="#channels-pane" type="button" role="tab" aria-controls="channels-pane" aria-selected="true"><i class="bi bi-diagram-3"></i>{{ _('notification.tab.channels') }}</button></li>
     <li class="nav-item" role="presentation"><button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates-pane" type="button" role="tab" aria-controls="templates-pane" aria-selected="false"><i class="bi bi-braces-asterisk"></i>{{ _('notification.tab.templates') }}</button></li>
     <li class="nav-item" role="presentation"><button class="nav-link" id="policies-tab" data-bs-toggle="tab" data-bs-target="#policies-pane" type="button" role="tab" aria-controls="policies-pane" aria-selected="false"><i class="bi bi-signpost-split"></i>{{ _('notification.tab.policies') }}</button></li>
     <li class="nav-item" role="presentation"><button class="nav-link" id="deliveries-tab" data-bs-toggle="tab" data-bs-target="#deliveries-pane" type="button" role="tab" aria-controls="deliveries-pane" aria-selected="false"><i class="bi bi-clock-history"></i>{{ _('notification.tab.deliveries') }}</button></li>
-  </ul>
+      </ul>
 
-  <div class="tab-content">
+      <div class="tab-content notification-shell-body">
     <section class="tab-pane fade show active" id="channels-pane" role="tabpanel" aria-labelledby="channels-tab" tabindex="0">
       <div class="section-heading">
         <div><h2>{{ _('notification.channels.title') }}</h2><p>{{ _('notification.channels.description') }}</p></div>
@@ -144,7 +145,7 @@
       </div>
       <div class="table-responsive notification-table-wrap">
         <table class="table align-middle mb-0"><thead><tr><th>{{ _('notification.name') }}</th><th>{{ _('notification.language') }}</th><th>{{ _('notification.format') }}</th><th>{{ _('notification.status') }}</th><th></th></tr></thead>
-        <tbody>{% for template in notification_templates %}<tr class="{{ 'system-template-row' if template.builtin }} {{ 'is-disabled' if not template.enabled }}"><td class="fw-semibold">{{ _(template.name_key) if template.name_key else template.name }}{% if template.hint_key %}<div class="system-template-note"><i class="bi bi-file-earmark-richtext"></i>{{ _(template.hint_key) }}</div>{% endif %}</td><td>{{ _('notification.template.auto_locale') if template.builtin else template.locale }}</td><td><code>{{ template.content_type }}</code></td><td><span class="status-badge {{ 'is-live' if template.enabled else 'is-paused' }}"><i class="bi {{ 'bi-check-circle-fill' if template.enabled else 'bi-pause-circle-fill' }}" aria-hidden="true"></i>{{ _('notification.enabled') if template.enabled else _('notification.disabled') }}</span></td><td class="text-end">{% if has_permission('notifications.update') %}<div class="d-inline-flex align-items-center gap-1">{% if template.builtin %}<span class="builtin-label"><i class="bi bi-box-seam"></i>{{ _('notification.builtin') }}</span>{% endif %}<button class="btn btn-sm btn-outline-secondary" data-edit-template data-item="{{ template|tojson|forceescape }}">{{ _('notification.edit') }}</button><button class="btn btn-sm state-action {{ 'is-disable' if template.enabled else 'is-enable' }}" data-toggle-template="{{ template.id }}" data-enabled="{{ '0' if template.enabled else '1' }}" type="button"><i class="bi {{ 'bi-pause-circle' if template.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if template.enabled else _('notification.action.enable') }}</button>{% if not template.builtin %}<button class="btn btn-sm btn-link text-danger" data-delete-template="{{ template.id }}" data-confirm-msg="{{ _('notification.confirm.delete_template') }}" type="button">{{ _('notification.delete') }}</button>{% endif %}</div>{% endif %}</td></tr>{% else %}<tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr>{% endfor %}</tbody></table>
+        <tbody>{% for template in notification_templates %}<tr class="{{ 'system-template-row' if template.builtin }} {{ 'is-disabled' if not template.enabled }}"><td><div class="template-title-line"><span class="fw-semibold">{{ _(template.name_key) if template.name_key else template.name }}</span>{% if template.builtin %}<span class="badge text-bg-light border"><i class="bi bi-box-seam me-1"></i>{{ _('notification.builtin') }}</span>{% endif %}</div>{% if template.hint_key %}<div class="system-template-note"><i class="bi bi-file-earmark-richtext"></i>{{ _(template.hint_key) }}</div>{% endif %}</td><td>{{ _('notification.template.auto_locale') if template.builtin else template.locale }}</td><td><code>{{ template.content_type }}</code></td><td><span class="status-badge {{ 'is-live' if template.enabled else 'is-paused' }}"><i class="bi {{ 'bi-check-circle-fill' if template.enabled else 'bi-pause-circle-fill' }}" aria-hidden="true"></i>{{ _('notification.enabled') if template.enabled else _('notification.disabled') }}</span></td><td class="text-end">{% if has_permission('notifications.update') %}<div class="d-inline-flex align-items-center gap-1"><button class="btn btn-sm btn-outline-secondary" data-edit-template data-item="{{ template|tojson|forceescape }}">{{ _('notification.edit') }}</button><button class="btn btn-sm state-action {{ 'is-disable' if template.enabled else 'is-enable' }}" data-toggle-template="{{ template.id }}" data-enabled="{{ '0' if template.enabled else '1' }}" type="button"><i class="bi {{ 'bi-pause-circle' if template.enabled else 'bi-play-circle' }}" aria-hidden="true"></i>{{ _('notification.action.disable') if template.enabled else _('notification.action.enable') }}</button>{% if not template.builtin %}<button class="btn btn-sm btn-link text-danger" data-delete-template="{{ template.id }}" data-confirm-msg="{{ _('notification.confirm.delete_template') }}" type="button">{{ _('notification.delete') }}</button>{% endif %}</div>{% endif %}</td></tr>{% else %}<tr><td colspan="5"><div class="notification-empty compact"><i class="bi bi-braces-asterisk"></i><h3>{{ _('notification.templates.empty') }}</h3><p>{{ _('notification.templates.empty_hint') }}</p></div></td></tr>{% endfor %}</tbody></table>
       </div>
     </section>
 
@@ -166,6 +167,8 @@
       {{ render_pagination(delivery_pagination, delivery_pagination_base, _('notification.deliveries.total_label')) }}
     </section>
 
+      </div>
+    </div>
   </div>
 </div>
 

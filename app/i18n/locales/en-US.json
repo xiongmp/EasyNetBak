@@ -120,7 +120,7 @@
   "page.settings.subtitle": "Configure system runtime parameters and external storage",
   "page.storage_settings.subtitle": "Configure external storage services (S3/FTP)",
   "page.api_keys.subtitle": "View and manage API keys for external access",
-  "page.notifications.subtitle": "Email alerts and notification rules",
+  "page.notifications.subtitle": "Route backup events by device group, platform, and failure type to email, collaboration tools, or webhooks.",
   "page.users.subtitle": "Manage system accounts and role assignments",
   "page.roles.subtitle": "Manage system roles and permission assignments",
   "dashboard.window.24h": "Last 24 hours",

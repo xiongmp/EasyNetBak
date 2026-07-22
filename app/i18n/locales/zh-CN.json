@@ -120,7 +120,7 @@
   "page.settings.subtitle": "配置系统运行参数与外部存储",
   "page.storage_settings.subtitle": "配置外部存储服务 (S3/FTP)",
   "page.api_keys.subtitle": "查看和管理用于外部接入的 API Keys",
-  "page.notifications.subtitle": "邮件告警与通知规则",
+  "page.notifications.subtitle": "用策略把备份事件按设备分组、平台和失败类型路由到邮件、协作平台或 Webhook。",
   "page.users.subtitle": "管理系统登录账号与角色分配",
   "page.roles.subtitle": "维护系统角色与权限分配",
   "dashboard.window.24h": "最近24小时",
