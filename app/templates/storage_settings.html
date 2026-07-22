@@ -43,7 +43,7 @@
                           <label class="form-label small text-secondary mb-1">Access Key</label>
                           <div class="input-group input-group-sm">
                             <input name="s3_access_key" id="s3_access_key" type="password" class="form-control" value="{{ s3_access_key }}" placeholder="{{ _('template.notifications.not_set') }}" />
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 's3_access_key')">
+                            <button class="btn btn-outline-secondary" type="button" data-toggle-password-target="s3_access_key">
                               <i class="bi bi-eye"></i>
                             </button>
                           </div>
@@ -53,7 +53,7 @@
                           <label class="form-label small text-secondary mb-1">Secret Key</label>
                           <div class="input-group input-group-sm">
                             <input name="s3_secret_key" id="s3_secret_key" type="password" class="form-control" value="{{ s3_secret_key }}" placeholder="{{ _('template.notifications.not_set') }}" />
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 's3_secret_key')">
+                            <button class="btn btn-outline-secondary" type="button" data-toggle-password-target="s3_secret_key">
                               <i class="bi bi-eye"></i>
                             </button>
                           </div>
@@ -117,7 +117,7 @@
                           <label class="form-label small text-secondary mb-1">{{ _('template.credentials.password') }}</label>
                           <div class="input-group input-group-sm">
                             <input name="ftp_password" id="ftp_password" type="password" class="form-control" value="{{ ftp_password }}" placeholder="{{ _('template.notifications.not_set') }}" />
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this, 'ftp_password')">
+                            <button class="btn btn-outline-secondary" type="button" data-toggle-password-target="ftp_password">
                               <i class="bi bi-eye"></i>
                             </button>
                           </div>
@@ -277,141 +277,5 @@
     </div>
   </div>
 
-  <script>
-    function togglePassword(btn, inputId) {
-      const input = document.getElementById(inputId);
-      const icon = btn.querySelector('i');
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-      } else {
-        input.type = 'password';
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-      // UI 交互优化
-      const s3EnabledSwitch = document.getElementById('s3_enabled');
-      const s3ConfigCard = document.getElementById('s3-config-card');
-      const ftpEnabledSwitch = document.getElementById('ftp_enabled');
-      const ftpConfigCard = document.getElementById('ftp-config-card');
-
-      function updateS3UI() {
-        if (s3EnabledSwitch.checked) {
-          s3ConfigCard.classList.remove('s3-inactive-mode');
-        } else {
-          s3ConfigCard.classList.add('s3-inactive-mode');
-        }
-      }
-
-      function updateFTPUI() {
-        if (ftpEnabledSwitch.checked) {
-          ftpConfigCard.classList.remove('s3-inactive-mode');
-        } else {
-          ftpConfigCard.classList.add('s3-inactive-mode');
-        }
-      }
-
-      if (s3EnabledSwitch && s3ConfigCard) {
-        s3EnabledSwitch.addEventListener('change', updateS3UI);
-        updateS3UI();
-      }
-
-      if (ftpEnabledSwitch && ftpConfigCard) {
-        ftpEnabledSwitch.addEventListener('change', updateFTPUI);
-        updateFTPUI();
-      }
-
-      // S3 测试
-      const btnTestS3 = document.getElementById('btn-test-s3');
-      if (btnTestS3) {
-        btnTestS3.addEventListener('click', async function() {
-          const originalText = btnTestS3.innerHTML;
-          btnTestS3.disabled = true;
-          btnTestS3.innerHTML = ('<span class="spinner-border spinner-border-sm me-1"></span>{{ _('template.storage_settings.testing') }}...');
-
-          const formData = new FormData();
-          formData.append('s3_endpoint', document.getElementById('s3_endpoint').value);
-          formData.append('s3_region', document.getElementById('s3_region').value);
-          formData.append('s3_access_key', document.getElementById('s3_access_key').value);
-          formData.append('s3_secret_key', document.getElementById('s3_secret_key').value);
-          formData.append('s3_bucket', document.getElementById('s3_bucket').value);
-          // 添加 CSRF token (假设在 meta 标签或 hidden input 中)
-          // 这里我们从页面上的 hidden input 获取
-          const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-
-          try {
-            const resp = await fetch('/settings/test-s3', { // {{ _('template.storage_settings.existing_test_endpoint_comment') }}
-              method: 'POST',
-              body: formData,
-              headers: {
-                'X-CSRF-Token': csrfToken
-              }
-            });
-            const data = await resp.json();
-            if (data && data.error && data.error.message && !data.message) data.message = data.error.message;
-            
-            if (data.success) {
-              window.NB.showToast('✅ ' + (data.message || 'S3 {{ _('template.storage_settings.connection_test_succeeded') }}'), 'success');
-            } else {
-              window.NB.showToast('❌ ' + (data.message || 'S3 {{ _('template.storage_settings.connection_test_failed') }}'), 'error');
-            }
-          } catch (error) {
-            window.NB.showToast('❌ {{ _('template.backups.request_failed') }}：' + error, 'error');
-          } finally {
-            btnTestS3.disabled = false;
-            btnTestS3.innerHTML = originalText;
-          }
-        });
-      }
-
-      // FTP 测试
-      const btnTestFtp = document.getElementById('btn-test-ftp');
-      if (btnTestFtp) {
-        btnTestFtp.addEventListener('click', async function() {
-          const originalText = btnTestFtp.innerHTML;
-          btnTestFtp.disabled = true;
-          btnTestFtp.innerHTML = ('<span class="spinner-border spinner-border-sm me-1"></span>{{ _('template.storage_settings.testing') }}...');
-
-          const formData = new FormData();
-          formData.append('ftp_host', document.getElementById('ftp_host').value);
-          formData.append('ftp_port', document.getElementById('ftp_port').value);
-          formData.append('ftp_username', document.getElementById('ftp_username').value);
-          formData.append('ftp_password', document.getElementById('ftp_password').value);
-          formData.append('ftp_base_dir', document.getElementById('ftp_base_dir').value);
-          formData.append('ftp_passive', document.querySelector('select[name="ftp_passive"]').value);
-          formData.append('ftp_timeout', document.querySelector('input[name="ftp_timeout"]').value);
-          formData.append('ftp_encoding', document.getElementById('ftp_encoding').value);
-
-          const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-
-          try {
-            const resp = await fetch('/settings/test-ftp', { // {{ _('template.storage_settings.existing_test_endpoint_comment') }}
-              method: 'POST',
-              body: formData,
-              headers: {
-                'X-CSRF-Token': csrfToken
-              }
-            });
-            const data = await resp.json();
-            if (data && data.error && data.error.message && !data.message) data.message = data.error.message;
-
-            if (data.success) {
-              window.NB.showToast('✅ ' + (data.message || 'FTP {{ _('template.storage_settings.connection_test_succeeded') }}'), 'success');
-            } else {
-              window.NB.showToast('❌ ' + (data.message || 'FTP {{ _('template.storage_settings.connection_test_failed') }}'), 'error');
-            }
-          } catch (error) {
-            window.NB.showToast('❌ {{ _('template.backups.request_failed') }}：' + error, 'error');
-          } finally {
-            btnTestFtp.disabled = false;
-            btnTestFtp.innerHTML = originalText;
-          }
-        });
-      }
-    });
-  </script>
+  <script src="/static/js/pages/storage-settings.js?v={{ app_version }}-frontend-foundation-1"></script>
 {% endblock %}

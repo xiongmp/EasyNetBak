@@ -1,56 +1,7 @@
 window.NB = window.NB || {};
-        (function () {
-          // Auto-expand active menu group
-          const activeLink = document.querySelector('.sidebar .nav-link.active');
-          if (activeLink) {
-            const collapseEl = activeLink.closest('.collapse');
-            if (collapseEl) {
-              const bs = window.bootstrap;
-              if (bs && bs.Collapse) {
-                const col = new bs.Collapse(collapseEl, { toggle: false });
-                col.show();
-                
-                // Also update the label state (remove .collapsed)
-                const label = document.querySelector(`[data-bs-target="#${collapseEl.id}"]`);
-                if (label) {
-                  label.classList.remove('collapsed');
-                }
-              } else {
-                // Fallback if BS is not fully ready
-                collapseEl.classList.add('show');
-                const label = document.querySelector(`[data-bs-target="#${collapseEl.id}"]`);
-                if (label) label.classList.remove('collapsed');
-              }
-            }
-          }
 
-          // Flash messages are localized by the server from stable catalog keys.
-          const flash = window.NB_FLASH || {};
-          const msg = flash.message;
-          const err = flash.error;
-          if (msg) window.NB.showToast(msg, 'success');
-          if (err) window.NB.showToast(err, 'error');
-
-          document.addEventListener('click', function(e) {
-            const btn = e.target.closest('.btn-delete-ask');
-            if (!btn) return;
-            
-            e.preventDefault();
-            const targetForm = btn.closest('form');
-            const messageKey = btn.getAttribute('data-confirm-key');
-            const rawMsg = btn.getAttribute('data-confirm-msg');
-            const msg = messageKey && window.NB && typeof window.NB.t === 'function'
-              ? window.NB.t(messageKey)
-              : rawMsg;
-            
-            window.NB.confirmDelete(msg, function() {
-                if (targetForm) {
-                    HTMLFormElement.prototype.submit.call(targetForm);
-                }
-            });
-          });
-
-          const taskConfig = window.NB_TASK_CONFIG || {};
+window.NB.ready(function initTaskPanel() {
+          const taskConfig = window.NB.readJson("nb-task-config", {});
           const CAN_TRACK_BACKUPS = taskConfig.canTrackBackups === true;
           const CAN_TERMINATE_TASK_RUNS = taskConfig.canTerminateTaskRuns === true;
           const CAN_RETRY_TASK_RUNS = taskConfig.canRetryTaskRuns === true;
@@ -2109,4 +2060,4 @@ window.NB = window.NB || {};
 
           // 初始化加载
           loadJobs();
-        })();
+}, { name: "task-panel" });

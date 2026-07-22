@@ -142,7 +142,7 @@
     window.NB = window.NB || {};
     window.NB.refreshSelectDropdowns = refreshAllSelects;
 
-    document.addEventListener("DOMContentLoaded", () => {
+    window.NB.ready(function initSelectEnhancements() {
       document.querySelectorAll("select.form-select").forEach(enhanceSelect);
-    });
+    }, { name: "select-enhance" });
   })();

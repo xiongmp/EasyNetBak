@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+window.NB.ready(function initDeviceColumns() {
       const table = document.querySelector('.device-list-table table');
       if (!table) return;
 
@@ -90,4 +90,4 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       applyColumnVisibility();
-    });
+    }, { name: "devices-columns" });

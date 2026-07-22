@@ -116,7 +116,7 @@
 
           <div class="mb-3">
              <label class="form-label small fw-bold text-secondary ms-1 mb-1">{{ _('template.mfa_setup.key') }} ({{ _('template.mfa_setup.copy') }})</label>
-             <input type="text" class="form-control form-control-pill text-center font-monospace bg-light" value="{{ mfa_secret }}" readonly onclick="this.select()" style="cursor: pointer;">
+             <input type="text" class="form-control form-control-pill text-center font-monospace bg-light" value="{{ mfa_secret }}" readonly data-select-on-click style="cursor: pointer;">
           </div>
           
           <div class="mb-4">

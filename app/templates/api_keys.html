@@ -53,14 +53,14 @@
               {% if key.is_active %}
               <form action="/api-keys/{{ key.id }}/revoke" method="post" class="d-inline" id="revokeForm-{{ key.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <button type="button" class="btn btn-sm btn-outline-warning" title="{{ _('template.api_keys.revoke') }}" onclick="showRevokeModal('{{ key.id }}', '{{ key.name }}')">
+                <button type="button" class="btn btn-sm btn-outline-warning js-api-key-revoke" title="{{ _('template.api_keys.revoke') }}" data-form-id="revokeForm-{{ key.id }}" data-key-name="{{ key.name|e }}">
                   <i class="bi bi-slash-circle"></i> {{ _('template.api_keys.revoke') }}
                 </button>
               </form>
               {% endif %}
               <form action="/api-keys/{{ key.id }}/delete" method="post" class="d-inline" id="deleteForm-{{ key.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <button type="button" class="btn btn-sm btn-outline-danger" title="{{ _('template.api_keys.delete') }}" onclick="showDeleteModal('{{ key.id }}', '{{ key.name }}')">
+                <button type="button" class="btn btn-sm btn-outline-danger js-api-key-delete" title="{{ _('template.api_keys.delete') }}" data-form-id="deleteForm-{{ key.id }}" data-key-name="{{ key.name|e }}">
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
@@ -162,37 +162,6 @@
   </div>
 </div>
 
-<script>
-let currentRevokeFormId = null;
-let currentDeleteFormId = null;
-
-function showRevokeModal(id, name) {
-    currentRevokeFormId = 'revokeForm-' + id;
-    document.getElementById('revokeKeyName').textContent = name;
-    new bootstrap.Modal(document.getElementById('revokeApiKeyModal')).show();
-}
-
-function showDeleteModal(id, name) {
-    currentDeleteFormId = 'deleteForm-' + id;
-    document.getElementById('deleteKeyName').textContent = name;
-    new bootstrap.Modal(document.getElementById('deleteApiKeyModal')).show();
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('confirmRevokeBtn')?.addEventListener('click', function() {
-        if (currentRevokeFormId) {
-            document.getElementById(currentRevokeFormId).submit();
-        }
-    });
-
-    document.getElementById('confirmDeleteBtn')?.addEventListener('click', function() {
-        if (currentDeleteFormId) {
-            document.getElementById(currentDeleteFormId).submit();
-        }
-    });
-});
-</script>
-
 {% if new_key %}
 <!-- Show New Key Modal -->
 <div class="modal fade" id="showNewKeyModal" data-bs-backdrop="static" tabindex="-1">
@@ -214,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="input-group input-group-lg api-key-wrapper">
             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
             <input type="text" class="form-control font-monospace fs-5 border-start-0 border-end-0 text-center bg-light" id="newApiKey" value="{{ new_key }}" readonly />
-            <button class="btn btn-primary px-4 shadow-sm" type="button" onclick="copyApiKey(this)">
+            <button class="btn btn-primary px-4 shadow-sm" type="button" id="copyNewApiKey">
               <i class="bi bi-clipboard me-1"></i> {{ _('template.api_keys.copy') }}
             </button>
           </div>
@@ -226,50 +195,6 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 </div>
-<script>
-async function copyApiKey(buttonEl) {
-    const copyText = document.getElementById("newApiKey");
-    const apiKeyValue = copyText?.value || "";
-    const btn = buttonEl;
-    let copied = false;
-
-    // Modern Clipboard API works only in secure context (HTTPS/localhost).
-    if (navigator.clipboard && window.isSecureContext) {
-        try {
-            await navigator.clipboard.writeText(apiKeyValue);
-            copied = true;
-        } catch (err) {
-            console.warn('Clipboard API {{ _('template.api_keys.copy_failed') }}:', err);
-        }
-    }
-
-    // Fallback for HTTP / older browsers.
-    if (!copied) {
-        copyText.focus();
-        copyText.select();
-        copyText.setSelectionRange(0, 99999);
-        copied = !!(document.execCommand && document.execCommand('copy'));
-    }
-
-    if (!copied) {
-        alert('{{ _('template.api_keys.copy_failed_in') }} Ctrl+C {{ _('template.api_keys.copy') }}。');
-        return;
-    }
-
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2 me-1"></i> {{ _('template.api_keys.copied') }}';
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-success');
-    setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        btn.classList.remove('btn-success');
-        btn.classList.add('btn-primary');
-    }, 2000);
-}
-document.addEventListener('DOMContentLoaded', function() {
-    var myModal = new bootstrap.Modal(document.getElementById('showNewKeyModal'));
-    myModal.show();
-});
-</script>
 {% endif %}
+<script src="/static/js/pages/api-keys.js?v={{ app_version }}-frontend-foundation-1"></script>
 {% endblock %}

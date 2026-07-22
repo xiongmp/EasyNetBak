@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initDeviceCreateModal() {
         const tr = (text) => text;
         const loginSelect = document.getElementById("device-create-login-method");
         const platformSelect = document.getElementById("device-create-platform");
@@ -78,4 +78,4 @@
 
         loginSelect.addEventListener("change", syncPlatformOptions);
         syncPlatformOptions();
-      })();
+      }, { name: "devices-create-modal" });

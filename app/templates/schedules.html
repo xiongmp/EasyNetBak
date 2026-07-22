@@ -55,9 +55,9 @@
                     </div>
                     <div class="form-text x-small text-muted mt-2">
                       <span class="text-secondary">{{ _('template.schedules.example') }}：</span>
-                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * *'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * *</code> ({{ _('template.schedules.daily') }}02:00)
+                      <code class="cursor-pointer text-primary text-decoration-underline" data-cron-example="0 2 * * *" role="button" tabindex="0">0 2 * * *</code> ({{ _('template.schedules.daily') }}02:00)
                       <span class="mx-2 text-secondary opacity-50">|</span>
-                      <code class="cursor-pointer text-primary text-decoration-underline" onclick="document.getElementById('crontab-input').value='0 2 * * 5'; document.getElementById('crontab-input').dispatchEvent(new Event('input'))">0 2 * * 5</code> ({{ _('template.schedules.every_saturday') }}02:00)
+                      <code class="cursor-pointer text-primary text-decoration-underline" data-cron-example="0 2 * * 5" role="button" tabindex="0">0 2 * * 5</code> ({{ _('template.schedules.every_saturday') }}02:00)
                     </div>
                   </div>
 

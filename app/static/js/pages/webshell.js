@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+window.NB.ready(function initWebshellPage() {
       const tr = (text) => text;
       const initialRootContainer = document.getElementById('terminal-container');
       const reconnectBtn = document.getElementById('btn-reconnect');
@@ -1151,4 +1151,4 @@ document.addEventListener('DOMContentLoaded', function() {
              if (activeTab && activeTab.activeSession) activeTab.activeSession.markActivity();
           }, { passive: true });
       });
-  });
+  }, { name: "webshell-page" });

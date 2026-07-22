@@ -294,14 +294,14 @@
                                   <input class="form-check-input" type="radio" name="group_access_type" id="userAccessAll" value="all" 
                                       {% if not current or current.group_access_type == 'all' %}checked{% endif %}
                                       {% if current and current.username == 'admin' %}disabled{% endif %}
-                                      onchange="toggleGroupSelect(false)">
+                                      data-group-panel-visible="false">
                                   <label class="form-check-label small" for="userAccessAll">{{ _('template.users.group') }} ({{ _('template.users.unrestricted') }})</label>
                               </div>
                               <div class="form-check">
                                   <input class="form-check-input" type="radio" name="group_access_type" id="userAccessSpecific" value="specific"
                                       {% if current and current.group_access_type == 'specific' %}checked{% endif %}
                                       {% if current and current.username == 'admin' %}disabled{% endif %}
-                                      onchange="toggleGroupSelect(true)">
+                                      data-group-panel-visible="true">
                                   <label class="form-check-label small" for="userAccessSpecific">{{ _('template.users.specific_groups') }}</label>
                               </div>
                           </div>
@@ -330,11 +330,13 @@
   {% endif %}
 
   <script>
-    function toggleGroupSelect(show) {
-        document.getElementById('userGroupSelectPanel').style.display = show ? 'block' : 'none';
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-group-panel-visible]').forEach((input) => {
+        input.addEventListener('change', () => {
+          const panel = document.getElementById('userGroupSelectPanel');
+          if (panel) panel.style.display = input.dataset.groupPanelVisible === 'true' ? 'block' : 'none';
+        });
+      });
       // Initialize tooltips
       const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
       const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));

@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initScheduleStatsRuns() {
         const btn = document.querySelector(".js-schedule-run");
         const scheduleStatsConfig = window.SCHEDULE_STATS_CONFIG || {};
         const scheduleId = scheduleStatsConfig.scheduleId == null ? null : scheduleStatsConfig.scheduleId;
@@ -230,4 +230,4 @@
         if (hasActiveRuns) {
           ensurePolling();
         }
-      })();
+      }, { name: "schedule-stats-runs" });

@@ -1337,3 +1337,194 @@ def test_feishu_builtin_template_uses_compact_native_tables_with_row_limits(monk
     assert "cancellation detail must not be displayed" not in serialized
     assert "change summary must not be displayed" not in serialized
     assert len(json.dumps(posted[0]["data"], ensure_ascii=False).encode("utf-8")) < notification_routing_service.FEISHU_CARD_MAX_BYTES
+def test_frontend_foundation_load_order_and_data_boundaries():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "app" / "templates" / "base.html").read_text(encoding="utf-8-sig")
+
+    assert source.index("/static/css/tokens.css") < source.index("/static/css/app.css")
+
+    expected_order = (
+        "/static/js/core/i18n.js",
+        "/static/js/core/page.js",
+        "/static/js/bootstrap.bundle.min.js",
+        "/static/js/core/api.js",
+        "/static/js/core/ui-feedback.js",
+        "/static/js/core/app-shell.js",
+        'id="nb-task-config"',
+        "/static/js/core/nb-common.js",
+    )
+    positions = [source.index(marker) for marker in expected_order]
+    assert positions == sorted(positions)
+    assert 'type="application/json" id="nb-task-config"' in source
+    assert 'type="application/json" id="nb-watermark-config"' in source
+    assert "window.NB_TASK_CONFIG" not in source
+    assert 'createWatermark("{{ current_user.username }}")' not in source
+
+
+def test_static_scripts_use_the_shared_page_lifecycle():
+    root = Path(__file__).resolve().parents[1]
+    javascript_root = root / "app" / "static" / "js"
+    offenders = []
+    for path in javascript_root.rglob("*.js"):
+        if path.name.endswith(".min.js") or path.name == "page.js":
+            continue
+        source = path.read_text(encoding="utf-8-sig")
+        if "DOMContentLoaded" in source:
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []
+
+
+def test_frontend_foundation_files_are_loaded_and_nonempty():
+    root = Path(__file__).resolve().parents[1]
+    core = root / "app" / "static" / "js" / "core"
+    for name in ("page.js", "app-shell.js", "watermark.js"):
+        source = (core / name).read_text(encoding="utf-8-sig")
+        assert len(source.splitlines()) >= 20
+
+    task_panel = (core / "nb-common.js").read_text(encoding="utf-8-sig")
+    assert 'NB.readJson("nb-task-config", {})' in task_panel
+    assert "initTaskPanel" in task_panel
+
+    config_search_template = (root / "app" / "templates" / "config_search.html").read_text(encoding="utf-8-sig")
+    assert 'type="application/json" id="config-search-config"' in config_search_template
+    assert "/static/js/pages/config-search.js" in config_search_template
+    assert "DOMContentLoaded" not in config_search_template
+
+    config_search_script = (root / "app" / "static" / "js" / "pages" / "config-search.js").read_text(encoding="utf-8-sig")
+    assert "{{" not in config_search_script
+    assert 'NB.readJson("config-search-config", {})' in config_search_script
+    assert "escapeText(configText).replace(regex" in config_search_script
+    assert "fetch(" not in config_search_script
+    config_search_messages = javascript_messages("en-US", page="config_search")
+    assert "email.field.backup_time" in config_search_messages
+    assert "template.config_search.view_configuration" in config_search_messages
+    assert "template.config_search.no_configuration_content" in config_search_messages
+
+
+def test_low_risk_frontend_governance_contracts():
+    root = Path(__file__).resolve().parents[1]
+    templates_root = root / "app" / "templates"
+    javascript_root = root / "app" / "static" / "js"
+
+    inline_handler = re.compile(r"\s(?:onclick|onchange|onsubmit|oninput|onkeydown|onkeyup)\s*=", re.IGNORECASE)
+    offenders = []
+    for path in templates_root.rglob("*.html"):
+        if inline_handler.search(path.read_text(encoding="utf-8-sig")):
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []
+
+    direct_fetch_allowlist = {
+        "app/templates/backups.html",
+        "app/templates/device_detail.html",
+    }
+    direct_fetch_offenders = set()
+    for base in (templates_root, javascript_root):
+        for path in base.rglob("*"):
+            if path.suffix not in {".html", ".js"} or path.name.endswith(".min.js") or path.name == "api.js":
+                continue
+            if re.search(r"\bfetch\s*\(", path.read_text(encoding="utf-8-sig")):
+                direct_fetch_offenders.add(str(path.relative_to(root)).replace("\\", "/"))
+    assert direct_fetch_offenders == direct_fetch_allowlist
+
+    migrated_pages = {
+        "login.html": "auth-login.js",
+        "credentials.html": "credentials.js",
+        "api_keys.html": "api-keys.js",
+        "templates.html": "templates.js",
+        "storage_settings.html": "storage-settings.js",
+        "config_search.html": "config-search.js",
+    }
+    for template_name, script_name in migrated_pages.items():
+        template_source = (templates_root / template_name).read_text(encoding="utf-8-sig")
+        assert f"/static/js/pages/{script_name}" in template_source
+        script_source = (javascript_root / "pages" / script_name).read_text(encoding="utf-8-sig")
+        assert "{{" not in script_source
+        assert "NB.ready(function init" in script_source
+
+    tokens = (root / "app" / "static" / "css" / "tokens.css").read_text(encoding="utf-8-sig")
+    assert ":root" in tokens
+    assert '[data-bs-theme="dark"]' in tokens
+
+
+def test_css_duplicate_cleanup_preserves_structure_and_scopes():
+    import hashlib
+
+    root = Path(__file__).resolve().parents[1]
+    app_css = (root / "app" / "static" / "css" / "app.css").read_text(encoding="utf-8-sig")
+    notifications_css = (
+        root / "app" / "static" / "css" / "pages" / "notifications.css"
+    ).read_text(encoding="utf-8-sig")
+
+    def assert_balanced_css(source):
+        depth = 0
+        index = 0
+        quote = None
+        in_comment = False
+        while index < len(source):
+            current = source[index]
+            following = source[index + 1] if index + 1 < len(source) else ""
+            if in_comment:
+                if current == "*" and following == "/":
+                    in_comment = False
+                    index += 2
+                    continue
+            elif quote:
+                if current == "\\":
+                    index += 2
+                    continue
+                if current == quote:
+                    quote = None
+            elif current == "/" and following == "*":
+                in_comment = True
+                index += 2
+                continue
+            elif current in {'"', "'"}:
+                quote = current
+            elif current == "{":
+                depth += 1
+            elif current == "}":
+                depth -= 1
+                assert depth >= 0
+            index += 1
+        assert not in_comment
+        assert quote is None
+        assert depth == 0
+
+    assert_balanced_css(app_css)
+    assert_balanced_css(notifications_css)
+
+    retained_blocks = {
+        "/* Layout */": (91, "c0e0e3fcc1c6c932cff39a3f296de01fb208e53d4d865a39599d083749de1a1f"),
+        "/* Toast Custom Styles */": (56, "3c483bd88687fad8c53f88fc01374246ce34eec56a7f5630213675f63ca85e0d"),
+        "/* Content Header & Breadcrumbs */": (82, "80ed5b1c139fb9e93cc7adb4b4c1a4417a85a3c9d7558417e9164ec7319e9997"),
+        "/* Cards */": (18, "ec0f07be6feed98cf62235609d41291fe8f57116eddeed0115b820b7a17be16c"),
+        "/* Forms & Inputs */": (115, "b08f2240d9d27ad0af455ebb490c9c6675ec34e285647ee47efd8326e81a2e30"),
+    }
+    app_lines = app_css.splitlines()
+    for marker, (line_count, expected_hash) in retained_blocks.items():
+        assert app_lines.count(marker) == 1
+        start = app_lines.index(marker)
+        block = "\n".join(app_lines[start : start + line_count])
+        assert hashlib.sha256(block.encode()).hexdigest() == expected_hash
+
+    assert app_css.count("--premium-shadow:") == 1
+    assert app_css.count("--premium-shadow-lg:") == 1
+    assert app_css.count("--sidebar-width: 280px;") == 1
+
+    assert ".notification-console,\n#templateModal {" in notifications_css
+    assert (
+        '[data-bs-theme="dark"] .notification-console,\n'
+        '[data-bs-theme="dark"] #templateModal {'
+    ) in notifications_css
+    for declaration in (
+        "--signal-ink: #172033;",
+        "--signal-muted: #657189;",
+        "--signal-blue: #2457d6;",
+        "--signal-line: #dfe5ef;",
+        "--signal-paper: #f7f9fc;",
+        "--signal-ink: #edf2ff;",
+        "--signal-muted: #a9b4c9;",
+        "--signal-line: #35405a;",
+        "--signal-paper: #20283a;",
+    ):
+        assert notifications_css.count(declaration) == 1

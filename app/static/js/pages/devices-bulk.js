@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+window.NB.ready(function initDevicesBulkActions() {
       const DEVICE_REACHABILITY = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.reachability) || {};
 
       const selectAll = document.getElementById('select-all');
@@ -615,4 +615,4 @@ document.addEventListener('DOMContentLoaded', function() {
       if (reachBtn) {
          // Moved the click listener to earlier in the file to handle logic properly
       }
-      });
+      }, { name: "devices-bulk" });

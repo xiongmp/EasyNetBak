@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+window.NB.ready(function initShellControls() {
             const themeToggle = document.getElementById('themeToggle');
             const icon = themeToggle.querySelector('i');
             
@@ -148,4 +148,4 @@ document.addEventListener('DOMContentLoaded', function() {
                 label.removeAttribute('data-bs-toggle');
               });
             }
-          });
+          }, { name: "shell-controls" });

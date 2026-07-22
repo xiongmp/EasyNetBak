@@ -101,7 +101,7 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
             return ul;
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        window.NB.ready(function initDeviceGroupControls() {
           class SearchableSelect {
             constructor(selectElement) {
               if (!selectElement) return;
@@ -304,4 +304,4 @@ const groupItems = (window.DEVICES_PAGE_CONFIG && window.DEVICES_PAGE_CONFIG.gro
 
           loginSelect.addEventListener("change", syncPlatformOptions);
           syncPlatformOptions();
-        });
+        }, { name: "devices-groups" });

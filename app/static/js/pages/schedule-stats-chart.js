@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initScheduleStatsChart() {
       const scheduleStatsConfig = window.SCHEDULE_STATS_CONFIG || {};
       const tr = (text) => text;
       const TREND = Array.isArray(scheduleStatsConfig.trend) ? scheduleStatsConfig.trend : [];
@@ -111,4 +111,4 @@
 
         }]
       });
-    })();
+    }, { name: "schedule-stats-chart" });

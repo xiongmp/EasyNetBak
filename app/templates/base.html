@@ -6,6 +6,7 @@
     <title>{% if page_title %}{% if not no_title_prefix %}{{ app_name }} - {% endif %}{{ page_title }}{% elif title %}{{ title }}{% else %}{{ app_name }}{% endif %}</title>
     <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="/static/css/tokens.css?v={{ app_version }}-frontend-foundation-1" rel="stylesheet" />
     <link href="/static/css/app.css?v={{ app_version }}-toast-layer-1" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg" />
     {% block head %}{% endblock %}
@@ -19,6 +20,7 @@
       };
     </script>
     <script src="/static/js/core/i18n.js?v={{ app_version }}-i18n-confirm-3"></script>
+    <script src="/static/js/core/page.js?v={{ app_version }}-frontend-foundation-1"></script>
     <script>
       // 初始化暗黑模式
       (function() {
@@ -538,58 +540,20 @@
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/core/api.js?v={{ app_version }}-i18n-confirm-3"></script>
     <script src="/static/js/core/ui-feedback.js?v={{ app_version }}-i18n-confirm-4"></script>
+    <script src="/static/js/core/app-shell.js?v={{ app_version }}-frontend-foundation-1"></script>
     {% if current_user %}
-      <script>
-        window.NB_TASK_CONFIG = {
-          canTrackBackups: {{ "true" if has_permission('backups.view') else "false" }},
-          canTerminateTaskRuns: {{ "true" if has_permission('schedules.update') else "false" }},
-          canRetryTaskRuns: {{ "true" if has_permission('devices.backup') else "false" }}
-        };
-      </script>
+      <script type="application/json" id="nb-task-config">{{ {
+        "canTrackBackups": has_permission('backups.view'),
+        "canTerminateTaskRuns": has_permission('schedules.update'),
+        "canRetryTaskRuns": has_permission('devices.backup')
+      } | tojson }}</script>
       <script src="/static/js/core/nb-common.js?v={{ app_version }}-i18n-confirm-3"></script>
     {% endif %}
     <script src="/static/js/core/select-enhance.js?v={{ app_version }}-i18n-confirm-3"></script>
 
 {% if current_user and current_user.enable_watermark %}
-<script>
-  (function() {
-    function createWatermark(text) {
-      const canvas = document.createElement('canvas');
-      // 扩大画布尺寸，让水印间距变大，避免文字密集堆叠影响阅读
-      canvas.width = 350;
-      canvas.height = 250;
-      const ctx = canvas.getContext('2d');
-
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      // 增加倾斜角度，视觉上更有纵深感
-      ctx.rotate(-30 * Math.PI / 180);
-      // 使用更大且加粗的字体，让水印更醒目
-      ctx.font = 'bold 22px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-      ctx.fillStyle = 'rgba(130, 130, 130, 1)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 0, 0);
-
-      return canvas.toDataURL('image/png');
-    }
-
-    const watermarkDiv = document.createElement('div');
-    watermarkDiv.className = 'nb-watermark';
-    watermarkDiv.style.pointerEvents = 'none';
-    watermarkDiv.style.position = 'fixed';
-    watermarkDiv.style.top = '0';
-    watermarkDiv.style.left = '0';
-    watermarkDiv.style.width = '100vw';
-    watermarkDiv.style.height = '100vh';
-    watermarkDiv.style.zIndex = '9999';
-    // 适当提升透明度，结合大号粗体字达到醒目但不遮挡内容的平衡
-    watermarkDiv.style.opacity = '0.15';
-    watermarkDiv.style.backgroundImage = 'url(' + createWatermark("{{ current_user.username }}") + ')';
-    watermarkDiv.style.backgroundRepeat = 'repeat';
-
-    document.body.appendChild(watermarkDiv);
-  })();
-</script>
+<script type="application/json" id="nb-watermark-config">{{ {"text": current_user.username} | tojson }}</script>
+<script src="/static/js/core/watermark.js?v={{ app_version }}-frontend-foundation-1"></script>
 {% endif %}
 
 {% block scripts %}{% endblock %}

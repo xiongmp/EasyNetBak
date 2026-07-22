@@ -1,4 +1,4 @@
-(function() {
+window.NB.ready(function initScheduleStatsCron() {
         const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
         const cronEl = document.getElementById("cron-meaning");
         if (cronEl) {
@@ -34,4 +34,4 @@
             }
           }
         }
-      })();
+      }, { name: "schedule-stats-cron" });

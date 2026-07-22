@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initProfilePage() {
   'use strict';
 
   const form = document.getElementById('passwordForm');
@@ -61,4 +61,4 @@
     updateMatch();
   });
   confirmPassword.addEventListener('input', updateMatch);
-})();
+}, { name: "profile-page" });

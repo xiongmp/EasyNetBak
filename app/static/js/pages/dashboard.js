@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+window.NB.ready(function initDashboardPage() {
     const t = (value) => value;
     const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
     const successLabel = NB.t("status.backup.succeeded");
@@ -803,4 +803,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-});
+}, { name: "dashboard-page" });

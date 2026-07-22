@@ -1,4 +1,5 @@
-(function () {
+window.NB.ready(function initSchedulesCron() {
+      const controller = new AbortController();
       const localeCapabilities = (window.NB && window.NB.i18n && window.NB.i18n.capabilities) || {};
       // cronstrue 默认按 Linux 周定义解析（0=周日），这里把 APScheduler 周数字（0=周一, 6=周日）
       // 转成 Linux 语义，仅用于前端文案展示，不影响后端实际调度。
@@ -98,14 +99,29 @@
       const cronInput = document.getElementById("crontab-input");
       const cronMeaning = document.getElementById("crontab-meaning");
       if (cronInput && cronMeaning) {
-        cronInput.addEventListener("input", () => updateCronMeaning(cronInput, cronMeaning));
+        cronInput.addEventListener("input", () => updateCronMeaning(cronInput, cronMeaning), { signal: controller.signal });
         updateCronMeaning(cronInput, cronMeaning);
       }
+      document.querySelectorAll("[data-cron-example]").forEach((example) => {
+        const applyExample = () => {
+          if (!cronInput) return;
+          cronInput.value = example.dataset.cronExample || "";
+          cronInput.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+        example.addEventListener("click", applyExample, { signal: controller.signal });
+        example.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            applyExample();
+          }
+        }, { signal: controller.signal });
+      });
 
       // 弹窗自动唤起与 URL 清理
       const scheduleModalEl = document.getElementById('scheduleModal');
+      let scheduleModal = null;
       if (scheduleModalEl) {
-        const scheduleModal = new bootstrap.Modal(scheduleModalEl);
+        scheduleModal = bootstrap.Modal.getOrCreateInstance(scheduleModalEl);
         
         // 如果 URL 中有 edit 参数，自动打开弹窗
         const urlParams = new URLSearchParams(window.location.search);
@@ -118,7 +134,7 @@
           if (urlParams.has('edit')) {
             window.location.href = '/schedules';
           }
-        });
+        }, { signal: controller.signal });
 
         // 如果没有打开弹窗（即不是通过 edit 参数进来的），则显示返回列表按钮（如果存在）
         if (!urlParams.has('edit')) {
@@ -126,4 +142,8 @@
           if (backBtn) backBtn.classList.remove('d-none');
         }
       }
-    })();
+      return () => {
+        controller.abort();
+        scheduleModal?.dispose();
+      };
+    }, { name: "schedules-cron" });

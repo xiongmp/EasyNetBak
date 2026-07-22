@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initNotificationsPage() {
   "use strict";
 
   const csrfToken = document.getElementById("notification-csrf-token")?.value || "";
@@ -1035,4 +1035,4 @@
 
   updateChannelFields();
   updateTemplateSample();
-})();
+}, { name: "notifications-page" });

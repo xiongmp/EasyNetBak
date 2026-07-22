@@ -2,7 +2,7 @@ window.NB = window.NB || {};
 
 (function () {
   async function parseJson(response) {
-    if (!response) return null;
+    if (!response || response.status === 204) return null;
     try {
       return await response.clone().json();
     } catch (e) {
@@ -35,16 +35,31 @@ window.NB = window.NB || {};
     return fallback || "";
   }
 
+  function buildOptions(options) {
+    const source = options || {};
+    const headers = new Headers(source.headers || {});
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
+    if (!headers.has("X-Requested-With")) headers.set("X-Requested-With", "XMLHttpRequest");
+    return { ...source, credentials: source.credentials || "same-origin", headers };
+  }
+
   async function request(url, options) {
-    const response = await fetch(url, options || {});
+    const response = await fetch(url, buildOptions(options));
     const data = await parseJson(response);
-    return { response, data, ok: !!(response && response.ok) };
+    const requestId = response.headers.get("X-Request-ID") || "";
+    if (response.status === 401) {
+      document.dispatchEvent(new CustomEvent("nb:authentication-required", {
+        detail: { url: String(url), requestId },
+      }));
+    }
+    return { response, data, ok: response.ok, requestId };
   }
 
   window.NB.api = {
     parseJson,
     extractErrorDetail,
     extractErrorCode,
+    buildOptions,
     request,
   };
 })();

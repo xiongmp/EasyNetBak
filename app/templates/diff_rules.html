@@ -282,7 +282,7 @@
         <h5 class="fw-bold">{{ _('template.diff_rules.no_custom_ignore_rules') }}</h5>
         <p class="text-secondary mb-4 small">{{ _('template.diff_rules.add') }} Diff {{ _('template.diff_rules.configuration_change') }}</p>
         ${canCreateRules ? `
-        <button type="button" class="btn btn-primary px-4" style="border-radius: 10px;" onclick="document.getElementById('btn-add-rule').click()">
+        <button type="button" class="btn btn-primary px-4" style="border-radius: 10px;" data-forward-click="#btn-add-rule">
           <i class="bi bi-plus-lg me-1"></i>{{ _('template.diff_rules.configure_the_first_rule') }}
         </button>` : ""}
       `;

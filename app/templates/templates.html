@@ -121,7 +121,7 @@
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="small text-secondary fw-medium">{{ _('template.templates.custom_template_list') }}</div>
         {% if can_template_create %}
-          <button class="btn btn-sm btn-primary px-3" data-bs-toggle="modal" data-bs-target="#templateModal" onclick="resetTemplateModal()">
+          <button class="btn btn-sm btn-primary px-3" data-bs-toggle="modal" data-bs-target="#templateModal" id="resetTemplateModal">
             <i class="bi bi-plus-lg me-1"></i>{{ _('template.templates.add_template') }}
           </button>
         {% endif %}
@@ -196,89 +196,7 @@
   </div>
 
   {% if can_template_write %}
-    <script>
-      (function () {
-        const loginSelect = document.getElementById("template-login-method");
-        const platformSelect = document.getElementById("template-platform");
-        if (!loginSelect || !platformSelect) return;
-
-        function syncPlatformOptions() {
-          const loginMethod = (loginSelect.value || "ssh").toLowerCase();
-          const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
-          const options = Array.from(platformSelect.options);
-          let firstVisibleValue = null;
-
-          options.forEach((opt) => {
-            const kind = opt.getAttribute("data-kind") || "ssh";
-            const visible = kind === wantKind;
-            opt.hidden = !visible;
-            opt.disabled = !visible;
-            if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
-          });
-
-          const current = platformSelect.value;
-          const currentOpt = options.find((o) => o.value === current);
-          if (!currentOpt || currentOpt.hidden || currentOpt.disabled) {
-            platformSelect.value = firstVisibleValue || "";
-          }
-        }
-
-        loginSelect.addEventListener("change", syncPlatformOptions);
-        syncPlatformOptions();
-
-        window.resetTemplateModal = function() {
-          document.querySelector('#templateModal input[name="template_id"]').value = '0';
-          document.querySelector('#templateModal input[name="name"]').value = '';
-          document.querySelector('#templateModal textarea[name="commands"]').value = '';
-          loginSelect.value = 'ssh';
-          loginSelect.dispatchEvent(new Event('change'));
-          document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.add_custom_template') }}');
-        };
-
-        document.querySelectorAll('.btn-edit-template').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const id = btn.getAttribute('data-id');
-            const name = btn.getAttribute('data-name');
-            const platform = btn.getAttribute('data-platform');
-            const commands = btn.getAttribute('data-commands');
-            
-            document.querySelector('#templateModal input[name="template_id"]').value = id;
-            document.querySelector('#templateModal input[name="name"]').value = name;
-            document.querySelector('#templateModal textarea[name="commands"]').value = commands;
-            
-            if (platform && platform.endsWith('_telnet')) {
-              loginSelect.value = 'telnet';
-            } else {
-              loginSelect.value = 'ssh';
-            }
-            loginSelect.dispatchEvent(new Event('change'));
-            platformSelect.value = platform;
-            
-            document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.edit_custom_template') }}');
-            const modal = new bootstrap.Modal(document.getElementById('templateModal'));
-            modal.show();
-          });
-        });
-        
-        {% if current %}
-        // If there was a validation error or something that kept 'current', open the modal automatically.
-        document.querySelector('#templateModal input[name="template_id"]').value = '{{ current.id }}';
-        document.querySelector('#templateModal input[name="name"]').value = '{{ current.name }}';
-        
-        document.querySelector('#templateModal textarea[name="commands"]').value = {{ current.commands | tojson | safe }};
-        
-        {% if current.platform.endswith('_telnet') %}
-        loginSelect.value = 'telnet';
-        {% else %}
-        loginSelect.value = 'ssh';
-        {% endif %}
-        loginSelect.dispatchEvent(new Event('change'));
-        platformSelect.value = '{{ current.platform }}';
-        document.querySelector('#templateModal .modal-title').textContent = ('{{ _('template.templates.edit_custom_template') }}');
-        const modal = new bootstrap.Modal(document.getElementById('templateModal'));
-        modal.show();
-        {% endif %}
-      })();
-    </script>
+    <script type="application/json" id="templates-page-config">{{ {"current": ({"id": current.id, "name": current.name, "commands": current.commands, "platform": current.platform} if current else none)} | tojson }}</script>
+    <script src="/static/js/pages/templates.js?v={{ app_version }}-frontend-foundation-1"></script>
   {% endif %}
 {% endblock %}

@@ -1,0 +1,44 @@
+:root {
+  --sidebar-bg: #0f172a;
+  --sidebar-bg-2: #1e293b;
+  --sidebar-active-text: #60a5fa;
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-text: #f8fafc;
+  --sidebar-text-muted: #94a3b8;
+  --page-bg: #f1f5f9;
+  --content-title-color: #1e293b;
+  --card-bg: #ffffff;
+  --card-border: rgba(226, 232, 240, 0.8);
+  --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --body-bg: var(--card-bg);
+  --primary-color: #3b82f6;
+  --primary-rgb: 59, 130, 246;
+  --primary-hover: #2563eb;
+  --dropdown-selected-bg: #3478f6;
+  --dropdown-selected-color: #ffffff;
+  --text-color: #334155;
+  --input-bg: #fff;
+  --input-border: #ced4da;
+  --table-border-color: #e2e8f0;
+  --table-head-bg: #f8fafc;
+}
+
+[data-bs-theme="dark"] {
+  --page-bg: #0f172a;
+  --content-title-color: #f8fafc;
+  --card-bg: #1e293b;
+  --card-border: #2d3748;
+  --text-color: #e2e8f0;
+  --input-bg: #1e293b;
+  --input-border: #475569;
+  --table-border-color: #334155;
+  --table-head-bg: #1e293b;
+  --bs-body-bg: var(--page-bg);
+  --bs-body-color: var(--text-color);
+  --bs-card-bg: var(--card-bg);
+  --bs-card-border-color: var(--card-border);
+  --bs-border-color: var(--card-border);
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text-color);
+  --bs-table-border-color: var(--table-border-color);
+}

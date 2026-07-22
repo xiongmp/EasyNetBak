@@ -4,7 +4,7 @@
        {{ _('template.macros.total') }} {{ pagination.total }} {{ total_label }}
     </div>
     <div class="d-flex align-items-center gap-2">
-        <select class="form-select form-select-sm pagination-control-sm" style="width: 105px;" onchange="location.href='{{ pagination_base }}1&limit=' + this.value">
+        <select class="form-select form-select-sm pagination-control-sm" style="width: 105px;" data-pagination-base="{{ pagination_base }}">
             <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10 {{ _('template.macros.items_per_page') }}</option>
             <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20 {{ _('template.macros.items_per_page') }}</option>
             <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 {{ _('template.macros.items_per_page') }}</option>
@@ -33,7 +33,7 @@
                    style="width: 40px;" 
                    value="{{ pagination.page }}" 
                    min="1" max="{{ pagination.total_pages }}"
-                   onkeydown="if(event.keyCode==13) { let p=parseInt(this.value); if(p>=1 && p<={{ pagination.total_pages }}) location.href='{{ pagination_base }}' + p; }">
+                   data-pagination-jump="{{ pagination_base }}" data-pagination-total="{{ pagination.total_pages }}">
             <span>{{ _('template.macros.page') }}</span>
         </div>
     </div>

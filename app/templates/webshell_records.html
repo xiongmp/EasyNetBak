@@ -94,7 +94,7 @@
                         </td>
                         <td>
                             {% if can_webshell_records %}
-                            <button class="btn btn-sm btn-success d-flex align-items-center justify-content-center rounded-pill px-3" style="height: 28px; font-size: 12px; background-color: #20c997; border-color: #20c997;" onclick="playRecord({{ record.id }}, '{{ record.device_name | replace('\'', '\\\'') }}', '{{ record.device_host | replace('\'', '\\\'') }}', '{{ record.started_at | dt_local }}', {{ record.duration or 0 }}, '{{ record.username | replace('\'', '\\\'') }}', '{{ record.device_login_name or '' | replace('\'', '\\\'') }}')">
+                            <button class="btn btn-sm btn-success d-flex align-items-center justify-content-center rounded-pill px-3 js-play-record" style="height: 28px; font-size: 12px; background-color: #20c997; border-color: #20c997;" type="button" data-record-id="{{ record.id }}" data-device-name="{{ record.device_name|e }}" data-device-host="{{ record.device_host|e }}" data-started-at="{{ record.started_at|dt_local|e }}" data-duration="{{ record.duration or 0 }}" data-username="{{ record.username|e }}" data-login-name="{{ (record.device_login_name or '')|e }}">
                                 <i class="bi bi-play-fill me-1"></i>{{ _('template.base.playback') }}
                             </button>
                             {% else %}
@@ -185,6 +185,17 @@ let isMaximized = false;
   function tr(text) { return text; }
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.js-play-record').forEach((button) => {
+        button.addEventListener('click', () => playRecord(
+            Number(button.dataset.recordId),
+            button.dataset.deviceName || '',
+            button.dataset.deviceHost || '',
+            button.dataset.startedAt || '',
+            Number(button.dataset.duration || 0),
+            button.dataset.username || '',
+            button.dataset.loginName || ''
+        ));
+    });
     const modalEl = document.getElementById('playbackModal');
     playbackModal = new bootstrap.Modal(modalEl);
     

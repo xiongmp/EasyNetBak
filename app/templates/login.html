@@ -146,34 +146,5 @@
   </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const togglePassword = document.querySelector('#togglePassword');
-  const password = document.querySelector('#passwordInput');
-  const toggleIcon = document.querySelector('#toggleIcon');
-  const loginForm = document.querySelector('#loginForm');
-  const submitBtn = document.querySelector('#submitBtn');
-
-  // Toggle password visibility
-  if (togglePassword) {
-    togglePassword.addEventListener('click', function() {
-      const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
-      password.setAttribute('type', type);
-      toggleIcon.classList.toggle('bi-eye');
-      toggleIcon.classList.toggle('bi-eye-slash');
-    });
-  }
-
-  // Handle form submission loading state
-  if (loginForm) {
-    loginForm.addEventListener('submit', function() {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-        {{ _('template.login.signing_in') }}...
-      `;
-    });
-  }
-});
-</script>
+<script src="/static/js/pages/auth-login.js?v={{ app_version }}-frontend-foundation-1"></script>
 {% endblock %}

@@ -1,4 +1,4 @@
-(function () {
+window.NB.ready(function initSchedulesPage() {
         const btns = Array.from(document.querySelectorAll(".js-schedule-run"));
         const toggles = Array.from(document.querySelectorAll(".js-schedule-toggle"));
 
@@ -1127,4 +1127,4 @@
             renderDrawerPreview(lastDrawerPreviewData);
           });
         }
-      })();
+      }, { name: "schedules-page" });
