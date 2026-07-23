@@ -246,7 +246,7 @@ docker compose up -d --build
 ![角色管理](image/roles.png)
 ### API接口和文档
 
-![API接口文档](image/API接口.png)
+![API接口文档](image/API.png)
 
 
 
