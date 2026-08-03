@@ -65,13 +65,17 @@
             <!-- 第二行：分类与备份设置 -->
             <div class="col-12 col-lg-3">
               <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-cpu me-1"></i>{{ _('template.device_detail.device_type') }}</label>
+              {% set current_login_kind = 'telnet' if device.login_method == 'telnet' else 'ssh' %}
               <select name="platform" class="form-select form-select-sm" id="device-update-platform" required>
-                {% for p in ssh_platforms %}
-                  <option value="{{ p.id }}" data-kind="ssh" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
-                {% endfor %}
-                {% for p in telnet_platforms %}
-                  <option value="{{ p.id }}" data-kind="telnet" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
-                {% endfor %}
+                {% if current_login_kind == 'ssh' %}
+                  {% for p in ssh_platforms %}
+                    <option value="{{ p.id }}" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+                  {% endfor %}
+                {% else %}
+                  {% for p in telnet_platforms %}
+                    <option value="{{ p.id }}" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
+                  {% endfor %}
+                {% endif %}
               </select>
             </div>
             <div class="col-12 col-lg-3">
@@ -263,10 +267,18 @@
               return ul;
           }
 
-          (function () {
+          function initDeviceDetailForm() {
             const loginSelect = document.getElementById("device-update-login-method");
             const platformSelect = document.getElementById("device-update-platform");
             const portInput = document.getElementById("device-update-port");
+            const platformOptions = [
+              {% for p in ssh_platforms %}
+              { value: {{ p.id|tojson }}, label: {{ p.label|tojson }}, kind: "ssh" },
+              {% endfor %}
+              {% for p in telnet_platforms %}
+              { value: {{ p.id|tojson }}, label: {{ p.label|tojson }}, kind: "telnet" },
+              {% endfor %}
+            ];
             
             // 分组树选择逻辑
             const updateGroupIdInput = document.getElementById('updateGroupId');
@@ -313,20 +325,24 @@
             function syncPlatformOptions(isInitial) {
               const loginMethod = (loginSelect.value || "ssh").toLowerCase();
               const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
-              const options = Array.from(platformSelect.options);
-              let firstVisibleValue = null;
-              options.forEach((opt) => {
-                const kind = opt.getAttribute("data-kind") || "ssh";
-                const visible = kind === wantKind;
-                opt.hidden = !visible;
-                opt.disabled = !visible;
-                if (visible && !firstVisibleValue) firstVisibleValue = opt.value;
+              const currentValue = platformSelect.value;
+              const matchedOptions = platformOptions.filter((item) => item.kind === wantKind);
+              const nextValue = matchedOptions.some((item) => item.value === currentValue)
+                ? currentValue
+                : (matchedOptions[0] ? matchedOptions[0].value : "");
+
+              const fragment = document.createDocumentFragment();
+              matchedOptions.forEach((item) => {
+                const opt = document.createElement("option");
+                opt.value = item.value;
+                opt.textContent = item.label;
+                if (item.value === nextValue) {
+                  opt.selected = true;
+                }
+                fragment.appendChild(opt);
               });
-              const current = platformSelect.value;
-              const currentOpt = options.find((o) => o.value === current);
-              if (!currentOpt || currentOpt.hidden || currentOpt.disabled) {
-                platformSelect.value = firstVisibleValue || "";
-              }
+              platformSelect.replaceChildren(fragment);
+              platformSelect.value = nextValue;
 
               if (!isInitial && portInput) {
                 const v = String(portInput.value || "").trim();
@@ -337,8 +353,15 @@
             }
 
             loginSelect.addEventListener("change", () => syncPlatformOptions(false));
+            loginSelect.addEventListener("input", () => syncPlatformOptions(false));
             syncPlatformOptions(true);
-          })();
+          }
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initDeviceDetailForm, { once: true });
+          } else {
+            initDeviceDetailForm();
+          }
         </script>
       {% endif %}
     </div>
