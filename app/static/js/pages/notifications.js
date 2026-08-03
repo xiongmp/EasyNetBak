@@ -219,6 +219,8 @@ window.NB.ready(function initNotificationsPage() {
   const templateSubject = templateForm?.querySelector('[name="subject_template"]');
   const templateBody = templateForm?.querySelector('[name="body_template"]');
   const templateEvent = templateForm?.querySelector('[name="event_type"]');
+  const templateLocale = templateForm?.querySelector('select[name="locale"]');
+  const templateLocaleSubmit = document.getElementById("templateLocaleSubmit");
   const templateContentType = templateForm?.querySelector('[name="content_type"]');
   const templateInsertTarget = document.getElementById("templateInsertTarget");
   const templatePreview = document.getElementById("templatePreview");
@@ -248,6 +250,7 @@ window.NB.ready(function initNotificationsPage() {
 
   function updateBuiltinFormatLock(item = {}) {
     const format = builtinTemplateFormats[item.builtin_key] || null;
+    const isBuiltin = !!item.builtin;
     const channelField = templateForm?.querySelector('[name="channel_type"]');
     const contentField = templateForm?.querySelector('[name="content_type"]');
     const hint = document.getElementById("builtinTemplateFormatHint");
@@ -258,6 +261,25 @@ window.NB.ready(function initNotificationsPage() {
       field.setAttribute("aria-disabled", String(!!value));
       if (value) field.value = value;
     });
+    if (templateLocale) {
+      const autoOption = templateLocale.querySelector('option[value="auto"]');
+      templateLocale.disabled = isBuiltin;
+      templateLocale.classList.toggle("is-locale-locked", isBuiltin);
+      templateLocale.setAttribute("aria-disabled", String(isBuiltin));
+      if (autoOption) {
+        autoOption.hidden = !isBuiltin;
+        autoOption.disabled = !isBuiltin;
+      }
+      if (isBuiltin) {
+        templateLocale.value = "auto";
+      } else if (templateLocale.value === "auto") {
+        templateLocale.value = "zh-CN";
+      }
+    }
+    if (templateLocaleSubmit) {
+      templateLocaleSubmit.disabled = !isBuiltin;
+      templateLocaleSubmit.value = window.NB_LOCALE || "zh-CN";
+    }
     if (hint) hint.hidden = !format;
   }
 
@@ -833,13 +855,29 @@ window.NB.ready(function initNotificationsPage() {
 
   function updateStatusBadge(container, enabled) {
     const badge = container.querySelector(".status-badge");
-    if (!badge) return;
     const msg = enabled ? messages.enabled : messages.disabled;
-    badge.className = `status-badge ${enabled ? "is-live" : "is-paused"}`;
-    badge.innerHTML = `<i class="bi ${enabled ? "bi-check-circle-fill" : "bi-pause-circle-fill"}" aria-hidden="true"></i>${msg || ""}`;
+    if (badge) {
+      badge.className = `status-badge ${enabled ? "is-live" : "is-paused"}`;
+      badge.innerHTML = `<i class="bi ${enabled ? "bi-check-circle-fill" : "bi-pause-circle-fill"}" aria-hidden="true"></i>${msg || ""}`;
+    }
+    const switchInput = container.querySelector(".state-toggle-switch");
+    if (switchInput) {
+      switchInput.checked = enabled;
+      switchInput.dataset.enabled = enabled ? "0" : "1";
+      switchInput.setAttribute("aria-label", msg || "");
+      switchInput.setAttribute("title", msg || "");
+    }
+    const switchLabel = container.querySelector(".state-switch-label");
+    if (switchLabel) {
+      switchLabel.textContent = msg || "";
+    }
   }
 
   function updateToggleButton(button, enabled) {
+    if (button.tagName === "INPUT" && button.type === "checkbox") {
+      window.NB.showToast(enabled ? messages.enabled : messages.disabled, "success");
+      return;
+    }
     const msg = enabled ? messages.disabled : messages.enabled;
     const icon = enabled ? "bi-pause-circle" : "bi-play-circle";
     button.dataset.enabled = enabled ? "0" : "1";
@@ -863,9 +901,11 @@ window.NB.ready(function initNotificationsPage() {
         updateToggleButton(button, nowEnabled);
         announce(nowEnabled ? messages.enabled : messages.disabled);
       } else {
+        if (button.tagName === "INPUT" && button.type === "checkbox") button.checked = !button.checked;
         window.NB.showToast(result.data?.error?.message || requestFailed, "error");
       }
     } catch (error) {
+      if (button.tagName === "INPUT" && button.type === "checkbox") button.checked = !button.checked;
       window.NB.showToast(error.message || requestFailed, "error");
     } finally {
       button.disabled = false;
