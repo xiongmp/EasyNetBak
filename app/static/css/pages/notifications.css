@@ -285,6 +285,13 @@
 .template-format-lock-note i { color: var(--signal-blue); }
 .form-select.is-format-locked { border-style: dashed; background-color: var(--signal-paper); color: var(--signal-muted); cursor: not-allowed; }
 .template-workbench { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(360px, .88fr); gap: 1rem; }
+.template-workbench .form-label,
+.template-settings .form-label {
+  margin-bottom: .45rem;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--signal-muted);
+}
 .template-compose,
 .template-assistant,
 .template-output { min-width: 0; padding: 1rem; border: 1px solid var(--signal-line); border-radius: .8rem; background: var(--bs-body-bg); }
