@@ -5976,7 +5976,7 @@ mark {
   min-width: 0;
   overflow: hidden;
   border-right: 1px solid var(--bs-border-color);
-  background: var(--bs-tertiary-bg);
+  background: var(--bs-body-bg);
 }
 
 .backup-command-sidebar-title {
@@ -5986,31 +5986,31 @@ mark {
   min-height: 52px;
   padding: 0 18px;
   border-bottom: 1px solid var(--bs-border-color);
-  color: var(--bs-body-color);
-  font-size: 0.84rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
 .backup-command-sidebar-title i {
-  color: var(--bs-primary);
-  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
 }
 
 .backup-command-count {
-  padding: 2px 9px;
+  padding: 2px 8px;
   border-radius: 999px;
   color: var(--bs-secondary-color);
   background: var(--bs-secondary-bg);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
 .backup-command-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   max-height: calc(min(68vh, 760px) - 52px);
-  padding: 10px;
+  padding: 12px;
   overflow: auto;
 }
 
@@ -6018,15 +6018,16 @@ mark {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 10px;
   width: 100%;
-  min-height: 38px;
-  padding: 6px 8px;
+  min-height: 40px;
+  padding: 6px 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--bs-secondary-color);
   background: transparent;
   text-align: left;
+  transition: all 0.2s ease;
 }
 
 .backup-command-item:hover {
@@ -6036,7 +6037,8 @@ mark {
 
 .backup-command-item.active {
   color: var(--bs-primary);
-  background: rgba(var(--bs-primary-rgb), 0.12);
+  background: var(--bs-primary-bg-subtle);
+  font-weight: 600;
 }
 
 .backup-command-item:focus-visible {
@@ -6047,9 +6049,9 @@ mark {
 .backup-command-item code {
   color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 0.74rem;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -6062,13 +6064,15 @@ mark {
   border-radius: 6px;
   color: var(--bs-secondary-color);
   background: var(--bs-secondary-bg);
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .backup-command-item.active .backup-command-number {
-  color: #fff;
-  background: var(--bs-primary);
+  color: var(--bs-primary);
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(var(--bs-primary-rgb), 0.15);
 }
 
 #backup-view-modal .backup-command-output {
