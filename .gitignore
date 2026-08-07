@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+tests/
+!tests/
+tests/*
+# Database
+*.db
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.prod
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+
+# Data
+data/
+
+#devploy docs
+docs/
+
+# Project Plans & Meta
+MULTI_LEVEL_GROUP_PERMISSION_PLAN.md
+SCHEDULE_RUN_TERMINATION_PLAN.md
+SESSION_REFACTOR_PROGRESS.md
+TASK_ORCHESTRATION_REFACTOR_PLAN.md
+BACKUP_EVENT_VIEW_PLAN.md
+.gitattributes
+requirements copy.txt
+
+AGENTS.md
