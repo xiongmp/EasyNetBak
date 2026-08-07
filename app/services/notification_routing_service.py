@@ -892,6 +892,15 @@ def delete_channel(session: Session, channel_id: int) -> None:
         raise ServiceError("Notification channel not found", code="NOTIFICATION_CHANNEL_NOT_FOUND", status_code=404)
     if channel.builtin_key:
         raise ServiceError("Built-in channels cannot be deleted", code="NOTIFICATION_CHANNEL_BUILTIN")
+    # Delivery records keep a non-null foreign key to their channel so that
+    # queued and historical deliveries can be rendered consistently. Remove
+    # them before deleting the channel instead of relying on database-specific
+    # cascade behavior; this also works for databases created before the
+    # notification routing tables were added.
+    for delivery in session.exec(
+        select(NotificationDelivery).where(NotificationDelivery.channel_id == channel_id)
+    ):
+        session.delete(delivery)
     for policy in list_policies(session):
         ids = [item for item in _clean_ints(_json_list(policy.channel_ids_json)) if item != channel_id]
         if len(ids) != len(_json_list(policy.channel_ids_json)):

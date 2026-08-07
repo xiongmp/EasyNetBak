@@ -672,6 +672,11 @@ async def delete_notification_channel(
     csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
 ):
+    # This endpoint has no Form dependency, so FastAPI does not populate
+    # request._form before entering the handler. Parse the multipart body first
+    # so fastapi-csrf-protect reads the submitted token instead of treating the
+    # raw multipart boundary as JSON.
+    await request.form()
     await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
     try:
@@ -743,6 +748,7 @@ async def delete_notification_template(
     csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
 ):
+    await request.form()
     await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
     try:
@@ -854,6 +860,7 @@ async def delete_notification_policy(
     csrf_protect: CsrfProtect = Depends(),
     session: Session = Depends(get_session),
 ):
+    await request.form()
     await csrf_protect.validate_csrf(request)
     _require_permission(request, "notifications.update")
     try:
