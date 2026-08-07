@@ -53,7 +53,9 @@
 ### 💰 赞赏支持
 
 - 💖[爱发电](https://ifdian.net/a/midwinter) —— 点击这里访问我的爱发电主页或扫描下方二维码，请我喝杯咖啡，持续支持项目发展
-  ![爱发电二维码](image/afdian.png)
+  <img src="image/afdian.png" alt="爱发电二维码" width="300">
+- ☕ 如果这个项目对你有所帮助，欢迎请作者喝杯咖啡，感谢你的支持！
+  <img src="image/donation.jpg" alt="项目赞赏码" width="300">
 
 ***
 
