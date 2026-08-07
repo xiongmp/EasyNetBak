@@ -1,7 +1,7 @@
 # EasyNetBak (网络设备备份系统)
 
-[![GitHub](https://img.shields.io/badge/GitHub-EasyNetBak-181717?logo=github&logoColor=white)](https://github.com/xiongmp/EasyNetBak)
-[![Gitee](https://img.shields.io/badge/Gitee-EasyNetBak-C71D23)](https://gitee.com/xmp111/EasyNetBak)
+<a href="https://github.com/xiongmp/EasyNetBak"><img src="image/github.svg" alt="GitHub repository" height="28"></a>
+<a href="https://gitee.com/xmp111/EasyNetBak"><img src="image/gitee.svg" alt="Gitee repository" height="28"></a>
 
 这是一个基于 Python 和 FastAPI 构建的现代化网络设备配置备份与管理平台，集成设备资产管理、自动化备份、配置差异分析、WebShell 运维入口、RBAC 权限控制与审计日志，为网络管理员提供完整的配置生命周期管理能力。
 
