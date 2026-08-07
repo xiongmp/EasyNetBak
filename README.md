@@ -1,5 +1,8 @@
 # EasyNetBak (网络设备备份系统)
 
+[![GitHub](https://img.shields.io/badge/GitHub-EasyNetBak-181717?logo=github&logoColor=white)](https://github.com/xiongmp/EasyNetBak)
+[![Gitee](https://img.shields.io/badge/Gitee-EasyNetBak-C71D23)](https://gitee.com/xmp111/EasyNetBak)
+
 这是一个基于 Python 和 FastAPI 构建的现代化网络设备配置备份与管理平台，集成设备资产管理、自动化备份、配置差异分析、WebShell 运维入口、RBAC 权限控制与审计日志，为网络管理员提供完整的配置生命周期管理能力。
 
 > ⚠️ **安全建议**:
@@ -65,8 +68,12 @@ EasyNetBak 是由社区驱动的开源项目，社区支持不承诺固定响应
 
 1. **克隆仓库**:
    ```bash
-   git clone https://gitee.com/xmp111/network_backup.git
-   cd network_backup
+   # 克隆仓库
+   git clone https://gitee.com/xmp111/EasyNetBak.git
+   或
+   git clone https://github.com/xiongmp/EasyNetBak.git
+   # 进入项目目录
+   cd EasyNetBak
    ```
 2. **配置环境变量**:
    复制docker compose 环境示例配置：
@@ -92,7 +99,7 @@ EasyNetBak 是由社区驱动的开源项目，社区支持不承诺固定响应
 
 ```bash
 # 进入项目目录
-cd network_backup
+cd EasyNetBak
 
 # 拉取最新代码
 git pull origin master
