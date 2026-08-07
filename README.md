@@ -30,7 +30,7 @@
 - **Gitee Issues**：适合提交可复现的问题、功能建议和设备兼容性反馈。提问时请提供版本、部署方式、操作步骤及脱敏后的日志，以便快速定位。
 - **公众号交流**：建议优先在相关文章下的留言区交流，也可以通过公众号后台联系。
 
-  <img src="image/qrcode_placeholder.png" alt="公众号二维码" width="360">
+  <img src="image/qrcode_placeholder.png" alt="公众号二维码" width="480">
 
 请勿在公开渠道提交设备密码、Token、私钥、完整配置、内网地址或其他敏感信息。
 
