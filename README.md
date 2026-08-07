@@ -263,8 +263,6 @@ EasyNetBak 基于 [Apache License 2.0](LICENSE) 开源发布。
 - 保留适用的版权、专利、商标和署名声明；
 - 按照 Apache-2.0 第 4 条的要求保留本项目 `NOTICE` 文件中的适用内容。
 
-本 README 仅用于介绍项目、说明安全风险和提供使用建议，不增加或修改 Apache-2.0 规定的授权条件。如本 README 与 `LICENSE` 的内容存在不一致，以 `LICENSE` 为准。
-
 ### 名称与标识
 
 Apache-2.0 不授予 EasyNetBak 名称、Logo 或其他项目标识的商标使用权。
