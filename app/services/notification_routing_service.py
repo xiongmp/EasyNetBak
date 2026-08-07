@@ -484,6 +484,13 @@ def ensure_builtin_defaults(session: Session) -> NotificationChannel:
         session.add(channel)
         session.flush()
 
+    # The built-in channel is the bridge for the existing SMTP settings. Keep
+    # its persisted type canonical even when an older migration or database
+    # row carries a stale channel type.
+    channel.channel_type = "smtp"
+    session.add(channel)
+    session.flush()
+
     email_template = session.exec(
         select(NotificationTemplate).where(
             NotificationTemplate.builtin_key.in_([BUILTIN_DETAILED_TEMPLATE_KEY_V2, BUILTIN_DETAILED_TEMPLATE_KEY])
