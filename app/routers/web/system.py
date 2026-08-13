@@ -37,6 +37,17 @@ router = APIRouter(tags=["系统设置 (System)"])
 logger = logging.getLogger(__name__)
 
 
+def _notification_channel_test_message_key(channel_type: str, *, success: bool) -> str:
+    normalized_type = str(channel_type or "").strip().lower()
+    if normalized_type == "smtp":
+        return "notification.test_email.sent" if success else "notification.test_email.failed"
+    if normalized_type in notification_routing_service.ROBOT_CHANNEL_TYPES:
+        return "notification.test_robot.sent" if success else "notification.test_robot.failed"
+    if normalized_type == "webhook":
+        return "notification.test_webhook.sent" if success else "notification.test_webhook.failed"
+    return "notification.test_channel.sent" if success else "notification.test_channel.failed"
+
+
 @router.get("/audit-logs", summary="操作日志页面", description="查看系统操作审计日志")
 def list_audit_logs(
     request: Request,
@@ -633,17 +644,32 @@ async def test_notification_channel(
     except (ServiceError, TypeError, ValueError):
         return {
             "success": False,
-            "error": {"code": "CHANNEL_TEST_FAILED", "message": translate(request.state.locale, "notification.test_channel.failed")},
+            "error": {
+                "code": "CHANNEL_TEST_FAILED",
+                "message": translate(
+                    request.state.locale,
+                    _notification_channel_test_message_key(channel_type, success=False),
+                ),
+            },
         }
     except Exception:
         logger.warning("Notification channel test failed channel_type=%s channel_id=%s", channel_type, channel_id, exc_info=True)
         return {
             "success": False,
-            "error": {"code": "CHANNEL_TEST_FAILED", "message": translate(request.state.locale, "notification.test_channel.failed")},
+            "error": {
+                "code": "CHANNEL_TEST_FAILED",
+                "message": translate(
+                    request.state.locale,
+                    _notification_channel_test_message_key(channel_type, success=False),
+                ),
+            },
         }
     return {
         "success": bool(success),
-        "message": translate(request.state.locale, "notification.test_channel.sent" if success else "notification.test_channel.failed"),
+        "message": translate(
+            request.state.locale,
+            _notification_channel_test_message_key(channel_type, success=bool(success)),
+        ),
     }
 
 

@@ -63,7 +63,6 @@ FAILURE_TYPES = (
     "TASK_FAILURE", "TASK_REVOKED", "TIME_LIMIT", "ENQUEUE_FAILED", "CANCELLED", "UNKNOWN",
 )
 MAX_TEMPLATE_SIZE = 100_000
-MAX_RENDERED_SIZE = 500_000
 FEISHU_CARD_MAX_BYTES = 30 * 1024
 FEISHU_TABLE_ROW_LIMIT = 20
 MAX_ATTEMPTS = 5
@@ -104,7 +103,7 @@ BUILTIN_POLICY_KEYS = {
     "summary": "builtin_summary",
 }
 BUILTIN_NOTIFICATION_SCHEMA_SETTING = "notification_builtin_schema_version"
-BUILTIN_NOTIFICATION_SCHEMA_VERSION = "2"
+BUILTIN_NOTIFICATION_SCHEMA_VERSION = "3"
 BUILTIN_NAME_SPECS = {
     ("channel", DEFAULT_SMTP_CHANNEL_KEY): ("Default SMTP", "notification.channel.builtin_smtp_name"),
     ("template", BUILTIN_DETAILED_TEMPLATE_KEY_V2): (
@@ -139,30 +138,44 @@ BUILTIN_NAME_SPECS = {
 DETAILED_BACKUP_SUBJECT_TEMPLATE = "{{ summary_subject }}"
 DETAILED_BACKUP_BODY_TEMPLATE = """<!doctype html>
 <html lang="{{ locale }}">
-<body style="font-family:Arial,Helvetica,sans-serif;color:#24324a;line-height:1.55">
-  <h2 style="margin:0 0 16px">{{ labels["title"] }}</h2>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#24324a;line-height:1.55}
+    h2{margin:0 0 16px}.ok{color:#198754}.warn{color:#d98a18}.failed,.error{color:#dc3545}
+    table{border-collapse:collapse;width:100%;max-width:1000px}th{background:#f2f4f7}
+    .changes{max-width:1200px;border-color:#8a8f98}.changes th{padding:12px;text-align:center;background:#f7f8fa}
+    .device{padding:12px;vertical-align:middle;font-size:16px}.detail{padding:16px;vertical-align:top;line-height:1.65}
+    .detail-title{font-weight:700;margin-bottom:4px}.context{font-weight:700;margin-bottom:6px}
+    .diff{margin:0;padding-left:24px}.diff li{margin:3px 0}.diff code{white-space:pre-wrap;overflow-wrap:anywhere}
+    .diff-add{color:#198754}.diff-del{color:#dc3545}.diff-context,.diff-skip{color:#6c757d}
+    .truncated{margin-top:8px;color:#6c757d;font-size:12px;font-weight:600}
+  </style>
+</head>
+<body>
+  <h2>{{ labels["title"] }}</h2>
   <p><strong>{{ labels["task_time"] }}:</strong> {{ task_time }}</p>
   <p><strong>{{ labels["result"] }}:</strong>
     {{ labels["total"] }} {{ total_count }} {{ labels["unit"] }},
-    {{ labels["succeeded"] }} <span style="color:#198754">{{ success_count }}</span> {{ labels["unit"] }},
-    {{ labels["failed"] }} <span style="color:#dc3545">{{ failed_count }}</span> {{ labels["unit"] }},
-    {{ labels["cancelled"] }} <span style="color:#d98a18">{{ cancelled_count }}</span> {{ labels["unit"] }}
+    {{ labels["succeeded"] }} <span class="ok">{{ success_count }}</span> {{ labels["unit"] }},
+    {{ labels["failed"] }} <span class="failed">{{ failed_count }}</span> {{ labels["unit"] }},
+    {{ labels["cancelled"] }} <span class="warn">{{ cancelled_count }}</span> {{ labels["unit"] }}
   </p>
 
   {% if failed_count > 0 %}
-  <h3 style="color:#dc3545">{{ labels["failed_section"] }}</h3>
-  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
-    <tr style="background:#f2f4f7"><th>{{ labels["device_name"] }}</th><th>{{ labels["device_host"] }}</th><th>{{ labels["duration"] }}</th><th>{{ labels["failure_type"] }}</th><th>{{ labels["error"] }}</th></tr>
+  <h3 class="failed">{{ labels["failed_section"] }}</h3>
+  <table border="1" cellpadding="8" cellspacing="0">
+    <tr><th>{{ labels["device_name"] }}</th><th>{{ labels["device_host"] }}</th><th>{{ labels["duration"] }}</th><th>{{ labels["failure_type"] }}</th><th>{{ labels["error"] }}</th></tr>
     {% for item in items %}{% if not item["success"] and not item["cancelled"] %}
-    <tr><td>{{ item["device_name"] }}</td><td>{{ item["device_host"] }}</td><td>{{ item["duration"] }}</td><td>{{ item["failure_type"] }}</td><td style="color:#dc3545">{{ item["error_message"] }}</td></tr>
+    <tr><td>{{ item["device_name"] }}</td><td>{{ item["device_host"] }}</td><td>{{ item["duration"] }}</td><td>{{ item["failure_type"] }}</td><td class="error">{{ item["error_message"] }}</td></tr>
     {% endif %}{% endfor %}
   </table>
   {% endif %}
 
   {% if cancelled_count > 0 %}
-  <h3 style="color:#d98a18">{{ labels["cancelled_section"] }}</h3>
-  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1000px">
-    <tr style="background:#f2f4f7"><th>{{ labels["device_name"] }}</th><th>{{ labels["device_host"] }}</th><th>{{ labels["details"] }}</th></tr>
+  <h3 class="warn">{{ labels["cancelled_section"] }}</h3>
+  <table border="1" cellpadding="8" cellspacing="0">
+    <tr><th>{{ labels["device_name"] }}</th><th>{{ labels["device_host"] }}</th><th>{{ labels["details"] }}</th></tr>
     {% for item in items %}{% if item["cancelled"] %}
     <tr><td>{{ item["device_name"] }}</td><td>{{ item["device_host"] }}</td><td>{{ item["error_message"] }}</td></tr>
     {% endif %}{% endfor %}
@@ -170,17 +183,17 @@ DETAILED_BACKUP_BODY_TEMPLATE = """<!doctype html>
   {% endif %}
 
   {% if changed_count > 0 %}
-  <h3 style="color:#d98a18">{{ labels["changed_section"] }}</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:1200px;border-color:#8a8f98">
-    <tr style="background:#f7f8fa"><th style="padding:12px;text-align:center;width:18%">{{ labels["device_name"] }}</th><th style="padding:12px;text-align:center;width:20%">{{ labels["device_host"] }}</th><th style="padding:12px;text-align:center">{{ labels["change_summary"] }}</th></tr>
+  <h3 class="warn">{{ labels["changed_section"] }}</h3>
+  <table class="changes" border="1" cellpadding="0" cellspacing="0">
+    <tr><th width="18%">{{ labels["device_name"] }}</th><th width="20%">{{ labels["device_host"] }}</th><th>{{ labels["change_summary"] }}</th></tr>
     {% for item in items %}{% if item["changed"] %}
-    <tr><td style="padding:12px;vertical-align:middle;font-size:16px">{{ item["device_name"] }}</td><td style="padding:12px;vertical-align:middle;font-size:16px">{{ item["device_host"] }}</td><td style="padding:16px;vertical-align:top;line-height:1.65">
-      <div style="font-weight:700;margin-bottom:4px">{{ labels["diff_rules_applied"] }}</div>
-      {% if item["change_context_label"] %}<div style="font-weight:700;margin-bottom:6px">{{ item["change_context_label"] }}</div>{% endif %}
-      {% if item["change_lines"] %}<ul style="margin:0;padding-left:24px">{% for line in item["change_lines"] %}
-      <li style="margin:3px 0"><code style="white-space:pre-wrap;overflow-wrap:anywhere;color:{% if line["kind"] == "add" %}#198754{% elif line["kind"] == "del" %}#dc3545{% else %}#6c757d{% endif %}">{{ line["prefix"] }} {{ line["text"] }}</code></li>
+    <tr><td class="device">{{ item["device_name"] }}</td><td class="device">{{ item["device_host"] }}</td><td class="detail">
+      <div class="detail-title">{{ labels["diff_rules_applied"] }}</div>
+      {% if item["change_context_label"] %}<div class="context">{{ item["change_context_label"] }}</div>{% endif %}
+      {% if item["change_lines"] %}<ul class="diff">{% for line in item["change_lines"] %}
+      <li><code class="diff-{{ line["kind"] }}">{{ line["prefix"] }} {{ line["text"] }}</code></li>
       {% endfor %}</ul>{% else %}{{ labels["changed_detail"] }}{% endif %}
-      {% if item["change_truncated_label"] %}<div style="margin-top:8px;color:#6c757d;font-size:12px;font-weight:600">{{ item["change_truncated_label"] }}</div>{% endif %}
+      {% if item["change_truncated_label"] %}<div class="truncated">{{ item["change_truncated_label"] }}</div>{% endif %}
     </td></tr>
     {% endif %}{% endfor %}
   </table>
@@ -440,8 +453,6 @@ def render_custom_template(source: str, context: dict[str, Any], *, content_type
             code="NOTIFICATION_TEMPLATE_INVALID",
             context={"detail": _sanitize_error(exc)},
         ) from exc
-    if len(rendered) > MAX_RENDERED_SIZE:
-        raise ServiceError("Rendered message is too large", code="NOTIFICATION_MESSAGE_TOO_LARGE")
     return rendered
 
 
@@ -1649,6 +1660,7 @@ def _send_channel(
             "smtp_pass": secrets.get("password"),
             "smtp_from": config.get("from"),
             "smtp_to": config.get("to"),
+            "_locale": payload.get("_locale") or payload.get("locale") or "zh-CN",
         }
         result = email_sender(
             subject,
