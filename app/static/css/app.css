@@ -5954,6 +5954,33 @@ mark {
 }
 
 /* Backup command viewer */
+.backup-modal-title-group {
+  min-width: 0;
+}
+
+.backup-modal-meta {
+  min-width: 0;
+}
+
+.backup-modal-meta-item {
+  min-width: 0;
+  max-width: min(34vw, 360px);
+}
+
+.backup-modal-meta-item > .text-truncate {
+  min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .backup-modal-title-group {
+    width: 100%;
+  }
+
+  .backup-modal-meta-item {
+    max-width: 100%;
+  }
+}
+
 #backup-view-modal .modal-dialog.modal-xl {
   --bs-modal-width: min(1280px, calc(100vw - 2rem));
 }

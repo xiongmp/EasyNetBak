@@ -152,7 +152,7 @@
                   <div class="form-text x-small mt-1">{{ _('template.users.password') }} 8 {{ _('template.users.characters') }}</div>
                 {% endif %}
               </div>
-              <div class="col-12">
+              <div class="col-md-6">
                 <label class="form-label small fw-bold text-secondary">
                   <i class="bi bi-shield-lock me-1"></i>{{ _('template.users.user_role') }}
                 </label>
@@ -168,6 +168,23 @@
                     </option>
                   {% endfor %}
                 </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-secondary">
+                  <i class="bi bi-droplet-half me-1"></i>{{ _('template.users.background_watermark') }}
+                </label>
+                <div class="card bg-light-subtle border-0">
+                  <div class="card-body py-2">
+                    <div class="d-flex align-items-center justify-content-between">
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="enable_watermark" id="enableWatermark" value="1"
+                          {% if not current or current.enable_watermark %}checked{% endif %}>
+                        <label class="form-check-label small fw-medium" for="enableWatermark">{{ _('template.users.show_username_background_watermark') }}</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div class="col-12">
@@ -261,23 +278,6 @@
                   </div>
                 </div>
               {% endif %}
-
-              <div class="col-12">
-                <label class="form-label small fw-bold text-secondary">
-                  <i class="bi bi-droplet-half me-1"></i>{{ _('template.users.background_watermark') }}
-                </label>
-                <div class="card bg-light-subtle border-0">
-                  <div class="card-body py-2">
-                    <div class="d-flex align-items-center justify-content-between">
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input" type="checkbox" name="enable_watermark" id="enableWatermark" value="1"
-                          {% if not current or current.enable_watermark %}checked{% endif %}>
-                        <label class="form-check-label small fw-medium" for="enableWatermark">{{ _('template.users.show_username_background_watermark') }}</label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               <div class="col-12">
                   <label class="form-label small fw-bold text-secondary d-flex align-items-center">

@@ -11,7 +11,7 @@ window.NB.ready(function initTemplatesPage() {
   const idInput = modalElement.querySelector('[name="template_id"]');
   const nameInput = modalElement.querySelector('[name="name"]');
   const commandsInput = modalElement.querySelector('[name="commands"]');
-  const title = modalElement.querySelector(".modal-title");
+  const title = modalElement.querySelector("#templateModalTitleText");
 
   function syncPlatformOptions() {
     const wanted = loginSelect.value === "telnet" ? "telnet" : "ssh";

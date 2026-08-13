@@ -188,7 +188,7 @@ window.NB.ready(function initTaskPanel() {
           }
 
           const backupViewModalEl = document.getElementById("backup-view-modal");
-          const backupViewTitle = document.getElementById("backup-view-title");
+          const backupViewTitle = document.getElementById("backup-view-title-text");
           const backupViewMeta = document.getElementById("backup-view-meta");
           const backupViewLoading = document.getElementById("backup-view-loading");
           const backupViewError = document.getElementById("backup-view-error");
@@ -201,7 +201,7 @@ window.NB.ready(function initTaskPanel() {
           const backupViewFullscreen = document.getElementById("backup-view-fullscreen");
           const backupViewFullscreenIcon = document.getElementById("backup-view-fullscreen-icon");
           const backupLogModalEl = document.getElementById("backup-log-modal");
-          const backupLogTitle = document.getElementById("backup-log-title");
+          const backupLogTitle = document.getElementById("backup-log-title-text");
           const backupLogMeta = document.getElementById("backup-log-meta");
           const backupLogLoading = document.getElementById("backup-log-loading");
           const backupLogError = document.getElementById("backup-log-error");
@@ -1307,6 +1307,22 @@ window.NB.ready(function initTaskPanel() {
             return detail || NB.t("template.config_search.failed_to_load_backup_content");
           }
 
+          function renderBackupModalMeta(target, device, record) {
+            if (!target) return;
+            const entries = [
+              { value: device.name, icon: "bi-hdd-network" },
+              { value: device.host, icon: "bi-ethernet" },
+              { value: record.started_at, icon: "bi-clock" },
+            ].filter(({ value }) => value !== null && value !== undefined && String(value).trim() !== "");
+
+            target.innerHTML = entries.map(({ value, icon }, index) => `
+              <span class="backup-modal-meta-item d-inline-flex align-items-center gap-1${index ? " border-start ps-2" : ""}" data-i18n-preserve>
+                <i class="bi ${icon}" aria-hidden="true"></i>
+                <span class="text-truncate">${escapeText(value)}</span>
+              </span>
+            `).join("");
+          }
+
           async function openBackupView(backupId) {
             if (!backupId || !backupViewModalEl) return;
             if (!backupViewModal) {
@@ -1356,9 +1372,7 @@ window.NB.ready(function initTaskPanel() {
             const device = data && data.device ? data.device : {};
             const record = data && data.record ? data.record : {};
 
-            if (backupViewMeta) {
-              backupViewMeta.innerHTML = `<span data-i18n-preserve>${escapeText(device.name || "")} · ${escapeText(device.host || "")} · ${escapeText(record.started_at || "")}</span>`;
-            }
+            renderBackupModalMeta(backupViewMeta, device, record);
 
             const err = record.error_message || "";
             if (err && backupViewError) {
@@ -1436,9 +1450,7 @@ window.NB.ready(function initTaskPanel() {
             const data = result.data || {};
             const device = data && data.device ? data.device : {};
             const record = data && data.record ? data.record : {};
-            if (backupLogMeta) {
-              backupLogMeta.innerHTML = `<span data-i18n-preserve>${escapeText(device.name || "")} · ${escapeText(device.host || "")} · ${escapeText(record.started_at || "")}</span>`;
-            }
+            renderBackupModalMeta(backupLogMeta, device, record);
             renderBackupLogItems(data.items || []);
           }
 

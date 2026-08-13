@@ -70,7 +70,10 @@
         <div class="modal-content">
           <form method="post" action="/templates">
             <div class="modal-header">
-              <h5 class="modal-title" id="templateModalLabel">{{ _('template.templates.custom_template_commands') }}</h5>
+              <h5 class="modal-title d-flex align-items-center" id="templateModalLabel">
+                <i class="bi bi-file-earmark-code text-primary me-2" aria-hidden="true"></i>
+                <span id="templateModalTitleText">{{ _('template.templates.custom_template_commands') }}</span>
+              </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
