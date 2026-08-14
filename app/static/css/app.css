@@ -2047,6 +2047,7 @@ input[type=number] {
 }
 
 .profile-language-section {
+  max-width: 760px;
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(300px, 0.9fr);
   gap: 2rem;

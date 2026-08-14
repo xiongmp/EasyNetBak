@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     # 应用名称/品牌名，固定在代码中，不通过 .env 覆盖。
     app_name: ClassVar[str] = "EasyNetBak"
     # 应用版本
-    app_version: str = Field("v1.5.0", alias="APP_VERSION")
+    app_version: str = Field("v1.5.1", alias="APP_VERSION")
     # 数据库连接字符串
     database_url: str = Field("", alias="DATABASE_URL")
     db_scheme: str = Field("postgresql", alias="DB_SCHEME")
