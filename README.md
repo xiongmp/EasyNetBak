@@ -97,22 +97,17 @@ EasyNetBak 是一个面向网络工程师的网络设备配置备份与管理平
 
 ## 🚀 安装部署
 
-详细的安装部署文档请访问：[EasyNetBak 项目网站](https://netopsbase.com/projects/easynetbak/)
-
-## ⚙️ 关键配置
-
-主要通过环境变量进行配置 (可在 `.env` 或 `docker-compose.yml` 中设置):
-
-- **基础配置**:
-  - `SECRET_KEY`: 用于加密 Session 和敏感数据的密钥 (务必修改).
-  - `TIMEZONE_OFFSET`: 时区偏移量 (默认为 "+08:00").
-  - `ENABLE_SCHEDULER`: 是否启用内置调度器 (多实例部署时仅保留一个实例开启).
-  - `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD`: 初始化管理员账号密码.
-- **数据库与中间件**:
-  - `DATABASE_URL`: 数据库连接字符串.
-  - `CELERY_BROKER_URL`: Redis 连接地址.
-  - `CELERY_RESULT_BACKEND`: Celery 结果存储地址 (可选).
-  - `REDIS_HOST` / `REDIS_PASSWORD`: Redis 连接参数.
+<table>
+  <tr>
+    <td align="center">
+      <h3>📖 官方安装部署文档</h3>
+      <p>Docker 部署、本地开发、环境配置和升级维护等详细内容，均已整理在官网文档中。</p>
+      <p>
+        <a href="https://netopsbase.com/projects/easynetbak/"><strong>👉 查看 EasyNetBak 安装部署文档</strong></a>
+      </p>
+    </td>
+  </tr>
+</table>
 
 ## 📚 界面展示
 
