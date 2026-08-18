@@ -18,7 +18,7 @@
 
 ***
 
-这是一个基于 Python 和 FastAPI 构建的现代化网络设备配置备份与管理平台，集成设备资产管理、自动化备份、配置差异分析、WebShell 运维入口、RBAC 权限控制与审计日志，为网络管理员提供完整的配置生命周期管理能力。
+EasyNetBak 是一个面向网络工程师的网络设备配置备份与管理平台，集成设备资产管理、自动化备份、配置差异分析、多渠道通知（邮件/企业微信/飞书/钉钉/webhook）、WebShell 运维入口、RBAC 权限控制与审计日志，为网络管理员提供完整的配置生命周期管理能力。
 
 > ⚠️ **安全建议**:
 >
@@ -52,12 +52,24 @@
 
 ### 💰 赞赏支持
 
-- 💖[爱发电](https://ifdian.net/a/midwinter) —— 点击这里访问我的爱发电主页或扫描下方二维码，请我喝杯咖啡，持续支持项目发展<br><img src="image/afdian.png" alt="爱发电二维码" width="300">
-- ☕ 如果这个项目对你有所帮助，欢迎请作者喝杯咖啡，感谢你的支持！
+如果这个项目对你有所帮助，欢迎请作者喝杯咖啡，感谢你的支持！
 
-| 微信赞赏码 |
-| :---: |
-| <img src="image/donation.jpg" alt="微信赞赏码" width="300"> |
+<table>
+  <tr>
+    <th>爱发电</th>
+    <th>微信赞赏码</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://ifdian.net/a/midwinter">
+        <img src="image/afdian.png" alt="爱发电二维码" width="300">
+      </a>
+    </td>
+    <td align="center">
+      <img src="image/donation.jpg" alt="微信赞赏码" width="300">
+    </td>
+  </tr>
+</table>
 
 ***
 
@@ -83,129 +95,9 @@
 | **数据库**    | PostgreSQL (生产推荐) / SQLite (开发可选)                                                                    |
 | **容器化**    | Docker, Docker Compose                                                                               |
 
-## 🚀 快速开始
+## 🚀 安装部署
 
-### 方式一：Docker Compose 部署 (推荐)
-
-最简单快捷的部署方式，适合生产环境或快速体验。
-
-1. **克隆仓库**:
-   ```bash
-   # 克隆仓库
-   git clone https://gitee.com/xmp111/EasyNetBak.git
-   或
-   git clone https://github.com/xiongmp/EasyNetBak.git
-   # 进入项目目录
-   cd EasyNetBak
-   ```
-2. **配置环境变量**:
-   复制docker compose 环境示例配置：
-   ```bash
-   cp .env.docker.example .env
-   ```
-   *修改* *`.env`* *中的* *`SECRET_KEY`、`数据库密码`、`redis密码`及其他敏感信息。*
-3. **启动服务**:
-   ```bash
-   docker compose up -d
-   ```
-4. **访问系统**:
-   打开浏览器访问 `http://localhost:8000`。
-
-   **默认管理员账号**:
-   - 用户名: `admin`
-   - 密码: `admin`
-     *(首次登录后系统会要求立即修改密码)*
-
-#### 🔄 版本升级
-
-当需要更新系统到最新版本时，请在项目根目录下执行：
-
-```bash
-# 进入项目目录
-cd EasyNetBak
-
-# 拉取最新代码
-git pull origin master
-
-# 重新构建并重启服务
-docker compose up -d --build
-```
-
-### 方式二：本地开发环境搭建
-
-适合开发调试或非容器化环境。
-
-#### 前置要求
-
-- Python 3.10+
-- Redis Server (需自行安装，必须运行，用于异步任务队列)
-- PostgreSQL (自行安装，可选，开发环境可使用 SQLite)
-
-#### 搭建步骤
-
-1. **安装依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **配置环境变量**:
-   复制开发环境示例配置：
-   ```bash
-   cp .env.example .env
-   ```
-   **修改** **`.env`** **文件**:
-   - **数据库**: 默认推荐使用 SQLite 方便开发（生产环境建议使用 PostgreSQL）。找到 `DATABASE_URL` 配置行，取消注释：
-     ```properties
-     DATABASE_URL=sqlite:///./dev.db
-     ```
-   - **Redis**: 确保 Redis 服务已启动，并根据需要调整 `REDIS_HOST` 等配置。
-3. **初始化数据库**:
-   ```bash
-   alembic upgrade head
-   ```
-4. **创建初始管理员用户**:
-   *(系统启动时会自动检查，若无用户则无需手动创建，默认 admin/admin)*
-5. **启动 Celery Worker (处理后台任务)**:
-   设置 Celery worker 在后台持续运行，例如：CentOS 通过 systemd 将 Celery 配置为系统守护进程（服务），实现后台运行、开机自启和自动崩溃重启。
-
-   **Windows**:
-   ```bash
-   celery -A app.celery_app.celery_app worker --loglevel=info -P eventlet -c 50
-   ```
-   **Linux / macOS**:
-   ```bash
-   celery -A app.celery_app.celery_app worker --loglevel=info -c 50
-   ```
-6. **启动 Web 服务**:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-7. **访问系统**:
-   打开浏览器访问 `http://localhost:8000`。
-
-#### 🔄 版本升级
-
-本地部署环境更新时，请根据您的安装方式更新代码，并执行后续步骤：
-
-1. **更新代码**:
-   - **Git 用户 (推荐)**:
-     在项目根目录执行：
-     ```bash
-     git pull origin master
-     ```
-   - **ZIP 下载用户**:
-     1. 备份旧目录重要文件
-     2. 下载最新的源码压缩包并解压。将新代码替换旧目录。
-     3. **⚠️ 注意**: 请务必 **跳过 (不要覆盖)** `.env` 配置文件和 `dev.db` (如果使用 SQLite) 数据库文件，以免丢失配置和数据。
-2. **更新依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **应用数据库变更**:
-   ```bash
-   alembic upgrade head
-   ```
-4. **重启服务**:
-   请手动停止并重新启动 Celery Worker 和 Web 服务 (Uvicorn)。
+详细的安装部署文档请访问：[EasyNetBak 项目网站](https://netopsbase.com/projects/easynetbak/)
 
 ## ⚙️ 关键配置
 
