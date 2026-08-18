@@ -101,7 +101,7 @@ EasyNetBak 是一个面向网络工程师的网络设备配置备份与管理平
   <tr>
     <td align="center">
       <h3>📖 官方安装部署文档</h3>
-      <p>Docker 部署、本地开发、环境配置和升级维护等详细内容，均已整理在官网文档中。</p>
+      <p>Docker 部署、传统部署（非docker部署）和升级等详细内容，均已整理在官网文档中。</p>
       <p>
         <a href="https://netopsbase.com/projects/easynetbak/"><strong>👉 查看 EasyNetBak 安装部署文档</strong></a>
       </p>
