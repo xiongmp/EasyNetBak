@@ -50,6 +50,8 @@ window.NB.ready(function initDeviceCreateModal() {
 
         if (!loginSelect || !platformSelect) return;
 
+        const platformDropdown = new NB.SearchableSelect(platformSelect);
+
         function syncPlatformOptions() {
           const loginMethod = (loginSelect.value || "ssh").toLowerCase();
           const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
@@ -74,6 +76,8 @@ window.NB.ready(function initDeviceCreateModal() {
               portInput.value = loginMethod === "telnet" ? "23" : "22";
             }
           }
+
+          platformDropdown.refresh();
         }
 
         loginSelect.addEventListener("change", syncPlatformOptions);

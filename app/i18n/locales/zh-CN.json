@@ -1272,6 +1272,8 @@
   "template.webshell_records.login_name": "登录名",
   "template.webshell_records.elapsed": "历时",
   "template.webshell_records.recordings": "条录像记录",
+  "js.select_enhance.search": "搜索...",
+  "js.select_enhance.no_matches": "没有匹配项",
   "js.nb_common.connecting_live_channel": "实时通道连接中",
   "js.nb_common.live_event_push": "事件实时推送",
   "js.nb_common.websocket_polling_sync": "WebSocket 轮询同步",

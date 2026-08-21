@@ -1272,6 +1272,8 @@
   "template.webshell_records.login_name": "Login name",
   "template.webshell_records.elapsed": "Elapsed",
   "template.webshell_records.recordings": "recordings",
+  "js.select_enhance.search": "Search...",
+  "js.select_enhance.no_matches": "No matches",
   "js.nb_common.connecting_live_channel": "Connecting live channel",
   "js.nb_common.live_event_push": "Live event push",
   "js.nb_common.websocket_polling_sync": "WebSocket polling sync",

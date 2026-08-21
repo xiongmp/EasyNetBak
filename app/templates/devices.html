@@ -29,7 +29,7 @@
             </select>
           </div>
           <div class="col-md-2 col-sm-6">
-            <select name="platform" class="form-select form-select-sm filter-control-sm" id="device-filter-platform">
+            <select name="platform" class="form-select form-select-sm filter-control-sm" id="device-filter-platform" data-searchable>
               <option value="">{{ _('template.devices.platform') }}: {{ _('template.audit_logs.all') }}</option>
               {% for p in ssh_platforms %}
                 <option value="{{ p.id }}" data-kind="ssh" {% if filters.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
@@ -74,7 +74,7 @@
           ]
         });
       </script>
-      <script src="/static/js/pages/devices-groups.js?v={{ app_version }}-i18n-prepaint-1"></script>
+      <script src="/static/js/pages/devices-groups.js?v={{ app_version }}-select-search-1"></script>
 
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -416,7 +416,7 @@
                   <label class="form-label small fw-bold text-secondary">
                     <i class="bi bi-cpu me-1"></i>{{ _('template.device_detail.device_type') }}
                   </label>
-                  <select name="platform" class="form-select form-select-lg fs-6" id="device-create-platform" required>
+                  <select name="platform" class="form-select form-select-lg fs-6" id="device-create-platform" data-searchable required>
                     {% for p in ssh_platforms %}
                       <option value="{{ p.id }}" data-kind="ssh">{{ p.label }}</option>
                     {% endfor %}
@@ -486,7 +486,7 @@
         </div>
       </div>
     </div>
-    <script src="/static/js/pages/devices-create-modal.js?v={{ app_version }}-i18n-prepaint-1"></script>
+    <script src="/static/js/pages/devices-create-modal.js?v={{ app_version }}-select-search-1"></script>
   {% endif %}
 
   {% if can_device_create or can_device_update %}

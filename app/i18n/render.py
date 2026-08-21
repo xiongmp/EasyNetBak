@@ -14,6 +14,7 @@ COMMON_FRONTEND_NAMESPACES = (
     "dialog.",
     "status.",
     "js.nb_common.",
+    "js.select_enhance.",
     "js.shell_controls.",
     "js.ui_feedback.",
 )

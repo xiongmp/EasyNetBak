@@ -66,7 +66,7 @@
             <div class="col-12 col-lg-3">
               <label class="form-label small fw-bold text-secondary mb-1"><i class="bi bi-cpu me-1"></i>{{ _('template.device_detail.device_type') }}</label>
               {% set current_login_kind = 'telnet' if device.login_method == 'telnet' else 'ssh' %}
-              <select name="platform" class="form-select form-select-sm" id="device-update-platform" required>
+              <select name="platform" class="form-select form-select-sm" id="device-update-platform" data-searchable required>
                 {% if current_login_kind == 'ssh' %}
                   {% for p in ssh_platforms %}
                     <option value="{{ p.id }}" {% if device.platform == p.id %}selected{% endif %}>{{ p.label }}</option>
@@ -322,6 +322,8 @@
 
             if (!loginSelect || !platformSelect) return;
 
+            const platformDropdown = new NB.SearchableSelect(platformSelect);
+
             function syncPlatformOptions(isInitial) {
               const loginMethod = (loginSelect.value || "ssh").toLowerCase();
               const wantKind = loginMethod === "telnet" ? "telnet" : "ssh";
@@ -343,6 +345,7 @@
               });
               platformSelect.replaceChildren(fragment);
               platformSelect.value = nextValue;
+              platformDropdown.refresh();
 
               if (!isInitial && portInput) {
                 const v = String(portInput.value || "").trim();
