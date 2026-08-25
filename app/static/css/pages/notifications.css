@@ -196,9 +196,10 @@
 .policy-row.is-disabled .policy-tags { opacity: .76; }
 .channel-card-top { display: flex; align-items: center; gap: .8rem; }
 .channel-mark { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; border: 1px solid rgba(36, 87, 214, .12); border-radius: .5rem; background: rgba(36, 87, 214, .08); color: var(--signal-blue); font-size: 1.05rem; }
-.channel-mark-wecom,
-.channel-mark-feishu { background: rgba(19, 143, 139, .1); color: var(--signal-cyan); }
-.channel-mark-dingtalk { background: rgba(217, 137, 24, .12); color: var(--signal-amber); }
+.channel-mark-wecom { background: rgba(47, 125, 255, .1); }
+.channel-mark-dingtalk { background: rgba(0, 137, 255, .1); }
+.channel-mark-feishu { background: rgba(51, 112, 255, .1); }
+.channel-brand-icon { display: block; width: 22px; height: 22px; }
 .channel-card h3,
 .policy-row h3 { overflow: hidden; margin: 0; font-size: 1rem; font-weight: var(--notification-weight-semibold); text-overflow: ellipsis; white-space: nowrap; }
 .channel-card-top span:not(.status-badge) { color: var(--signal-muted); font-size: var(--notification-small-size); }

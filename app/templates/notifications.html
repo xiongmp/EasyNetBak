@@ -4,7 +4,7 @@
 {% set page_subtitle = _('page.notifications.subtitle') %}
 
 {% block head %}
-<link href="/static/css/pages/notifications.css?v={{ app_version }}-notification-panels-9" rel="stylesheet" />
+<link href="/static/css/pages/notifications.css?v={{ app_version }}-notification-panels-10" rel="stylesheet" />
 {% endblock %}
 
 {% block content %}
@@ -79,7 +79,14 @@
         {% for channel in notification_channels %}
         <article class="channel-card {{ 'is-disabled' if not channel.enabled }}">
           <div class="channel-card-top">
-            <div class="channel-mark channel-mark-{{ channel.channel_type }}"><i class="bi {{ {'smtp':'bi-envelope-at','wecom':'bi-wechat','dingtalk':'bi-bell','feishu':'bi-chat-square-dots','webhook':'bi-code-slash'}.get(channel.channel_type, 'bi-send') }}"></i></div>
+            <div class="channel-mark channel-mark-{{ channel.channel_type }}">
+              {% set brand_icon = {'wecom':'wecom','dingtalk':'dingtalk','feishu':'feishu'}.get(channel.channel_type) %}
+              {% if brand_icon %}
+              <img class="channel-brand-icon" src="/static/img/channel-icons/{{ brand_icon }}.svg?v={{ app_version }}-brand-icons-2" alt="" aria-hidden="true">
+              {% else %}
+              <i class="bi {{ {'smtp':'bi-envelope-at','webhook':'bi-code-slash'}.get(channel.channel_type, 'bi-send') }}" aria-hidden="true"></i>
+              {% endif %}
+            </div>
             <div class="flex-grow-1 min-w-0"><h3>{{ channel.name }}</h3><span>{{ _('notification.channel.' ~ channel.channel_type) }}</span></div>
             <div class="channel-state">
               {% if has_permission('notifications.update') %}
