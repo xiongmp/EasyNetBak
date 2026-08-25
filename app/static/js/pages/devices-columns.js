@@ -14,12 +14,14 @@ window.NB.ready(function initDeviceColumns() {
           const isCheckbox = th.querySelector('input[type="checkbox"]') !== null;
           const isAction = text === NB.t("audit.csv.action");
           const isName = text === NB.t("email.field.device_name"); // Force name to be always visible to avoid empty table look
+          const explicitlyFixed = th.dataset.columnToggleable === 'false';
+          const defaultVisible = th.dataset.defaultVisible !== 'false';
           
           return {
               index,
               text: text || `Column ${index}`,
-              toggleable: !isCheckbox && !isAction && !isName,
-              visible: true
+              toggleable: !isCheckbox && !isAction && !isName && !explicitlyFixed,
+              visible: defaultVisible
           };
       });
 

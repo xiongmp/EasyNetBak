@@ -329,8 +329,14 @@ def _normalize_update_payload(
     )
 
 
-def create_device(session: Session, data: DeviceCreateInput) -> Device:
+def create_device(
+    session: Session,
+    data: DeviceCreateInput,
+    *,
+    allowed_group_ids: list[int] | None = None,
+) -> Device:
     payload = _normalize_create_payload(session, data)
+    validate_target_group_access(payload.group_id, allowed_group_ids)
     device = Device(
         name=payload.name,
         host=payload.host,
@@ -723,6 +729,31 @@ def get_device_detail(
         )
     validate_device_access(device, allowed_group_ids, action="view")
     return device
+
+
+def get_device_copy_payload(
+    session: Session,
+    *,
+    device_id: int,
+    allowed_group_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    device = get_device_detail(
+        session,
+        device_id=device_id,
+        allowed_group_ids=allowed_group_ids,
+    )
+    return {
+        "id": int(device.id),
+        "name": device.name,
+        "host": device.host,
+        "port": int(device.port or 22),
+        "login_method": device.login_method or "ssh",
+        "encoding": device.encoding or "utf-8",
+        "platform": device.platform,
+        "group_id": int(device.group_id or 0),
+        "credential_id": int(device.credential_id) if device.credential_id else None,
+        "default_template_id": int(device.default_template_id) if device.default_template_id else 0,
+    }
 
 
 def get_device_detail_page_payload(

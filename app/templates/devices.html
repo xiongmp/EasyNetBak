@@ -8,7 +8,8 @@
 {% set can_device_backup = has_permission('devices.backup') %}
 {% set can_device_webshell = has_permission('devices.webshell') %}
 {% set can_device_view = has_permission('devices.view') %}
-{% set can_device_bulk = can_device_update or can_device_delete or (can_device_view and can_device_backup) %}
+{% set can_device_copy = can_device_view and can_device_create %}
+{% set can_device_bulk = can_device_update or can_device_delete or (can_device_view and can_device_backup) or can_device_copy %}
 
 {% block content %}
   <div class="card border">
@@ -101,6 +102,12 @@
             {% if can_device_update %}
               <button class="btn btn-sm btn-outline-primary ms-1" type="button" id="bulk-update-btn" disabled>
                 <i class="bi bi-pencil-square me-1"></i>{{ _('template.devices.bulk_edit') }}
+              </button>
+            {% endif %}
+
+            {% if can_device_copy %}
+              <button class="btn btn-sm btn-outline-primary ms-1" type="button" id="copy-device-btn" disabled title="{{ _('template.devices.copy_select_one') }}">
+                <i class="bi bi-copy me-1"></i>{{ _('template.devices.copy_device') }}
               </button>
             {% endif %}
 
@@ -235,7 +242,8 @@
                   <input class="form-check-input" type="checkbox" id="select-all" />
                 </th>
               {% endif %}
-              <th style="width: 60px;">ID</th>
+              <th style="width: 60px;" data-column-toggleable="false">{{ _('template.devices.sequence') }}</th>
+              <th style="width: 60px;" data-default-visible="false">ID</th>
               <th>{{ _('email.field.device_name') }}</th>
               <th style="width: 200px;">{{ _('template.devices.management_address') }} (Host)</th>
               <th style="width: 120px;">{{ _('login.csv.status') }}</th>
@@ -256,6 +264,7 @@
                     <input class="form-check-input device-check" type="checkbox" value="{{ d.id }}" />
                   </td>
                 {% endif %}
+                <td class="text-secondary small text-start">{{ (pagination.page - 1) * pagination.limit + loop.index }}</td>
                 <td class="text-secondary small text-start">{{ d.id }}</td>
                 <td class="text-start"><a class="text-decoration-none fw-medium" href="/devices/{{ d.id }}" data-i18n-preserve>{{ d.name }}</a></td>
                 <td class="text-secondary small text-start" data-i18n-preserve>{{ d.host }}:{{ d.port }}</td>
@@ -330,7 +339,7 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="{{ 12 if can_device_bulk else 11 }}" class="text-center text-secondary py-4">{{ _('template.devices.no_devices') }}</td>
+                <td colspan="{{ 13 if can_device_bulk else 12 }}" class="text-center text-secondary py-4">{{ _('template.devices.no_devices') }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -372,12 +381,13 @@
           <form method="post" action="/devices">
             <div class="modal-header bg-body-tertiary border-bottom-0 py-3">
               <h5 class="modal-title d-flex align-items-center">
-                <i class="bi bi-plus-circle-fill text-primary me-2"></i>
-                <span>{{ _('template.devices.add_device') }}</span>
+                <i class="bi bi-plus-circle-fill text-primary me-2" id="device-create-modal-icon"></i>
+                <span id="device-create-modal-title">{{ _('template.devices.add_device') }}</span>
               </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('template.base.close') }}"></button>
             </div>
             <div class="modal-body p-4">
+              <div class="alert alert-info border-0 shadow-sm mb-4 d-none" id="device-copy-notice"></div>
               {% if credentials|length == 0 %}
                 <div class="alert alert-warning d-flex align-items-center border-0 shadow-sm mb-4">
                   <i class="bi bi-exclamation-triangle-fill me-2"></i>

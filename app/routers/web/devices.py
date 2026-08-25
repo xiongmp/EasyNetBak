@@ -865,7 +865,8 @@ def create_device(
     credential_id: int = Form(...),
     default_template_id: int = Form(0),
 ):
-    _require_permission(request, "devices.create")
+    user = _require_permission(request, "devices.create")
+    allowed_group_ids = get_user_allowed_group_ids(user, session=session)
     try:
         device = device_service.create_device(
             session,
@@ -880,6 +881,7 @@ def create_device(
                 credential_id=credential_id,
                 default_template_id=default_template_id,
             ),
+            allowed_group_ids=allowed_group_ids,
         )
     except device_service.ServiceError as exc:
         if exc.code == "DEVICE_NAME_EXISTS":

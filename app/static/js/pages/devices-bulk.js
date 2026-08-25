@@ -13,6 +13,7 @@ window.NB.ready(function initDevicesBulkActions() {
       const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
       const bulkDeleteForm = document.getElementById('bulk-delete-form');
       const bulkBackupForm = document.getElementById('bulk-backup-form');
+      const copyDeviceBtn = document.getElementById('copy-device-btn');
       const reachBtn = document.getElementById('bulk-reachability-btn');
       const reachPanel = document.getElementById('reachabilityModal');
       const reachSummary = document.getElementById('bulk-reachability-summary');
@@ -89,6 +90,12 @@ window.NB.ready(function initDevicesBulkActions() {
         if (idsInput3) idsInput3.value = idsValue;
         const has = ids.length > 0;
         if (bulkDeleteBtn) bulkDeleteBtn.disabled = !has;
+        if (copyDeviceBtn) {
+          copyDeviceBtn.disabled = ids.length !== 1;
+          copyDeviceBtn.title = ids.length === 1
+            ? NB.t("js.devices_copy.button")
+            : NB.t("js.devices_copy.select_one");
+        }
 
         const bulkUpdateBtn = document.getElementById('bulk-update-btn');
         if (bulkUpdateBtn) bulkUpdateBtn.disabled = !has;
@@ -118,6 +125,16 @@ window.NB.ready(function initDevicesBulkActions() {
       }
       checks.forEach(c => c.addEventListener('change', updateBulkAll));
       updateBulkAll();
+
+      if (copyDeviceBtn) {
+        copyDeviceBtn.addEventListener('click', () => {
+          const selectedIds = checks.filter(c => c.checked).map(c => c.value);
+          if (selectedIds.length !== 1) return;
+          if (window.NB.devices && typeof window.NB.devices.openCopyModal === 'function') {
+            window.NB.devices.openCopyModal(selectedIds[0]);
+          }
+        });
+      }
 
       if (bulkDeleteForm) {
         bulkDeleteForm.addEventListener('submit', (e) => {

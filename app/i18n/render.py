@@ -21,7 +21,7 @@ COMMON_FRONTEND_NAMESPACES = (
 
 PAGE_FRONTEND_NAMESPACES = {
     "dashboard": ("js.dashboard.",),
-    "devices": ("js.devices_bulk.", "js.devices_groups.", "js.webshell.", "webshell."),
+    "devices": ("js.devices_bulk.", "js.devices_copy.", "js.devices_groups.", "js.webshell.", "webshell."),
     "groups": ("js.devices_groups.",),
     "schedules": ("js.schedules.", "js.schedule_stats_"),
     "webshell": ("js.webshell.", "webshell."),

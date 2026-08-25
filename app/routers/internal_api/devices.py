@@ -18,6 +18,29 @@ from celery.result import AsyncResult
 router = APIRouter(tags=["设备管理 (Devices)"])
 
 
+@router.get(
+    "/api/devices/{device_id}/copy",
+    summary="获取设备复制参数",
+    description="获取当前用户可见设备中适合复制到新增表单的配置参数",
+)
+def get_device_copy_data(request: Request, device_id: int, session: Session = Depends(get_session)):
+    _require_permission(request, "devices.view")
+    user = _require_permission(request, "devices.create")
+    try:
+        payload = device_service.get_device_copy_payload(
+            session,
+            device_id=device_id,
+            allowed_group_ids=get_user_allowed_group_ids(user, session=session),
+        )
+    except device_service.ServiceError as exc:
+        if exc.code == "DEVICE_NOT_FOUND":
+            raise HTTPException(status_code=404, detail=translate(request.state.locale, "error.device.not_found"))
+        if exc.status_code == 403:
+            raise HTTPException(status_code=403, detail=translate(request.state.locale, "error.device.access_denied"))
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    return {"device": payload}
+
+
 @router.post("/api/devices/{device_id}/backup", summary="手动触发备份(API)", description="通过API触发指定设备的配置备份")
 def api_trigger_backup(request: Request, device_id: int, template_id: int = Form(0), session: Session = Depends(get_session)):
     _require_permission(request, "devices.view")
