@@ -314,6 +314,30 @@ window.NB.ready(function initDashboardPage() {
     const heatmapMax = heatmapData.max || 0;
     const isMatrixHeatmap = heatmapData.mode === 'matrix';
 
+    function positionHeatmapTooltip(point, _params, _dom, _rect, size) {
+        const gap = 12;
+        const edgePadding = 6;
+        const viewSize = size?.viewSize || [0, 0];
+        const contentSize = size?.contentSize || [0, 0];
+        const viewWidth = viewSize[0];
+        const viewHeight = viewSize[1];
+        const tooltipWidth = contentSize[0];
+        const tooltipHeight = contentSize[1];
+
+        let left = point[0] - (tooltipWidth / 2);
+        left = Math.max(edgePadding, Math.min(left, viewWidth - tooltipWidth - edgePadding));
+
+        let top = point[1] - tooltipHeight - gap;
+        if (top < edgePadding) {
+            top = point[1] + gap;
+        }
+        if (top + tooltipHeight > viewHeight - edgePadding) {
+            top = Math.max(edgePadding, viewHeight - tooltipHeight - edgePadding);
+        }
+
+        return [left, top];
+    }
+
     function setHeatmapChartOption(textColor, tooltipBg, tooltipBorder, tooltipText, borderColor, emptyColor, colorList) {
         const baseOption = {
             animation: true,
@@ -341,7 +365,8 @@ window.NB.ready(function initDashboardPage() {
             heatmapChart.setOption({
                 ...baseOption,
                 tooltip: {
-                    position: 'top',
+                    position: positionHeatmapTooltip,
+                    confine: true,
                     formatter: function (params) {
                         const xIndex = params.value && params.value.length > 2 ? params.value[0] : 0;
                         const yIndex = params.value && params.value.length > 2 ? params.value[1] : 0;
@@ -417,7 +442,8 @@ window.NB.ready(function initDashboardPage() {
         heatmapChart.setOption({
             ...baseOption,
             tooltip: {
-                position: 'top',
+                position: positionHeatmapTooltip,
+                confine: true,
                 formatter: function (params) {
                     const label = params.value && params.value.length > 1 ? params.value[0] : '';
                     const val = params.value && params.value.length > 1 ? params.value[1] : 0;

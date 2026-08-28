@@ -1146,6 +1146,23 @@ def load_diff_rules(session: Session) -> list[dict[str, Any]]:
     return normalized or DEFAULT_DIFF_RULES
 
 
+def normalize_config_for_change_detection(
+    config_text: str | None,
+    *,
+    diff_rules: list[dict[str, Any]],
+    device: Device | None,
+) -> tuple[str, ...]:
+    """Normalize a snapshot with the existing Diff rules for batch comparisons."""
+    noise_patterns = _build_noise_patterns(diff_rules, device, device)
+    return tuple(
+        _normalize_lines(
+            config_text,
+            ignore_noise_lines=True,
+            noise_patterns=noise_patterns,
+        )
+    )
+
+
 def has_meaningful_config_change(
     session: Session,
     *,

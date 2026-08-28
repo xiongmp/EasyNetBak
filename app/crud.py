@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta
 from typing import Iterable, Any, TypeVar
 from uuid import UUID
@@ -988,6 +989,11 @@ def finish_backup_record(
     record.finished_at = datetime.utcnow()
     record.success = success
     record.config_text = config_text
+    record.config_snapshot_hash = (
+        hashlib.sha256(config_text.encode("utf-8")).hexdigest()
+        if success and config_text is not None
+        else None
+    )
     record.error_message = error_message
     record.duration_seconds = duration_seconds
     record.failure_type = failure_type
@@ -1959,30 +1965,115 @@ def _list_config_change_timestamps(
     start_at: datetime,
     end_at: datetime,
 ) -> list[datetime]:
-    devices = session.exec(select(Device.id)).all()
-    change_timestamps: list[datetime] = []
+    from app.services import backup_service
 
-    for did in devices:
-        prev = session.exec(
-            select(BackupRecord)
-            .where(BackupRecord.device_id == did)
-            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
-            .where(BackupRecord.started_at < start_at)
-            .order_by(BackupRecord.started_at.desc())
-            .limit(1)
-        ).first()
-        rows = session.exec(
-            select(BackupRecord)
-            .where(BackupRecord.device_id == did)
-            .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
-            .where(BackupRecord.started_at >= start_at)
-            .where(BackupRecord.started_at < end_at)
-            .order_by(BackupRecord.started_at.asc())
+    baseline_times = (
+        select(
+            BackupRecord.device_id,
+            func.max(BackupRecord.started_at).label("max_started_at"),
+        )
+        .where(
+            BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED,
+            BackupRecord.started_at < start_at,
+        )
+        .group_by(BackupRecord.device_id)
+        .subquery()
+    )
+    baseline_rows = session.exec(
+        select(
+            BackupRecord.id,
+            BackupRecord.device_id,
+            BackupRecord.started_at,
+            BackupRecord.config_snapshot_hash,
+        )
+        .join(
+            baseline_times,
+            (BackupRecord.device_id == baseline_times.c.device_id)
+            & (BackupRecord.started_at == baseline_times.c.max_started_at),
+        )
+        .where(BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED)
+    ).all()
+    window_rows = session.exec(
+        select(
+            BackupRecord.id,
+            BackupRecord.device_id,
+            BackupRecord.started_at,
+            BackupRecord.config_snapshot_hash,
+        )
+        .where(
+            BackupRecord.status == task_state_service.BACKUP_RECORD_STATUS_SUCCEEDED,
+            BackupRecord.started_at >= start_at,
+            BackupRecord.started_at < end_at,
+        )
+        .order_by(BackupRecord.device_id, BackupRecord.started_at)
+    ).all()
+
+    previous_by_device = {
+        int(device_id): (record_id, config_hash)
+        for record_id, device_id, _started_at, config_hash in baseline_rows
+    }
+    candidate_pairs: list[tuple[UUID, UUID, int, datetime]] = []
+    for record_id, device_id, started_at, config_hash in window_rows:
+        normalized_device_id = int(device_id)
+        previous = previous_by_device.get(normalized_device_id)
+        if previous is not None:
+            previous_id, previous_hash = previous
+            if not (previous_hash and config_hash and previous_hash == config_hash):
+                candidate_pairs.append(
+                    (previous_id, record_id, normalized_device_id, started_at)
+                )
+        previous_by_device[normalized_device_id] = (record_id, config_hash)
+
+    if not candidate_pairs:
+        return []
+
+    candidate_record_ids = {
+        record_id
+        for previous_id, current_id, _device_id, _started_at in candidate_pairs
+        for record_id in (previous_id, current_id)
+    }
+    config_text_by_record_id = {
+        record_id: config_text
+        for record_id, config_text in session.exec(
+            select(BackupRecord.id, BackupRecord.config_text).where(
+                BackupRecord.id.in_(candidate_record_ids)
+            )
         ).all()
-        for row in rows:
-            if prev and prev.config_text and row.config_text and prev.config_text != row.config_text:
-                change_timestamps.append(row.started_at)
-            prev = row
+    }
+    device_ids = {device_id for _previous_id, _current_id, device_id, _started_at in candidate_pairs}
+    devices_by_id = {
+        int(device.id): device
+        for device in session.exec(select(Device).where(Device.id.in_(device_ids))).all()
+        if device.id is not None
+    }
+    diff_rules = backup_service.load_diff_rules(session)
+
+    normalized_by_record_id: dict[UUID, tuple[str, ...]] = {}
+    change_timestamps: list[datetime] = []
+    for previous_id, current_id, device_id, started_at in candidate_pairs:
+        previous_text = config_text_by_record_id.get(previous_id)
+        current_text = config_text_by_record_id.get(current_id)
+        if not previous_text or not current_text:
+            continue
+        device = devices_by_id.get(device_id)
+        previous_normalized = normalized_by_record_id.get(previous_id)
+        if previous_normalized is None:
+            previous_normalized = backup_service.normalize_config_for_change_detection(
+                previous_text,
+                diff_rules=diff_rules,
+                device=device,
+            )
+            normalized_by_record_id[previous_id] = previous_normalized
+        current_normalized = normalized_by_record_id.get(current_id)
+        if current_normalized is None:
+            current_normalized = backup_service.normalize_config_for_change_detection(
+                current_text,
+                diff_rules=diff_rules,
+                device=device,
+            )
+            normalized_by_record_id[current_id] = current_normalized
+        if previous_normalized != current_normalized:
+            change_timestamps.append(started_at)
 
     return change_timestamps
 
